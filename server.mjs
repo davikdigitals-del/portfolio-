@@ -1,0 +1,103 @@
+// Node.js server wrapper for TanStack Start Cloudflare Workers build
+// This adapts the Web API fetch handler to run on Node.js for Render deployment
+
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join, extname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+
+// Import the TanStack Start fetch handler
+const { default: app } = await import("./dist/server/index.js");
+const fetchHandler = app.fetch;
+
+// MIME types for static files
+const MIME = {
+  ".html": "text/html",
+  ".js": "application/javascript",
+  ".mjs": "application/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".map": "application/json",
+};
+
+const CLIENT_DIR = join(__dirname, "dist/client");
+const PORT = process.env.PORT || 3000;
+
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  // Try to serve static files from dist/client first
+  const staticPath = join(CLIENT_DIR, url.pathname);
+  if (existsSync(staticPath) && !staticPath.endsWith("/")) {
+    try {
+      const data = await readFile(staticPath);
+      const ext = extname(staticPath);
+      res.writeHead(200, {
+        "Content-Type": MIME[ext] || "application/octet-stream",
+        "Cache-Control": url.pathname.startsWith("/assets/")
+          ? "public, max-age=31536000, immutable"
+          : "public, max-age=3600",
+      });
+      res.end(data);
+      return;
+    } catch {
+      // fall through to SSR
+    }
+  }
+
+  // Build a Web API Request from the Node.js request
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+  }
+
+  // Read body for POST/PUT/PATCH
+  let body = undefined;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    body = Buffer.concat(chunks);
+  }
+
+  const request = new Request(url.toString(), {
+    method: req.method,
+    headers,
+    body: body?.length ? body : undefined,
+  });
+
+  try {
+    const response = await fetchHandler(request);
+
+    res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+
+    if (response.body) {
+      const reader = response.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    }
+    res.end();
+  } catch (err) {
+    console.error("SSR error:", err);
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end("Internal Server Error");
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

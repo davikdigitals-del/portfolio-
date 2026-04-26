@@ -1,25 +1,29 @@
-# NOTE: This app uses TanStack Start with Cloudflare Workers preset.
-# For best results deploy to Cloudflare Pages (free, zero config).
-# See README for deployment instructions.
-#
-# If you must use Render, use a Static Site:
-#   Build: npm install && npm run build
-#   Publish dir: dist/client
-
 services:
   - type: web
     name: ajibola-portfolio
-    runtime: static
+    runtime: node
+    region: oregon
+    plan: free
     buildCommand: npm install && npm run build
-    staticPublishPath: dist/client
+    startCommand: node server.mjs
     envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
       - key: VITE_SUPABASE_URL
         value: https://gcckwqkzjoxraikosash.supabase.co
       - key: VITE_SUPABASE_PROJECT_ID
         value: gcckwqkzjoxraikosash
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjY2t3cWt6am94cmFpa29zYXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzA4MzQsImV4cCI6MjA5Mjc0NjgzNH0.BCjatcjeUane_yN9IAyI3iNdyyesq85pevZSH9LO-6E
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      - key: SUPABASE_URL
+        value: https://gcckwqkzjoxraikosash.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjY2t3cWt6am94cmFpa29zYXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzA4MzQsImV4cCI6MjA5Mjc0NjgzNH0.BCjatcjeUane_yN9IAyI3iNdyyesq85pevZSH9LO-6E
+      - key: RESEND_API_KEY
+        value: re_c4KHeFH6_Fqesax112zyPU1qmNSuywS4W
+      - key: ADMIN_EMAIL
+        value: ajibolagbengajoseph@gmail.com
+      - key: ADMIN_NAME
+        value: Ajibola Gbenga Joseph
+      - key: SITE_URL
+        value: https://ajibola-gbenga-joseph.onrender.com
