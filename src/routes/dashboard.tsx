@@ -118,6 +118,7 @@ function DashboardLayout() {
 
     console.log(`[CallListener] Setting up global call listener for ${isAdmin ? 'admin' : 'client'}, user ID:`, user.id);
     
+    // Subscribe to calls where we are the receiver
     const ch = supabase.channel(`global-calls-${user.id}`, {
       config: {
         broadcast: { self: false },
@@ -128,6 +129,7 @@ function DashboardLayout() {
         event: "INSERT",
         schema: "public",
         table: "calls",
+        filter: `receiver_id=eq.${user.id}`, // Only listen for calls where we're the receiver
       }, (payload) => {
         console.log("[CallListener] ===== CALL EVENT RECEIVED =====");
         console.log("[CallListener] Full payload:", JSON.stringify(payload, null, 2));
@@ -146,8 +148,8 @@ function DashboardLayout() {
         console.log("[CallListener] Am I the receiver?", call.receiver_id === user.id);
         console.log("[CallListener] Is status ringing?", call.status === "ringing");
         
-        // Show incoming call if we're the receiver and it's ringing
-        if (call.receiver_id === user.id && call.status === "ringing") {
+        // Show incoming call if status is ringing
+        if (call.status === "ringing") {
           console.log("[CallListener] ✅ SHOWING INCOMING CALL MODAL");
           setIncomingCall(call);
           
@@ -178,13 +180,7 @@ function DashboardLayout() {
             { tag: `call-${call.id}` }
           );
         } else {
-          console.log("[CallListener] ❌ NOT showing call. Reason:");
-          if (call.receiver_id !== user.id) {
-            console.log("  - Not the receiver (receiver:", call.receiver_id, "me:", user.id, ")");
-          }
-          if (call.status !== "ringing") {
-            console.log("  - Status is not ringing (status:", call.status, ")");
-          }
+          console.log("[CallListener] ❌ NOT showing call. Status is not ringing:", call.status);
         }
       })
       .subscribe((status, err) => {
@@ -195,6 +191,7 @@ function DashboardLayout() {
         }
         if (status === "SUBSCRIBED") {
           console.log("[CallListener] ✅ Successfully subscribed to calls table");
+          console.log("[CallListener] Listening for calls where receiver_id =", user.id);
         } else if (status === "CHANNEL_ERROR") {
           console.error("[CallListener] ❌ Channel error - realtime may not be enabled");
         } else if (status === "TIMED_OUT") {
