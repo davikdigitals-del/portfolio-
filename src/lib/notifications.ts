@@ -82,6 +82,36 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return new Uint8Array([...rawData].map(c => c.charCodeAt(0)));
 }
 
+// ─── Aggressive notification system for iPhone/Safari ───────────────────────
+
+// Keep track of notification state to prevent sleep
+let notificationState = {
+  lastNotificationTime: 0,
+  notificationCount: 0,
+  isShowingNotification: false,
+};
+
+// Wake lock to prevent device sleep
+let wakeLock: any = null;
+
+async function acquireWakeLock() {
+  try {
+    if ("wakeLock" in navigator) {
+      wakeLock = await (navigator as any).wakeLock.request("screen");
+      console.log("Wake lock acquired");
+    }
+  } catch (err) {
+    console.error("Wake lock error:", err);
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+}
+
 // ─── In-app / SW notification (for foreground + background tab) ───────────────
 
 export async function sendPushNotification(
@@ -92,6 +122,19 @@ export async function sendPushNotification(
   if (!canNotify()) return;
 
   const appVisible = document.visibilityState === "visible";
+  const now = Date.now();
+  
+  // Prevent notification spam
+  if (now - notificationState.lastNotificationTime < 500) {
+    return;
+  }
+  
+  notificationState.lastNotificationTime = now;
+  notificationState.notificationCount++;
+  notificationState.isShowingNotification = true;
+
+  // Acquire wake lock to prevent sleep
+  await acquireWakeLock();
 
   if (appVisible) {
     // App is open — show basic notification directly
@@ -107,7 +150,8 @@ export async function sendPushNotification(
         title,
         body,
         tag: options?.tag ?? "msg",
-        vibrate: [300, 100, 300, 100, 300], // Strong vibration pattern
+        vibrate: [400, 200, 400, 200, 400], // Very strong vibration
+        count: notificationState.notificationCount,
       });
       return;
     } catch (err) {
@@ -119,7 +163,7 @@ export async function sendPushNotification(
     try {
       const reg = await Promise.race([
         navigator.serviceWorker.ready,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 300)),
       ]);
       if (reg && "showNotification" in reg) {
         await (reg as ServiceWorkerRegistration).showNotification(title, {
@@ -127,7 +171,7 @@ export async function sendPushNotification(
           icon: options?.icon ?? "/me.webp",
           tag: options?.tag ?? "msg",
           data: { url: "/dashboard/chat" },
-          vibrate: [300, 100, 300, 100, 300], // Strong vibration
+          vibrate: [400, 200, 400, 200, 400], // Very strong vibration
           badge: "/me.webp",
           requireInteraction: true, // Keep notification until user interacts
           actions: [
@@ -155,10 +199,20 @@ function _showBasicNotification(
       body,
       icon: options?.icon ?? "/me.webp",
       tag: options?.tag,
-      vibrate: [300, 100, 300, 100, 300], // Strong vibration
+      vibrate: [400, 200, 400, 200, 400], // Very strong vibration
       requireInteraction: true, // Keep notification until user interacts
     });
-    n.onclick = () => { window.focus(); options?.onClick?.(); n.close(); };
+    n.onclick = () => { 
+      window.focus(); 
+      options?.onClick?.(); 
+      n.close();
+      releaseWakeLock();
+      notificationState.isShowingNotification = false;
+    };
+    n.onclose = () => {
+      releaseWakeLock();
+      notificationState.isShowingNotification = false;
+    };
     // Don't auto-close — let user dismiss it
   } catch (err) {
     console.error("Notification error:", err);
@@ -199,12 +253,15 @@ export function startBackgroundRefresh(onRefresh: () => void) {
   const handleVisibilityChange = () => {
     if (document.hidden) {
       // App went to background — start aggressive refresh
+      console.log("App hidden - starting background refresh");
       bgRefreshTimer = setInterval(() => {
         onRefresh();
-      }, 5000); // Refresh every 5 seconds in background
+      }, 3000); // Refresh every 3 seconds in background (more aggressive)
     } else {
       // App came to foreground — stop background refresh
+      console.log("App visible - stopping background refresh");
       stopBackgroundRefresh();
+      releaseWakeLock();
     }
   };
 
