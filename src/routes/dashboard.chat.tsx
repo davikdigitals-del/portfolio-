@@ -1043,10 +1043,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       .from("messages")
       .update({ content: editText.trim() })
       .eq("id", msgId);
-    if (error) toast.error("Failed to edit message");
-    else {
+    if (error) {
+      console.error("Edit message error:", error);
+      toast.error(`Failed to edit message: ${error.message}`);
+    } else {
       setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, content: editText.trim() } : m));
       setEditingId(null);
+      toast.success("Message edited");
     }
   }
 
@@ -1100,8 +1103,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       .from("messages")
       .update({ deleted_at: new Date().toISOString(), content: "This message was deleted" })
       .eq("id", msgId);
-    if (error) toast.error("Failed to delete message");
-    else setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted_at: new Date().toISOString(), content: "This message was deleted" } : m));
+    if (error) {
+      console.error("Delete message error:", error);
+      toast.error(`Failed to delete message: ${error.message}`);
+    } else {
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted_at: new Date().toISOString(), content: "This message was deleted" } : m));
+      toast.success("Message deleted");
+    }
     setCtxMenu(null);
   }
 
