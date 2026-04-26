@@ -261,7 +261,8 @@ function ChatPage() {
         })
         .subscribe();
 
-      // Step 4: poll every 10s as fallback
+      // Step 4: poll every 5s — fast enough to feel real-time
+      // (fallback in case realtime filter misses updates)
       pollTimer = setInterval(async () => {
         const { data } = await supabase
           .from("profiles")
@@ -477,7 +478,8 @@ function ChatPage() {
 
                 // CLIENT view: show admin's avatar, name, online status
                 if (!isAdmin) {
-                  const adminOnline = adminProfile?.status === "online";
+                  // Admin should NOT show as online in the sidebar list
+                  const adminOnline = false;
                   const adminName = adminProfile?.display_name ?? "Ajibola Gbenga Joseph";
                   const adminInitial = adminName[0].toUpperCase();
                   return (
@@ -1152,6 +1154,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "User")
     : (adminProfile?.display_name ?? "Ajibola Gbenga Joseph");
   const counterpartInitial = counterpartName[0].toUpperCase();
+  // Show admin as online in chat header only if they're actually online
   const isOnline = counterpartStatus === "online";
   const statusLabel = useLastSeenLabel(lastSeen, isOnline);
 
