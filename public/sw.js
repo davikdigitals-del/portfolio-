@@ -12,27 +12,34 @@ self.addEventListener("push", (e) => {
       icon: "/me.webp",
       tag: data.tag ?? "msg",
       data: { url: data.url ?? "/dashboard/chat" },
-      requireInteraction: false,
     })
   );
 });
 
 // ── Handle messages from the app (background notification relay) ─────────────
-// When the app is in background/minimized, it posts a message here to show a notification
 self.addEventListener("message", (e) => {
-  if (e.data?.type === "SHOW_NOTIFICATION") {
-    const { title, body, tag } = e.data;
-    e.waitUntil(
-      self.registration.showNotification(title, {
-        body,
-        icon: "/me.webp",
-        tag: tag ?? "msg",
-        data: { url: "/dashboard/chat" },
-        requireInteraction: false,
-        vibrate: [200, 100, 200],
+  if (e.data?.type !== "SHOW_NOTIFICATION") return;
+
+  const { title, body, tag } = e.data;
+
+  // Check if any window is currently focused — if so, skip SW notification
+  // (the app already showed a basic Notification directly)
+  e.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        const anyFocused = clients.some((c) => c.focused);
+        if (anyFocused) return; // app handled it directly
+
+        return self.registration.showNotification(title, {
+          body,
+          icon: "/me.webp",
+          tag: tag ?? "msg",
+          data: { url: "/dashboard/chat" },
+          vibrate: [200, 100, 200],
+        });
       })
-    );
-  }
+  );
 });
 
 // ── When user clicks the notification, focus or open the app ─────────────────

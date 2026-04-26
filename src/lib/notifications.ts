@@ -23,50 +23,53 @@ export async function sendPushNotification(
 ) {
   if (!canNotify()) return;
 
-  // Check if any app window is currently visible/focused
-  const appVisible = !document.hidden && document.visibilityState === "visible";
+  const appFocused = document.visibilityState === "visible" && document.hasFocus();
 
-  // If app is in background/minimized, use service worker to show notification
-  // (this works even when phone is locked or app is backgrounded)
+  // ── Path 1: Service Worker available and controlling the page ────────────
+  // Best for background/locked screen on both mobile and laptop
+  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+    try {
+      // Post to SW — works even when tab is hidden or phone is locked
+      navigator.serviceWorker.controller.postMessage({
+        type: "SHOW_NOTIFICATION",
+        title,
+        body,
+        tag: options?.tag ?? "msg",
+      });
+
+      // If app is focused on laptop, ALSO show a basic notification
+      // because SW notifications don't appear when the page is focused in some browsers
+      if (appFocused) {
+        _showBasicNotification(title, body, options);
+      }
+      return;
+    } catch {
+      // fall through
+    }
+  }
+
+  // ── Path 2: SW registered but not yet controlling (first load on laptop) ──
   if ("serviceWorker" in navigator) {
     try {
-      const reg = await navigator.serviceWorker.ready;
-
-      if (!appVisible) {
-        // App is in background — use SW to show notification (works on mobile)
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: "SHOW_NOTIFICATION",
-            title,
-            body,
-            tag: options?.tag,
-          });
-          return;
-        }
-        // Fallback: use showNotification directly
-        await reg.showNotification(title, {
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000)),
+      ]);
+      if (reg && "showNotification" in reg) {
+        await (reg as ServiceWorkerRegistration).showNotification(title, {
           body,
           icon: options?.icon ?? "/me.webp",
-          tag: options?.tag,
+          tag: options?.tag ?? "msg",
           data: { url: "/dashboard/chat" },
         });
         return;
       }
-
-      // App is visible — still show notification (user might be on a different tab)
-      await reg.showNotification(title, {
-        body,
-        icon: options?.icon ?? "/me.webp",
-        tag: options?.tag,
-        data: { url: "/dashboard/chat" },
-      });
-      return;
     } catch {
-      // SW not ready — fall through to basic notification
+      // fall through
     }
   }
 
-  // Fallback: basic Notification API (no SW)
+  // ── Path 3: No SW — basic Notification API (always works on laptop) ───────
   _showBasicNotification(title, body, options);
 }
 
@@ -88,7 +91,7 @@ function _showBasicNotification(
     };
     setTimeout(() => n.close(), 6000);
   } catch {
-    // Notification API not available
+    // Notification API blocked or unavailable
   }
 }
 

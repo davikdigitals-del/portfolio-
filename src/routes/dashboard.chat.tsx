@@ -195,21 +195,22 @@ function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [soundOn, setSoundOn] = useState(true);
   const [notifsOn, setNotifsOn] = useState(true);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">(
+    "Notification" in window ? Notification.permission : "unsupported"
+  );
 
   // ── WhatsApp-style presence ──
   usePresence(user?.id);
   useStalePresenceCleanup(isAdmin);
 
-  // Request browser push permission on mount
+  // Request browser push permission on mount — auto-prompt after 2s
   useEffect(() => {
-    void requestNotificationPermission().then((granted) => {
-      if (!granted && "Notification" in window && Notification.permission === "default") {
-        toast("Enable notifications to get message alerts", {
-          action: { label: "Allow", onClick: () => void requestNotificationPermission() },
-          duration: 8000,
-        });
-      }
-    });
+    if (notifPermission !== "default") return;
+    const t = setTimeout(async () => {
+      const granted = await requestNotificationPermission();
+      setNotifPermission(granted ? "granted" : "denied");
+    }, 2000);
+    return () => clearTimeout(t);
   }, []);
 
   // Total unread across all conversations for the reminder
@@ -392,6 +393,29 @@ function ChatPage() {
             )}
           </div>
         </div>
+        {/* Notification permission banner */}
+        {notifPermission === "default" && (
+          <div className="px-4 py-2.5 bg-primary/10 border-b border-primary/20 flex items-center gap-3">
+            <Bell className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-xs text-foreground flex-1">Enable notifications to get message alerts</span>
+            <button
+              onClick={async () => {
+                const granted = await requestNotificationPermission();
+                setNotifPermission(granted ? "granted" : "denied");
+                if (granted) toast.success("Notifications enabled!");
+              }}
+              className="text-xs font-semibold text-primary hover:underline shrink-0"
+            >
+              Allow
+            </button>
+          </div>
+        )}
+        {notifPermission === "denied" && (
+          <div className="px-4 py-2 bg-muted/50 border-b border-border flex items-center gap-2">
+            <BellOff className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground">Notifications blocked. Enable in browser settings.</span>
+          </div>
+        )}
         {isAdmin && (
           <div className="p-3 border-b border-border">
             <div className="relative">
