@@ -732,7 +732,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   );
   const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
   const [activeCall, setActiveCall] = useState<Call | null>(null);
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -1495,7 +1494,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     
     try {
       await callManager.declineCall(call.id);
-      setIncomingCall(null);
       toast.info("Call declined");
     } catch (err) {
       console.error("Failed to decline call:", err);
@@ -1580,43 +1578,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     };
   }, [activeCall]);
 
-  // Subscribe to incoming calls
+  // Subscribe to call status updates (not incoming calls - that's handled globally)
   useEffect(() => {
     if (!user || !conversation) return;
 
     const ch = supabase.channel(`calls:${conversation.id}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "calls",
-        filter: `conversation_id=eq.${conversation.id}`,
-      }, (payload) => {
-        const call = payload.new as Call;
-        // Only show incoming call notification if we're the receiver
-        if (call.receiver_id === user.id && call.status === "ringing") {
-          setIncomingCall(call);
-          
-          // Set missed call timer - 30 seconds
-          const missedTimer = setTimeout(async () => {
-            console.log("[Call] Call not answered within 30s, marking as missed:", call.id);
-            await supabase
-              .from("calls")
-              .update({ status: "missed", ended_at: new Date().toISOString() })
-              .eq("id", call.id)
-              .eq("status", "ringing"); // Only update if still ringing
-            setIncomingCall(null);
-          }, 30000);
-          
-          // Store timer to clean up if answered
-          (call as any)._missedTimer = missedTimer;
-          
-          void sendPushNotification(
-            call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
-            `${isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"} is calling...`,
-            { tag: `call-${call.id}` }
-          );
-        }
-      })
       .on("postgres_changes", {
         event: "UPDATE",
         schema: "public",
@@ -1631,15 +1597,34 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       .subscribe();
 
     return () => { void supabase.removeChannel(ch); };
-  }, [user, conversation.id, activeCall?.id, isAdmin, conversation.profile?.display_name, adminProfile?.display_name]);
+  }, [user, conversation.id, activeCall?.id]);
 
-  // Handle pending call from URL parameter
+  // Handle URL parameters for incoming calls - auto-answer when navigating from global modal
   useEffect(() => {
-    if (!pendingCallId || !incomingCall || incomingCall.id !== pendingCallId) return;
+    const params = new URLSearchParams(window.location.search);
+    const convId = params.get("conv");
+    const callId = params.get("call");
     
-    console.log("Auto-answering pending call:", pendingCallId);
-    void answerCall(incomingCall);
-  }, [pendingCallId, incomingCall]);
+    if (convId && callId && conversation.id === convId) {
+      console.log("[Call] Auto-answering call from URL:", callId);
+      
+      // Fetch the call details
+      supabase
+        .from("calls")
+        .select("*")
+        .eq("id", callId)
+        .maybeSingle()
+        .then(({ data: call }) => {
+          if (call && call.status === "ringing") {
+            console.log("[Call] Found ringing call, answering:", call);
+            void answerCall(call as Call);
+          }
+        });
+      
+      // Clean up URL
+      window.history.replaceState({}, "", "/dashboard/chat");
+    }
+  }, [conversation.id]);
 
   const counterpartName = isAdmin
     ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "User")
@@ -1738,54 +1723,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         </div>
       )}
 
-      {/* Incoming call modal - WhatsApp style fullscreen */}
-      {incomingCall && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-b from-primary/20 to-background">
-          {/* Caller info */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-6">
-            {/* Avatar */}
-            <div className="relative">
-              {!isAdmin && adminProfile?.avatar_url ? (
-                <img src={adminProfile.avatar_url} alt="Caller" className="h-32 w-32 rounded-full object-cover ring-4 ring-primary" />
-              ) : isAdmin && conversation.profile?.avatar_url ? (
-                <img src={conversation.profile.avatar_url} alt="Caller" className="h-32 w-32 rounded-full object-cover ring-4 ring-primary" />
-              ) : (
-                <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-primary">
-                  {(isAdmin ? conversation.profile?.display_name?.[0] : adminProfile?.display_name?.[0]) ?? "?"}
-                </div>
-              )}
-            </div>
-
-            {/* Caller name */}
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-foreground">
-                {isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"}
-              </h1>
-              <p className="text-lg text-muted-foreground mt-2">
-                {incomingCall.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call"}
-              </p>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex gap-8 pb-12">
-            <button
-              onClick={() => declineCall(incomingCall)}
-              className="flex items-center justify-center h-16 w-16 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95 shadow-lg"
-              title="Decline call"
-            >
-              <PhoneOff className="h-7 w-7" />
-            </button>
-            <button
-              onClick={() => answerCall(incomingCall)}
-              className="flex items-center justify-center h-16 w-16 rounded-full bg-green-500 text-white hover:opacity-90 transition-all active:scale-95 shadow-lg"
-              title="Answer call"
-            >
-              <Phone className="h-7 w-7" />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Incoming call is now handled by the global modal in dashboard.tsx */}
 
       {/* Active call UI - WhatsApp style fullscreen */}
       {activeCall && (

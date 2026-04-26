@@ -107,6 +107,7 @@ function DashboardLayout() {
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [incomingCall, setIncomingCall] = useState<Call | null>(null);
+  const [incomingCallProfile, setIncomingCallProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
   const routerState = useRouterState();
 
   usePresence(user?.id);
@@ -153,6 +154,19 @@ function DashboardLayout() {
           console.log("[CallListener] ✅ SHOWING INCOMING CALL MODAL");
           setIncomingCall(call);
           
+          // Fetch caller's profile
+          const callerId = call.initiator_id;
+          supabase
+            .from("profiles")
+            .select("display_name, avatar_url")
+            .eq("user_id", callerId)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data) {
+                setIncomingCallProfile(data);
+              }
+            });
+          
           // Set missed call timer - 30 seconds
           const missedTimer = setTimeout(async () => {
             console.log("[CallListener] Call not answered within 30s, marking as missed:", call.id);
@@ -162,6 +176,7 @@ function DashboardLayout() {
               .eq("id", call.id)
               .eq("status", "ringing"); // Only update if still ringing
             setIncomingCall(null);
+            setIncomingCallProfile(null);
             
             // Show missed call notification
             void sendPushNotification(
@@ -378,27 +393,37 @@ function DashboardLayout() {
 
       {/* Global incoming call modal for both admin and client */}
       {incomingCall && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-b from-primary/20 to-background">
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-b from-blue-900 to-gray-900 animate-fade-in">
           {/* Caller info */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-6">
-            {/* Avatar placeholder */}
-            <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-primary">
-              {isAdmin ? "C" : "A"}
+          <div className="flex-1 flex flex-col items-center justify-center gap-8 px-4">
+            {/* Avatar with pulse animation */}
+            <div className="relative animate-pulse-slow">
+              {incomingCallProfile?.avatar_url ? (
+                <img 
+                  src={incomingCallProfile.avatar_url} 
+                  alt="Caller" 
+                  className="h-40 w-40 md:h-48 md:w-48 rounded-full object-cover ring-8 ring-white/30 shadow-2xl" 
+                />
+              ) : (
+                <div className="flex h-40 w-40 md:h-48 md:w-48 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white text-6xl md:text-7xl font-bold ring-8 ring-white/30 shadow-2xl">
+                  {(incomingCallProfile?.display_name?.[0] || (isAdmin ? "C" : "A")).toUpperCase()}
+                </div>
+              )}
             </div>
 
             {/* Caller name */}
             <div className="text-center">
-              <h1 className="text-3xl font-bold text-foreground">
-                {isAdmin ? "Client Calling" : "Ajibola Calling"}
+              <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 drop-shadow-lg">
+                {incomingCallProfile?.display_name || (isAdmin ? "Client" : "Ajibola")}
               </h1>
-              <p className="text-lg text-muted-foreground mt-2">
-                {incomingCall.call_type === "video" ? "📹 Video call" : "☎️ Voice call"}
+              <p className="text-xl md:text-2xl text-white/80 font-medium">
+                {incomingCall.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call"}
               </p>
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex gap-8 pb-12">
+          {/* Action buttons - Larger and more accessible */}
+          <div className="flex gap-12 md:gap-16 pb-16 md:pb-20">
             <button
               onClick={async () => {
                 // Clear missed call timer
@@ -412,11 +437,15 @@ function DashboardLayout() {
                   .update({ status: "declined", ended_at: new Date().toISOString() })
                   .eq("id", incomingCall.id);
                 setIncomingCall(null);
+                setIncomingCallProfile(null);
               }}
-              className="flex items-center justify-center h-16 w-16 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95 shadow-lg"
+              className="flex flex-col items-center justify-center gap-2 group"
               title="Decline call"
             >
-              <PhoneOff className="h-7 w-7" />
+              <div className="flex items-center justify-center h-20 w-20 md:h-24 md:w-24 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all active:scale-90 shadow-2xl group-hover:shadow-red-500/50">
+                <PhoneOff className="h-10 w-10 md:h-12 md:w-12" />
+              </div>
+              <span className="text-white text-sm font-medium">Decline</span>
             </button>
             <button
               onClick={() => {
@@ -429,10 +458,13 @@ function DashboardLayout() {
                 const conversationId = incomingCall.conversation_id;
                 void navigate({ to: `/dashboard/chat?conv=${conversationId}&call=${incomingCall.id}` });
               }}
-              className="flex items-center justify-center h-16 w-16 rounded-full bg-green-500 text-white hover:opacity-90 transition-all active:scale-95 shadow-lg"
+              className="flex flex-col items-center justify-center gap-2 group"
               title="Answer call"
             >
-              <Phone className="h-7 w-7" />
+              <div className="flex items-center justify-center h-20 w-20 md:h-24 md:w-24 rounded-full bg-green-500 text-white hover:bg-green-600 transition-all active:scale-90 shadow-2xl group-hover:shadow-green-500/50 animate-bounce-slow">
+                <Phone className="h-10 w-10 md:h-12 md:w-12" />
+              </div>
+              <span className="text-white text-sm font-medium">Answer</span>
             </button>
           </div>
         </div>
