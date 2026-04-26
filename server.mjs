@@ -11,7 +11,8 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 // Import the TanStack Start fetch handler
 const { default: app } = await import("./dist/server/index.js");
-const fetchHandler = app.fetch;
+// The app might be the fetch handler itself, or an object with a fetch method
+const fetchHandler = typeof app === 'function' ? app : (app.fetch || app.default?.fetch);
 
 // MIME types for static files
 const MIME = {
