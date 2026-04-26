@@ -20,7 +20,6 @@ import {
   startUnreadReminder,
   stopUnreadReminder,
   startBackgroundRefresh,
-  stopBackgroundRefresh,
 } from "@/lib/notifications";
 import { callManager, type Call, type CallType } from "@/lib/calls";
 
@@ -181,7 +180,7 @@ function ChatPage() {
   const [soundOn, setSoundOn] = useState(true);
   const [notifsOn, setNotifsOn] = useState(true);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">(
-    "Notification" in window ? Notification.permission : "unsupported"
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"
   );
   const [pendingCallId, setPendingCallId] = useState<string | null>(null);
 
@@ -563,7 +562,7 @@ function ChatPage() {
             <button onClick={() => setNotifsOn((v) => !v)} title={notifsOn ? "Disable notifications" : "Enable notifications"} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
               {notifsOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
             </button>
-            {"Notification" in window && Notification.permission === "default" && (
+            {typeof window !== "undefined" && "Notification" in window && Notification.permission === "default" && (
               <button
                 onClick={() => requestNotificationPermission().then((ok) => ok && toast.success("Push notifications enabled!"))}
                 title="Enable push notifications"
