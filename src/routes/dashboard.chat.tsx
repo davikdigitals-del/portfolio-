@@ -813,7 +813,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       setMessages((prev) => [...prev, optimistic]);
     }
 
-    // Upload all files in parallel
+    // Upload all files in parallel — bucket is public so getPublicUrl works
     await Promise.all(filePreviews.map(async (fp, idx) => {
       const ext = fp.file.name.split(".").pop() ?? "bin";
       const path = `${conversation.id}/${crypto.randomUUID()}.${ext}`;
@@ -823,14 +823,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 
       if (upErr) {
         toast.error(`Failed to upload ${fp.file.name}`);
-        // Remove optimistic message
         setMessages((prev) => prev.filter((m) => m.id !== optimisticIds[idx]));
         return;
       }
 
+      // Public URL — no expiry, works forever
       const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
-      const fileUrl = urlData?.publicUrl ?? path;
-
+      const fileUrl = urlData.publicUrl;
       const msgType = fp.kind === "image" ? "image" : "file";
 
       const { data: inserted } = await supabase.from("messages").insert({
@@ -843,7 +842,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         file_size: fp.file.size,
       }).select("*").single();
 
-      // Replace optimistic with real message
       if (inserted) {
         setMessages((prev) =>
           prev.map((m) => m.id === optimisticIds[idx] ? (inserted as Message) : m)
@@ -943,27 +941,20 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       return;
     }
     
-    // Get a signed URL (works with private buckets)
-    const { data: signedData, error: signErr } = await supabase.storage
-      .from("chat-files")
-      .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 days
-    
-    if (signErr || !signedData?.signedUrl) {
-      toast.error("Failed to get voice note URL");
-      setUploading(false);
-      return;
-    }
-    
+    // Public URL — no expiry
+    const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
+    const fileUrl = urlData.publicUrl;
+
     await supabase.from("messages").insert({
       conversation_id: conversation.id,
       sender_id: user.id,
       content: null,
       type: "voice",
-      file_url: signedData.signedUrl,
+      file_url: fileUrl,
       file_name: fileName,
       file_size: blob.size,
     });
-    
+
     toast.success("Voice note sent!");
     setUploading(false);
   }
