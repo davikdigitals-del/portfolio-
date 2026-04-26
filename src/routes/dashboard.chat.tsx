@@ -1564,6 +1564,159 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
   );
 }
 
+function ImageLightbox({ src, name, onClose }: { src: string; name: string; onClose: () => void }) {
+  const [scale, setScale] = useState(1);
+  const [dragging, setDragging] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [startDrag, setStartDrag] = useState({ x: 0, y: 0 });
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Prevent body scroll
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  function handleWheel(e: React.WheelEvent) {
+    e.preventDefault();
+    setScale(s => Math.min(5, Math.max(0.5, s - e.deltaY * 0.001)));
+  }
+
+  function handleMouseDown(e: React.MouseEvent) {
+    if (scale <= 1) return;
+    setDragging(true);
+    setStartDrag({ x: e.clientX - pos.x, y: e.clientY - pos.y });
+  }
+
+  function handleMouseMove(e: React.MouseEvent) {
+    if (!dragging) return;
+    setPos({ x: e.clientX - startDrag.x, y: e.clientY - startDrag.y });
+  }
+
+  function handleMouseUp() { setDragging(false); }
+
+  // Double tap to zoom
+  function handleDoubleClick() {
+    if (scale > 1) { setScale(1); setPos({ x: 0, y: 0 }); }
+    else setScale(2.5);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex flex-col bg-black/95"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-black/60 backdrop-blur-sm">
+        <span className="text-white/80 text-sm truncate max-w-[60vw]">{name}</span>
+        <div className="flex items-center gap-3">
+          {/* Zoom controls */}
+          <button onClick={() => setScale(s => Math.min(5, s + 0.5))}
+            className="text-white/70 hover:text-white transition-colors text-lg font-bold w-8 h-8 flex items-center justify-center">
+            +
+          </button>
+          <button onClick={() => { setScale(1); setPos({ x: 0, y: 0 }); }}
+            className="text-white/70 hover:text-white transition-colors text-xs">
+            {Math.round(scale * 100)}%
+          </button>
+          <button onClick={() => setScale(s => Math.max(0.5, s - 0.5))}
+            className="text-white/70 hover:text-white transition-colors text-lg font-bold w-8 h-8 flex items-center justify-center">
+            −
+          </button>
+          {/* Download */}
+          <a href={src} download={name} target="_blank" rel="noreferrer"
+            className="text-white/70 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+            <Download className="h-5 w-5" />
+          </a>
+          {/* Close */}
+          <button onClick={onClose}
+            className="text-white/70 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Image area */}
+      <div
+        className="flex-1 overflow-hidden flex items-center justify-center"
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ cursor: scale > 1 ? (dragging ? "grabbing" : "grab") : "zoom-in" }}
+      >
+        <img
+          src={src}
+          alt={name}
+          onDoubleClick={handleDoubleClick}
+          draggable={false}
+          className="max-w-full max-h-full object-contain select-none transition-transform duration-150"
+          style={{
+            transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+            transformOrigin: "center center",
+          }}
+        />
+      </div>
+
+      {/* Bottom hint */}
+      <div className="text-center text-white/30 text-xs py-2 shrink-0">
+        Scroll to zoom · Double-tap to zoom in · Drag to pan
+      </div>
+    </div>
+  );
+}
+
+function ImageBubble({ message: m, mine }: { message: Message; mine: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} w-[260px] max-w-[260px]`}>
+        <button
+          onClick={() => setOpen(true)}
+          className="block w-full relative group focus:outline-none"
+        >
+          <img
+            src={m.file_url!}
+            alt={m.file_name ?? "image"}
+            className="w-full object-cover block"
+            style={{ maxHeight: 300, minHeight: 120 }}
+          />
+          {/* Hover overlay with zoom icon */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </div>
+          </div>
+        </button>
+        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${mine ? "bg-gradient-primary text-primary-foreground" : "bg-surface-elevated"}`}>
+          <span className={`text-[11px] truncate ${mine ? "text-white/70" : "text-muted-foreground"}`}>{m.file_name}</span>
+          <a href={m.file_url!} download={m.file_name ?? "image"} target="_blank" rel="noreferrer"
+            className="shrink-0 hover:opacity-70 transition-opacity" onClick={e => e.stopPropagation()}>
+            <Download className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </div>
+      {open && (
+        <ImageLightbox
+          src={m.file_url!}
+          name={m.file_name ?? "image"}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
 function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: {
   message: Message;
   mine: boolean;
@@ -1582,27 +1735,7 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
 
   // ── Image ───────────────────────────────────────────────────────────────────
   if (m.type === "image" && m.file_url) {
-    return (
-      <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} w-[260px] max-w-[260px]`}>
-        <a href={m.file_url} target="_blank" rel="noreferrer" className="block relative group">
-          <img
-            src={m.file_url}
-            alt={m.file_name ?? "image"}
-            className="w-full object-cover block"
-            style={{ maxHeight: 300, minHeight: 120 }}
-          />
-          {/* Hover overlay */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-        </a>
-        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${mine ? "bg-gradient-primary text-primary-foreground" : "bg-surface-elevated"}`}>
-          <span className={`text-[11px] truncate ${mine ? "text-white/70" : "text-muted-foreground"}`}>{m.file_name}</span>
-          <a href={m.file_url} download={m.file_name ?? "image"} target="_blank" rel="noreferrer"
-            className="shrink-0 hover:opacity-70 transition-opacity" onClick={e => e.stopPropagation()}>
-            <Download className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </div>
-    );
+    return <ImageBubble message={m} mine={mine} />;
   }
 
   // ── File / Video / Document ─────────────────────────────────────────────────
