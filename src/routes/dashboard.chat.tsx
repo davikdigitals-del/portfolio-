@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
-  Sparkles, Paperclip, Mic, MicOff, Download, X, Volume2, VolumeX,
+  Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
   Play, Pause, FileText, Bell, BellOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -674,11 +674,20 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      
+      // Pick the best supported format
+      const mimeType = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/mp4",
+      ].find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+      
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       audioChunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mr.onstop = () => { stream.getTracks().forEach((t) => t.stop()); void sendVoiceNote(); };
-      mr.start();
+      mr.onstop = () => { stream.getTracks().forEach((t) => t.stop()); void sendVoiceNote(mimeType); };
+      mr.start(100); // collect data every 100ms for reliability
       mediaRecorderRef.current = mr;
       setRecording(true);
       setRecordingSeconds(0);
@@ -694,24 +703,56 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     setRecording(false);
   }
 
-  async function sendVoiceNote() {
+  async function sendVoiceNote(mimeType?: string) {
     if (!user || !audioChunksRef.current.length) return;
     setUploading(true);
-    const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-    const path = `${conversation.id}/voice-${crypto.randomUUID()}.webm`;
-    const { error: upErr } = await supabase.storage.from("chat-files").upload(path, blob);
-    if (upErr) { toast.error("Failed to upload voice note"); setUploading(false); return; }
-    const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
-    const fileUrl = urlData?.publicUrl ?? path;
+    
+    // Determine file extension from mime type
+    const ext = mimeType?.includes("ogg") ? "ogg" : mimeType?.includes("mp4") ? "mp4" : "webm";
+    const finalMime = mimeType || "audio/webm";
+    const blob = new Blob(audioChunksRef.current, { type: finalMime });
+    
+    if (blob.size < 100) {
+      toast.error("Recording too short, please try again");
+      setUploading(false);
+      return;
+    }
+    
+    const fileName = `voice-${crypto.randomUUID()}.${ext}`;
+    const path = `${conversation.id}/${fileName}`;
+    
+    const { error: upErr } = await supabase.storage
+      .from("chat-files")
+      .upload(path, blob, { contentType: finalMime, upsert: false });
+    
+    if (upErr) {
+      toast.error("Failed to upload voice note: " + upErr.message);
+      setUploading(false);
+      return;
+    }
+    
+    // Get a signed URL (works with private buckets)
+    const { data: signedData, error: signErr } = await supabase.storage
+      .from("chat-files")
+      .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 days
+    
+    if (signErr || !signedData?.signedUrl) {
+      toast.error("Failed to get voice note URL");
+      setUploading(false);
+      return;
+    }
+    
     await supabase.from("messages").insert({
       conversation_id: conversation.id,
       sender_id: user.id,
       content: null,
       type: "voice",
-      file_url: fileUrl,
-      file_name: "Voice note",
+      file_url: signedData.signedUrl,
+      file_name: fileName,
       file_size: blob.size,
     });
+    
+    toast.success("Voice note sent!");
     setUploading(false);
   }
 
@@ -719,16 +760,29 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   function togglePlay(msgId: string, url: string) {
     let audio = audioRefs.current.get(msgId);
     if (!audio) {
-      audio = new Audio(url);
+      audio = new Audio();
+      audio.crossOrigin = "anonymous";
+      audio.preload = "auto";
+      audio.src = url;
       audio.onended = () => setPlayingId(null);
+      audio.onerror = () => {
+        toast.error("Could not play voice note");
+        setPlayingId(null);
+      };
       audioRefs.current.set(msgId, audio);
     }
     if (playingId === msgId) {
       audio.pause();
       setPlayingId(null);
     } else {
-      audioRefs.current.forEach((a, id) => { if (id !== msgId) { a.pause(); a.currentTime = 0; } });
-      void audio.play();
+      // Pause any other playing audio
+      audioRefs.current.forEach((a, id) => {
+        if (id !== msgId) { a.pause(); a.currentTime = 0; }
+      });
+      audio.play().catch(() => {
+        toast.error("Could not play voice note");
+        setPlayingId(null);
+      });
       setPlayingId(msgId);
     }
   }
@@ -905,15 +959,54 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       {/* Composer */}
       <form onSubmit={send} className="p-4 border-t border-border bg-surface/40 shrink-0">
         {recording ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-destructive/60 bg-destructive/5 p-3">
-            <div className="flex items-center gap-2 flex-1">
-              <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
-              <span className="text-sm font-medium text-destructive">Recording...</span>
-              <span className="text-sm text-muted-foreground">{recordingSeconds}s</span>
+          <div className="flex items-center gap-3 rounded-2xl border border-red-500/40 bg-red-500/5 px-4 py-3">
+            {/* Cancel */}
+            <button
+              type="button"
+              onClick={() => {
+                if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+                mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop());
+                mediaRecorderRef.current = null;
+                audioChunksRef.current = [];
+                setRecording(false);
+                setRecordingSeconds(0);
+              }}
+              className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+              title="Cancel recording"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Live waveform */}
+            <div className="flex-1 flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+              <div className="flex items-end gap-[2px] h-6 flex-1">
+                {Array.from({ length: 24 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 rounded-full bg-red-400/70 animate-pulse"
+                    style={{
+                      height: `${25 + Math.abs(Math.sin((Date.now() / 200 + i) * 0.8)) * 75}%`,
+                      animationDelay: `${i * 40}ms`,
+                      animationDuration: `${400 + (i % 5) * 80}ms`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="text-sm font-mono font-medium text-red-500 shrink-0 w-10 text-right">
+                {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, "0")}
+              </span>
             </div>
-            <Button type="button" variant="destructive" size="sm" onClick={stopRecording} className="gap-1.5">
-              <MicOff className="h-4 w-4" /> Stop & Send
-            </Button>
+
+            {/* Send */}
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 shrink-0 shadow-glow"
+              title="Send voice note"
+            >
+              <Send className="h-4 w-4" />
+            </button>
           </div>
         ) : (
           <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 focus-within:border-primary/60 focus-within:shadow-glow transition-all">
@@ -930,12 +1023,27 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
               disabled={filePreviews.length > 0}
               className="flex-1 resize-none bg-transparent outline-none px-2 py-2 text-sm max-h-32 placeholder:text-muted-foreground disabled:opacity-50"
             />
-            <button type="button" onClick={startRecording} title="Record voice note" disabled={uploading} className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0 disabled:opacity-40">
-              <Mic className="h-4 w-4" />
-            </button>
-            <Button type="submit" disabled={(!text.trim() && filePreviews.length === 0) || sending || uploading} size="sm" className="bg-gradient-primary hover:opacity-90 shadow-glow h-9 w-9 p-0 shrink-0">
-              {sending || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
+            {/* Show mic when no text, send when text */}
+            {!text.trim() && filePreviews.length === 0 ? (
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={uploading}
+                title="Record voice note"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40"
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={(!text.trim() && filePreviews.length === 0) || sending || uploading}
+                size="sm"
+                className="bg-gradient-primary hover:opacity-90 shadow-glow h-9 w-9 p-0 shrink-0"
+              >
+                {sending || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            )}
           </div>
         )}
       </form>
@@ -944,6 +1052,122 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 }
 
 // ---- MessageBubble -----------------------------------------------------------
+
+function VoiceBubble({ message: m, mine, playingId, onTogglePlay }: {
+  message: Message;
+  mine: boolean;
+  playingId: string | null;
+  onTogglePlay: (id: string, url: string) => void;
+}) {
+  const isPlaying = playingId === m.id;
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (!m.file_url) return;
+    const audio = new Audio(m.file_url);
+    audioRef.current = audio;
+    audio.onloadedmetadata = () => {
+      if (isFinite(audio.duration)) setDuration(audio.duration);
+    };
+    audio.ontimeupdate = () => {
+      setCurrentTime(audio.currentTime);
+      if (audio.duration && isFinite(audio.duration)) {
+        setProgress((audio.currentTime / audio.duration) * 100);
+      }
+    };
+    audio.onended = () => {
+      setProgress(0);
+      setCurrentTime(0);
+    };
+    return () => { audio.pause(); audio.src = ""; };
+  }, [m.file_url]);
+
+  function handleToggle() {
+    if (!audioRef.current || !m.file_url) return;
+    onTogglePlay(m.id, m.file_url);
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(() => {});
+    }
+  }
+
+  function handleSeek(e: React.MouseEvent<HTMLDivElement>) {
+    if (!audioRef.current || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pct = x / rect.width;
+    audioRef.current.currentTime = pct * duration;
+    setProgress(pct * 100);
+  }
+
+  function fmtTime(s: number) {
+    if (!isFinite(s)) return "0:00";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  }
+
+  // 30 bars for waveform
+  const bars = Array.from({ length: 30 }, (_, i) => {
+    const h = 20 + Math.abs(Math.sin(i * 0.9 + 1) * 60 + Math.cos(i * 0.4) * 20);
+    const filled = (i / 30) * 100 <= progress;
+    return { h, filled };
+  });
+
+  return (
+    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl min-w-[220px] max-w-[280px] ${
+      mine
+        ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
+        : "bg-surface-elevated text-foreground rounded-bl-sm"
+    }`}>
+      {/* Play/Pause button */}
+      <button
+        onClick={handleToggle}
+        className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-all active:scale-95 ${
+          mine ? "bg-white/25 hover:bg-white/35" : "bg-primary hover:bg-primary/90"
+        }`}
+      >
+        {isPlaying
+          ? <Pause className={`h-4 w-4 ${mine ? "text-white" : "text-primary-foreground"}`} />
+          : <Play className={`h-4 w-4 ml-0.5 ${mine ? "text-white" : "text-primary-foreground"}`} />
+        }
+      </button>
+
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+        {/* Waveform + seekbar */}
+        <div
+          className="flex items-end gap-[2px] h-8 cursor-pointer"
+          onClick={handleSeek}
+        >
+          {bars.map((b, i) => (
+            <div
+              key={i}
+              className={`flex-1 rounded-full transition-colors ${
+                b.filled
+                  ? mine ? "bg-white" : "bg-primary"
+                  : mine ? "bg-white/35" : "bg-muted-foreground/30"
+              }`}
+              style={{ height: `${b.h}%` }}
+            />
+          ))}
+        </div>
+
+        {/* Time */}
+        <div className={`flex items-center justify-between text-[10px] ${mine ? "text-white/70" : "text-muted-foreground"}`}>
+          <span>{isPlaying || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration)}</span>
+          <span className={`flex items-center gap-1 ${mine ? "text-white/50" : "text-muted-foreground/60"}`}>
+            <Mic className="h-2.5 w-2.5" />
+            Voice note
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function MessageBubble({ message: m, mine, playingId, onTogglePlay }: {
   message: Message;
@@ -956,31 +1180,7 @@ function MessageBubble({ message: m, mine, playingId, onTogglePlay }: {
     : "bg-surface-elevated text-foreground rounded-bl-sm";
 
   if (m.type === "voice" && m.file_url) {
-    const isPlaying = playingId === m.id;
-    return (
-      <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${base} min-w-[160px]`}>
-        <button
-          onClick={() => onTogglePlay(m.id, m.file_url!)}
-          className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${mine ? "bg-white/20 hover:bg-white/30" : "bg-primary/10 hover:bg-primary/20"} transition-colors`}
-        >
-          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="flex gap-0.5 items-end h-5">
-            {Array.from({ length: 20 }).map((_, i) => (
-              <div
-                key={i}
-                className={`w-0.5 rounded-full ${mine ? "bg-white/60" : "bg-primary/40"} ${isPlaying ? "animate-pulse" : ""}`}
-                style={{ height: `${30 + Math.sin(i * 0.8) * 50}%` }}
-              />
-            ))}
-          </div>
-          <div className={`text-[10px] mt-1 ${mine ? "text-white/60" : "text-muted-foreground"}`}>
-            Voice note {m.file_size ? `· ${formatBytes(m.file_size)}` : ""}
-          </div>
-        </div>
-      </div>
-    );
+    return <VoiceBubble message={m} mine={mine} playingId={playingId} onTogglePlay={onTogglePlay} />;
   }
 
   if (m.type === "image" && m.file_url) {
