@@ -976,8 +976,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       setRecording(true);
       setRecordingSeconds(0);
       recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
-    } catch {
-      toast.error("Microphone access denied");
+    } catch (err) {
+      console.error("Recording error:", err);
+      toast.error("Microphone access denied or not supported");
     }
   }
 
@@ -991,46 +992,60 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     if (!user || !audioChunksRef.current.length) return;
     setUploading(true);
     
-    // Determine file extension from mime type
-    const ext = mimeType?.includes("ogg") ? "ogg" : mimeType?.includes("mp4") ? "mp4" : "webm";
-    const finalMime = mimeType || "audio/webm";
-    const blob = new Blob(audioChunksRef.current, { type: finalMime });
-    
-    if (blob.size < 100) {
-      toast.error("Recording too short, please try again");
-      setUploading(false);
-      return;
-    }
-    
-    const fileName = `voice-${crypto.randomUUID()}.${ext}`;
-    const path = `${conversation.id}/${fileName}`;
-    
-    const { error: upErr } = await supabase.storage
-      .from("chat-files")
-      .upload(path, blob, { contentType: finalMime, upsert: false });
-    
-    if (upErr) {
-      toast.error("Failed to upload voice note: " + upErr.message);
-      setUploading(false);
-      return;
-    }
-    
-    // Public URL — no expiry
-    const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
-    const fileUrl = urlData.publicUrl;
+    try {
+      // Determine file extension from mime type
+      const ext = mimeType?.includes("ogg") ? "ogg" : mimeType?.includes("mp4") ? "mp4" : "webm";
+      const finalMime = mimeType || "audio/webm";
+      const blob = new Blob(audioChunksRef.current, { type: finalMime });
+      
+      if (blob.size < 100) {
+        toast.error("Recording too short, please try again");
+        setUploading(false);
+        return;
+      }
+      
+      const fileName = `voice-${crypto.randomUUID()}.${ext}`;
+      const path = `${conversation.id}/${fileName}`;
+      
+      const { error: upErr } = await supabase.storage
+        .from("chat-files")
+        .upload(path, blob, { contentType: finalMime, upsert: false });
+      
+      if (upErr) {
+        console.error("Voice upload error:", upErr);
+        toast.error("Failed to upload voice note: " + upErr.message);
+        setUploading(false);
+        return;
+      }
+      
+      // Public URL — no expiry
+      const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
+      const fileUrl = urlData.publicUrl;
 
-    await supabase.from("messages").insert({
-      conversation_id: conversation.id,
-      sender_id: user.id,
-      content: null,
-      type: "voice",
-      file_url: fileUrl,
-      file_name: fileName,
-      file_size: blob.size,
-    });
+      const { error: msgErr } = await supabase.from("messages").insert({
+        conversation_id: conversation.id,
+        sender_id: user.id,
+        content: null,
+        type: "voice",
+        file_url: fileUrl,
+        file_name: fileName,
+        file_size: blob.size,
+      });
 
-    toast.success("Voice note sent!");
-    setUploading(false);
+      if (msgErr) {
+        console.error("Voice message insert error:", msgErr);
+        toast.error("Failed to save voice note: " + msgErr.message);
+        setUploading(false);
+        return;
+      }
+
+      toast.success("Voice note sent!");
+      setUploading(false);
+    } catch (err) {
+      console.error("Voice note error:", err);
+      toast.error("Failed to send voice note");
+      setUploading(false);
+    }
   }
 
   // ---- Edit message ----
