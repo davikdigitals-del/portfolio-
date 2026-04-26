@@ -117,46 +117,19 @@ function DashboardLayout() {
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
-  const [isSpeaker, setIsSpeaker] = useState(true);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
-  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+  const ringtoneRef = useRef<any>(null);
 
   usePresence(user?.id);
   useViewportHeight();
 
-  // ── Handle push notification tap: ?conv=...&call=... ──────────────────────
-  // When user taps "Answer" on a call push notification, SW opens the app
-  // with these URL params. We fetch the call and show the incoming call screen.
-  useEffect(() => {
-    if (!user) return;
-    const params = new URLSearchParams(window.location.search);
-    const callId = params.get("call");
-    const convId = params.get("conv");
-    if (!callId || !convId) return;
-
-    // Clean URL immediately
-    window.history.replaceState({}, "", window.location.pathname);
-
-    // Fetch the call and show incoming screen
-    supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(async ({ data: call }) => {
-      if (!call || call.status !== "ringing") return;
-      const { data: profile } = await supabase
-        .from("profiles").select("display_name, avatar_url")
-        .eq("user_id", call.initiator_id).maybeSingle();
-      setIncomingCall(call as Call);
-      setIncomingProfile(profile ?? null);
-      startRingtone();
-      if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 500]);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);  // ── Ringtone helpers ───────────────────────────────────────────────────────
+  // ── Ringtone helpers (defined first so useEffects below can use them) ──────
   const startRingtone = useCallback(() => {
     try {
-      // Generate a ringtone using Web Audio API
       const ctx = new AudioContext();
       let playing = true;
       function ring() {
@@ -174,14 +147,35 @@ function DashboardLayout() {
         setTimeout(() => { if (playing) ring(); }, 1500);
       }
       ring();
-      (ringtoneRef as any).current = { stop: () => { playing = false; ctx.close(); } };
+      ringtoneRef.current = { stop: () => { playing = false; ctx.close(); } };
     } catch { /* ignore */ }
   }, []);
 
   const stopRingtone = useCallback(() => {
-    (ringtoneRef as any).current?.stop();
-    (ringtoneRef as any).current = null;
+    ringtoneRef.current?.stop();
+    ringtoneRef.current = null;
   }, []);
+
+  // ── Handle push notification tap: ?conv=...&call=... ──────────────────────
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const callId = params.get("call");
+    const convId = params.get("conv");
+    if (!callId || !convId) return;
+    window.history.replaceState({}, "", window.location.pathname);
+    supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(async ({ data: call }) => {
+      if (!call || call.status !== "ringing") return;
+      const { data: profile } = await supabase
+        .from("profiles").select("display_name, avatar_url")
+        .eq("user_id", call.initiator_id).maybeSingle();
+      setIncomingCall(call as Call);
+      setIncomingProfile(profile ?? null);
+      startRingtone();
+      if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 500]);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // ── Global incoming call listener ──────────────────────────────────────────
   useEffect(() => {
