@@ -397,6 +397,92 @@ function ChatPage() {
     return () => { void supabase.removeChannel(ch); };
   }, [user, isAdmin, activeId, soundOn, notifsOn, loadConversations, adminProfile?.display_name]);
 
+  // ── Background polling for messages when app is hidden ──
+  const lastUnreadRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (!user || !notifsOn) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // App went to background — start aggressive polling
+        console.log("App hidden - starting background message polling");
+        const pollTimer = setInterval(async () => {
+          try {
+            const { data: convs } = await supabase.from("conversations").select("*");
+            if (!convs) return;
+
+            for (const conv of convs) {
+              const unread = isAdmin ? conv.unread_admin : conv.unread_user;
+              const lastUnread = lastUnreadRef.current.get(conv.id) ?? 0;
+
+              // New unread messages detected
+              if (unread > lastUnread && conv.id !== activeId) {
+                lastUnreadRef.current.set(conv.id, unread);
+                
+                // Get conversation details for notification
+                const { data: profile } = await supabase
+                  .from("profiles")
+                  .select("display_name, email")
+                  .eq("user_id", conv.user_id)
+                  .maybeSingle();
+
+                const senderName = isAdmin
+                  ? (profile?.display_name ?? profile?.email ?? "A client")
+                  : (adminProfile?.display_name ?? "Ajibola");
+
+                const label = isAdmin
+                  ? `${senderName} sent you a message`
+                  : `New message from ${senderName}`;
+
+                console.log("Background message detected:", label);
+
+                // Send notifications
+                void sendPushNotification(
+                  isAdmin ? "📩 New message" : "💬 New message",
+                  label,
+                  { tag: `msg-${conv.id}` }
+                );
+
+                if (user) {
+                  void sendWebPush(
+                    user.id,
+                    isAdmin ? "📩 New message" : "💬 New message",
+                    label,
+                    "/dashboard/chat"
+                  );
+                }
+
+                if (soundOn) playBeep();
+              }
+            }
+          } catch (err) {
+            console.error("Background polling error:", err);
+          }
+        }, 3000); // Poll every 3 seconds
+
+        // Store timer ID for cleanup
+        (window as any).__bgPollTimer = pollTimer;
+      } else {
+        // App came to foreground — stop polling
+        console.log("App visible - stopping background message polling");
+        const pollTimer = (window as any).__bgPollTimer;
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          (window as any).__bgPollTimer = null;
+        }
+        // Reset unread tracking
+        lastUnreadRef.current.clear();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      const pollTimer = (window as any).__bgPollTimer;
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  }, [user, isAdmin, activeId, soundOn, notifsOn, adminProfile?.display_name]);
+
   const filtered = useMemo(() => {
     if (!search) return conversations;
     const q = search.toLowerCase();
