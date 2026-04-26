@@ -1384,6 +1384,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     console.log("[Call] Receiver ID:", receiverId);
     console.log("[Call] Initiator ID (me):", user.id);
     
+    // Check if trying to call yourself
+    if (receiverId === user.id) {
+      console.error("[Call] ❌ Cannot call yourself!");
+      toast.error("You cannot call yourself. Please test with a different user account.");
+      return;
+    }
+    
     if (!receiverId) {
       console.error("[Call] ❌ No receiver ID found!");
       console.error("[Call] Admin profile state:", adminProfile);
