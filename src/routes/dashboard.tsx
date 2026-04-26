@@ -3,10 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Loader2, MessageCircle, Home, Users, Settings,
-  FileText, LogOut, CheckSquare, ShieldCheck, Menu, X,
+  FileText, LogOut, CheckSquare, ShieldCheck, Menu, X, Phone, Video, PhoneOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { sendPushNotification } from "@/lib/notifications";
+import { callManager, type Call } from "@/lib/calls";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
@@ -104,10 +106,39 @@ function DashboardLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
   const routerState = useRouterState();
 
   usePresence(user?.id);
   useViewportHeight();
+
+  // Global call listener for admin - listen for all incoming calls
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+
+    console.log("Setting up global call listener for admin");
+    const ch = supabase.channel("admin-calls")
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "calls",
+      }, (payload) => {
+        const call = payload.new as Call;
+        // Show incoming call if we're the receiver and it's ringing
+        if (call.receiver_id === user.id && call.status === "ringing") {
+          console.log("Admin received incoming call:", call.id);
+          setIncomingCall(call);
+          void sendPushNotification(
+            call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
+            "Someone is calling...",
+            { tag: `call-${call.id}` }
+          );
+        }
+      })
+      .subscribe();
+
+    return () => { void supabase.removeChannel(ch); };
+  }, [user, isAdmin]);
 
   useEffect(() => { setMobileOpen(false); }, [routerState.location.pathname]);
 
@@ -277,6 +308,49 @@ function DashboardLayout() {
       <main className="flex-1 overflow-hidden flex flex-col min-w-0 md:pt-0 pt-14">
         <Outlet />
       </main>
+
+      {/* Global incoming call modal for admin */}
+      {incomingCall && isAdmin && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-b from-primary/20 to-background">
+          {/* Caller info */}
+          <div className="flex-1 flex flex-col items-center justify-center gap-6">
+            {/* Avatar placeholder */}
+            <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-primary">
+              ?
+            </div>
+
+            {/* Caller name */}
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-foreground">Incoming Call</h1>
+              <p className="text-lg text-muted-foreground mt-2">
+                {incomingCall.call_type === "video" ? "📹 Video call" : "☎️ Voice call"}
+              </p>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-8 pb-12">
+            <button
+              onClick={() => setIncomingCall(null)}
+              className="flex items-center justify-center h-16 w-16 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95 shadow-lg"
+              title="Decline call"
+            >
+              <PhoneOff className="h-7 w-7" />
+            </button>
+            <button
+              onClick={() => {
+                // Navigate to chat with this conversation and answer the call
+                const conversationId = incomingCall.conversation_id;
+                void navigate({ to: `/dashboard/chat?conv=${conversationId}&call=${incomingCall.id}` });
+              }}
+              className="flex items-center justify-center h-16 w-16 rounded-full bg-green-500 text-white hover:opacity-90 transition-all active:scale-95 shadow-lg"
+              title="Answer call"
+            >
+              <Phone className="h-7 w-7" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

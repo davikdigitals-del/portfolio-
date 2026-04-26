@@ -183,6 +183,23 @@ function ChatPage() {
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">(
     "Notification" in window ? Notification.permission : "unsupported"
   );
+  const [pendingCallId, setPendingCallId] = useState<string | null>(null);
+
+  // Handle URL parameters for incoming calls
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const convId = params.get("conv");
+    const callId = params.get("call");
+    
+    if (convId) {
+      setActiveId(convId);
+      if (callId) {
+        setPendingCallId(callId);
+      }
+      // Clean up URL
+      window.history.replaceState({}, "", "/dashboard/chat");
+    }
+  }, []);
 
   // ── Stale presence cleanup (admin only) ──
   useStalePresenceCleanup(isAdmin);
@@ -658,7 +675,7 @@ function ChatPage() {
       {/* Active chat — full screen on mobile when open */}
       <section className={`flex-1 flex-col min-w-0 ${active ? "flex" : "hidden md:flex"}`}>
         {active ? (
-          <ActiveChat conversation={active} isAdmin={isAdmin} adminProfile={adminProfile} onBack={() => setActiveId(null)} />
+          <ActiveChat conversation={active} isAdmin={isAdmin} adminProfile={adminProfile} onBack={() => setActiveId(null)} pendingCallId={pendingCallId} />
         ) : (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center max-w-sm animate-fade-up">
@@ -675,7 +692,7 @@ function ChatPage() {
 
 // ---- ActiveChat --------------------------------------------------------------
 
-function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversation: Conversation; isAdmin: boolean; adminProfile: AdminProfile | null; onBack: () => void }) {
+function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId }: { conversation: Conversation; isAdmin: boolean; adminProfile: AdminProfile | null; onBack: () => void; pendingCallId?: string | null }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -1205,10 +1222,18 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   const longPressDataRef = useRef<{ msg: Message; mine: boolean; x: number; y: number } | null>(null);
 
   function openCtxMenu(x: number, y: number, msg: Message, mine: boolean) {
-    // Clamp to viewport
+    // Clamp to viewport, accounting for keyboard on mobile
     const menuW = 160, menuH = 140;
-    x = Math.min(x, window.innerWidth - menuW - 8);
-    y = Math.min(y, window.innerHeight - menuH - 8);
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+    
+    x = Math.min(x, viewportWidth - menuW - 8);
+    y = Math.min(y, viewportHeight - menuH - 8);
+    
+    // Ensure menu doesn't go above viewport
+    x = Math.max(x, 8);
+    y = Math.max(y, 8);
+    
     setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
   }
 
@@ -1487,6 +1512,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 
     return () => { void supabase.removeChannel(ch); };
   }, [user, conversation.id, activeCall?.id, isAdmin, conversation.profile?.display_name, adminProfile?.display_name]);
+
+  // Handle pending call from URL parameter
+  useEffect(() => {
+    if (!pendingCallId || !incomingCall || incomingCall.id !== pendingCallId) return;
+    
+    console.log("Auto-answering pending call:", pendingCallId);
+    void answerCall(incomingCall);
+  }, [pendingCallId, incomingCall]);
 
   const counterpartName = isAdmin
     ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "User")
