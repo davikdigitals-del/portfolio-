@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
-  Play, Pause, FileText, Bell, BellOff, Trash2, Pencil,
+  Play, Pause, FileText, Bell, BellOff, Trash2, Pencil, Reply,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ interface Message {
   created_at: string;
   pinned: boolean;
   deleted_at: string | null;
+  replied_to_id: string | null;
 }
 
 interface FilePreview {
@@ -687,6 +688,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     isAdmin ? (conversation.profile?.status ?? "offline") : (adminProfile?.status ?? "offline")
   );
   const [lastSeen, setLastSeen] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   // Keep counterpartStatus in sync with conversation.profile.status (admin side)
   // This fires whenever ChatPage's client-profiles-presence subscription updates conversations
@@ -1000,6 +1002,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         created_at: new Date().toISOString(),
         pinned: false,
         deleted_at: null,
+        replied_to_id: null,
       };
       setMessages((prev) => [...prev, optimistic]);
     }
@@ -1201,7 +1204,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       y = (e as React.MouseEvent).clientY;
     }
     // Clamp to viewport
-    const menuW = 160, menuH = 100;
+    const menuW = 160, menuH = 140;
     x = Math.min(x, window.innerWidth - menuW - 8);
     y = Math.min(y, window.innerHeight - menuH - 8);
     setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
@@ -1253,6 +1256,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     setSending(true);
     const content = text.trim();
     setText("");
+    const repliedToId = replyingTo?.id ?? null;
+    setReplyingTo(null);
 
     // Optimistic insert — show message immediately
     const tempId = `temp-${crypto.randomUUID()}`;
@@ -1269,6 +1274,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       created_at: new Date().toISOString(),
       pinned: false,
       deleted_at: null,
+      replied_to_id: repliedToId,
     };
     setMessages((prev) => [...prev, optimistic]);
 
@@ -1277,6 +1283,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       sender_id: user.id,
       content,
       type: "text",
+      replied_to_id: repliedToId,
     }).select("*").single();
 
     if (error) {
@@ -1440,7 +1447,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
                     onTouchMove={cancelLongPress}
                     className="select-none"
                   >
-                    <MessageBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} onDelete={deleteMessage} />
+                    <MessageBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} onDelete={deleteMessage} messages={messages} />
                   </div>
                 )}
                 <div className={`flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ${mine ? "justify-end mr-2" : "ml-2"}`}>
@@ -1477,6 +1484,17 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
           style={{ left: ctxMenu.x, top: ctxMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            onClick={() => {
+              const msg = messages.find((m) => m.id === ctxMenu.msgId);
+              if (msg) setReplyingTo(msg);
+              setCtxMenu(null);
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent transition-colors text-left"
+          >
+            <Reply className="h-4 w-4 text-primary shrink-0" />
+            Reply
+          </button>
           {ctxMenu.mine && ctxMenu.type === "text" && (
             <button
               onClick={() => {
@@ -1537,6 +1555,31 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         className="shrink-0 border-t border-border bg-surface/40 px-2 pt-2 md:px-4 md:pt-4"
         style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}
       >
+        {/* Reply preview */}
+        {replyingTo && (
+          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border border-primary/30 bg-primary/5">
+            <Reply className="h-4 w-4 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-primary">Replying to message</div>
+              <div className="text-xs text-muted-foreground truncate mt-0.5">
+                {replyingTo.type === "voice"
+                  ? "🎙️ Voice note"
+                  : replyingTo.type === "image"
+                  ? "🖼️ Image"
+                  : replyingTo.type === "file"
+                  ? `📎 ${replyingTo.file_name ?? "File"}`
+                  : replyingTo.content ?? ""}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {recording ? (
           <div className="flex items-center gap-3 rounded-2xl border border-red-500/40 bg-red-500/5 px-4 py-3">
             {/* Cancel */}
@@ -1629,6 +1672,33 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 }
 
 // ---- MessageBubble -----------------------------------------------------------
+
+function QuotedMessage({ message, messages }: { message: Message; messages: Message[] }) {
+  const quotedMsg = messages.find((m) => m.id === message.replied_to_id);
+  if (!quotedMsg) return null;
+
+  const quotedContent = quotedMsg.deleted_at
+    ? "This message was deleted"
+    : quotedMsg.type === "voice"
+    ? "🎙️ Voice note"
+    : quotedMsg.type === "image"
+    ? "🖼️ Image"
+    : quotedMsg.type === "file"
+    ? `📎 ${quotedMsg.file_name ?? "File"}`
+    : quotedMsg.content ?? "";
+
+  return (
+    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border-l-2 border-primary/40 bg-muted/30 mb-2 text-xs">
+      <Reply className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-primary text-[11px]">
+          {quotedMsg.sender_id === message.sender_id ? "You" : "Them"}
+        </div>
+        <div className="text-muted-foreground truncate mt-0.5">{quotedContent}</div>
+      </div>
+    </div>
+  );
+}
 
 function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
   message: Message;
@@ -1980,12 +2050,13 @@ function ImageBubble({ message: m, mine }: { message: Message; mine: boolean }) 
   );
 }
 
-function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: {
+function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, messages }: {
   message: Message;
   mine: boolean;
   playingId: string | null;
   setPlayingId: (id: string | null) => void;
   onDelete: (id: string) => void;
+  messages: Message[];
 }) {
   const base = mine
     ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
@@ -2099,6 +2170,7 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
   // ── Plain text ───────────────────────────────────────────────────────────────
   return (
     <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words ${base}`}>
+      {m.replied_to_id && <QuotedMessage message={m} messages={messages} />}
       {m.pinned && <Pin className="inline h-3 w-3 mr-1 opacity-70" />}
       {m.content}
     </div>

@@ -93,6 +93,7 @@ export type Database = {
           file_url: string | null
           id: string
           pinned: boolean
+          replied_to_id: string | null
           sender_id: string
           status: Database["public"]["Enums"]["message_status"]
           type: Database["public"]["Enums"]["message_type"]
@@ -107,6 +108,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           pinned?: boolean
+          replied_to_id?: string | null
           sender_id: string
           status?: Database["public"]["Enums"]["message_status"]
           type?: Database["public"]["Enums"]["message_type"]
@@ -121,6 +123,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           pinned?: boolean
+          replied_to_id?: string | null
           sender_id?: string
           status?: Database["public"]["Enums"]["message_status"]
           type?: Database["public"]["Enums"]["message_type"]
@@ -131,6 +134,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_replied_to_id_fkey"
+            columns: ["replied_to_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]
