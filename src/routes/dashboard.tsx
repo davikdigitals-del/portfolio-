@@ -128,7 +128,32 @@ function DashboardLayout() {
   usePresence(user?.id);
   useViewportHeight();
 
-  // ── Ringtone helpers ───────────────────────────────────────────────────────
+  // ── Handle push notification tap: ?conv=...&call=... ──────────────────────
+  // When user taps "Answer" on a call push notification, SW opens the app
+  // with these URL params. We fetch the call and show the incoming call screen.
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const callId = params.get("call");
+    const convId = params.get("conv");
+    if (!callId || !convId) return;
+
+    // Clean URL immediately
+    window.history.replaceState({}, "", window.location.pathname);
+
+    // Fetch the call and show incoming screen
+    supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(async ({ data: call }) => {
+      if (!call || call.status !== "ringing") return;
+      const { data: profile } = await supabase
+        .from("profiles").select("display_name, avatar_url")
+        .eq("user_id", call.initiator_id).maybeSingle();
+      setIncomingCall(call as Call);
+      setIncomingProfile(profile ?? null);
+      startRingtone();
+      if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 500]);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);  // ── Ringtone helpers ───────────────────────────────────────────────────────
   const startRingtone = useCallback(() => {
     try {
       // Generate a ringtone using Web Audio API
@@ -186,10 +211,10 @@ function DashboardLayout() {
         setIncomingProfile(profile ?? null);
         startRingtone();
 
-        // Vibrate
-        if ("vibrate" in navigator) navigator.vibrate([500, 300, 500, 300, 500]);
+        // Vibrate aggressively
+        if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 500, 200, 500]);
 
-        // Push notification
+        // In-app notification (foreground/backgrounded tab)
         void sendPushNotification(
           call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
           `${profile?.display_name ?? "Someone"} is calling...`,

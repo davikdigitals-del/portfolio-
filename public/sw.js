@@ -1,78 +1,89 @@
 // Service Worker — Web Push + background notification relay
-// Aggressive notification strategy for iPhone/Safari
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
 // ── Real Web Push (wakes phone even when browser is closed) ──────────────────
 self.addEventListener("push", (e) => {
-  let data = { title: "New message", body: "", url: "/dashboard/chat" };
+  let data = { title: "Notification", body: "", url: "/dashboard/chat", tag: "msg" };
   try {
     if (e.data) data = { ...data, ...e.data.json() };
   } catch (err) {
     console.error("Push data parse error:", err);
   }
 
-  e.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: "/me.webp",
-      badge: "/me.webp",
-      tag: "msg-push",
-      data: { url: data.url },
-      vibrate: [400, 200, 400, 200, 400], // Very strong vibration for iPhone
-      requireInteraction: true, // Keep notification visible on iPhone
-      actions: [
-        { action: "open", title: "Open" },
-        { action: "close", title: "Close" }
-      ]
-    })
-  );
+  const isCall = data.tag?.startsWith("call-");
+
+  const notifOptions = isCall
+    ? {
+        body: data.body,
+        icon: "/me.webp",
+        badge: "/me.webp",
+        tag: data.tag,
+        data: { url: data.url, call_id: data.call_id, conversation_id: data.conversation_id },
+        vibrate: [500, 200, 500, 200, 500, 200, 500], // Long aggressive vibration for calls
+        requireInteraction: true, // NEVER auto-dismiss a call notification
+        silent: false,
+        actions: [
+          { action: "answer", title: "✅ Answer" },
+          { action: "decline", title: "❌ Decline" },
+        ],
+      }
+    : {
+        body: data.body,
+        icon: "/me.webp",
+        badge: "/me.webp",
+        tag: data.tag ?? "msg",
+        data: { url: data.url },
+        vibrate: [300, 100, 300],
+        requireInteraction: false,
+        actions: [
+          { action: "open", title: "Open" },
+        ],
+      };
+
+  e.waitUntil(self.registration.showNotification(data.title, notifOptions));
 });
 
 // ── Background relay (app is open but tab is hidden) ─────────────────────────
 self.addEventListener("message", (e) => {
   if (e.data?.type !== "SHOW_NOTIFICATION") return;
-  const { title, body, tag, vibrate, count } = e.data;
-  
-  // Show multiple notifications if count > 1 to break through notification grouping
-  const notificationPromises = [];
-  const numNotifications = Math.min(count || 1, 3); // Max 3 notifications
-  
-  for (let i = 0; i < numNotifications; i++) {
-    notificationPromises.push(
-      self.registration.showNotification(title, {
-        body: body + (i > 0 ? ` (${i + 1})` : ""),
-        icon: "/me.webp",
-        badge: "/me.webp",
-        tag: tag ? `${tag}-${i}` : `msg-${i}`,
-        data: { url: "/dashboard/chat" },
-        vibrate: vibrate || [400, 200, 400, 200, 400], // Very strong vibration
-        requireInteraction: true, // Keep notification visible
-        actions: [
-          { action: "open", title: "Open" },
-          { action: "close", title: "Close" }
-        ]
-      })
-    );
-  }
-  
-  e.waitUntil(Promise.all(notificationPromises));
+  const { title, body, tag, vibrate } = e.data;
+
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/me.webp",
+      badge: "/me.webp",
+      tag: tag ?? "msg",
+      data: { url: "/dashboard/chat" },
+      vibrate: vibrate || [300, 100, 300],
+      requireInteraction: tag?.startsWith("call-"),
+      actions: tag?.startsWith("call-")
+        ? [{ action: "answer", title: "✅ Answer" }, { action: "decline", title: "❌ Decline" }]
+        : [{ action: "open", title: "Open" }],
+    })
+  );
 });
 
 // ── Notification click ────────────────────────────────────────────────────────
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  
-  if (e.action === "close") {
-    return;
-  }
-  
-  const target = e.notification.data?.url ?? "/dashboard/chat";
+
+  const { url, call_id, conversation_id } = e.notification.data ?? {};
+  const action = e.action;
+
+  // Decline: just close
+  if (action === "decline") return;
+
+  // Answer or open: navigate to the chat (with call params if it's a call)
+  const target = url ?? "/dashboard/chat";
+
   e.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clients) => {
+        // Try to focus an existing window
         for (const client of clients) {
           if (client.url.includes(self.location.origin) && "focus" in client) {
             client.focus();
@@ -80,16 +91,8 @@ self.addEventListener("notificationclick", (e) => {
             return;
           }
         }
-        if (self.clients.openWindow) return self.clients.openWindow(target);
-      })
-      .catch((err) => {
-        console.error("Notification click error:", err);
+        // No existing window — open a new one
         if (self.clients.openWindow) return self.clients.openWindow(target);
       })
   );
-});
-
-// ── Notification close ────────────────────────────────────────────────────────
-self.addEventListener("notificationclose", (e) => {
-  console.log("Notification closed:", e.notification.tag);
 });

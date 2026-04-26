@@ -1388,6 +1388,17 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         .eq("user_id", receiverId)
         .maybeSingle();
 
+      // Fire push notification to receiver immediately (works even if their app is backgrounded)
+      void supabase.functions.invoke("notify-incoming-call", {
+        body: {
+          id: call.id,
+          receiver_id: receiverId,
+          initiator_id: user.id,
+          call_type: callType,
+          conversation_id: conversation.id,
+        },
+      });
+
       // Show global active call screen
       const setActiveCallGlobal = (window as any).__setActiveCall;
       if (setActiveCallGlobal) {
