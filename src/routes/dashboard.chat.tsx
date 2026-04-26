@@ -697,6 +697,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   // Keep counterpartStatus in sync with conversation.profile.status (admin side)
   // This fires whenever ChatPage's client-profiles-presence subscription updates conversations
@@ -1361,10 +1364,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   async function declineCall(call: Call) {
     if (!user) return;
     try {
-      await callManager.declineCall(
-        call.id,
-        isAdmin ? conversation.user_id : (adminProfile?.user_id ?? "")
-      );
+      await callManager.declineCall(call.id);
       setIncomingCall(null);
       toast.info("Call declined");
     } catch (err) {
@@ -1405,6 +1405,50 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       setIsVideoOn(!isVideoOn);
     }
   }
+
+  // Set up remote stream callback and attach streams to video/audio elements
+  useEffect(() => {
+    if (!activeCall) return;
+
+    // Attach local stream to video element
+    if (localVideoRef.current && callManager.getLocalStream()) {
+      localVideoRef.current.srcObject = callManager.getLocalStream();
+    }
+
+    // Set up remote stream callback
+    callManager.onRemoteStream((stream) => {
+      console.log("Remote stream received, attaching to video element");
+      if (activeCall.call_type === "video" && remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream;
+      } else if (activeCall.call_type === "voice" && remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = stream;
+      }
+    });
+
+    // Set up call active callback to update DB status
+    callManager.onCallActive(async () => {
+      console.log("Call is now active, updating DB status");
+      if (activeCall) {
+        await supabase
+          .from("calls")
+          .update({ status: "active", started_at: new Date().toISOString() })
+          .eq("id", activeCall.id);
+      }
+    });
+
+    return () => {
+      // Clean up on unmount
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = null;
+      }
+    };
+  }, [activeCall]);
 
   // Subscribe to incoming calls
   useEffect(() => {
@@ -1592,35 +1636,63 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 
       {/* Active call UI - WhatsApp style fullscreen */}
       {activeCall && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-b from-primary/20 to-background">
-          {/* Caller info */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-6">
-            {/* Avatar */}
-            <div className="relative">
-              {!isAdmin && adminProfile?.avatar_url ? (
-                <img src={adminProfile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-primary" />
-              ) : isAdmin && conversation.profile?.avatar_url ? (
-                <img src={conversation.profile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-primary" />
-              ) : (
-                <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-primary">
-                  {(isAdmin ? conversation.profile?.display_name?.[0] : adminProfile?.display_name?.[0]) ?? "?"}
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
+          {/* Remote video/audio */}
+          {activeCall.call_type === "video" ? (
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <audio ref={remoteAudioRef} autoPlay />
+          )}
+
+          {/* Local video preview (small corner) */}
+          {activeCall.call_type === "video" && isVideoOn && (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute bottom-24 right-4 w-24 h-32 rounded-lg object-cover border-2 border-white shadow-lg"
+            />
+          )}
+
+          {/* Overlay content */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            {/* Caller info */}
+            <div className="flex-1 flex flex-col items-center justify-center gap-6">
+              {/* Avatar (shown if video is off or voice call) */}
+              {(activeCall.call_type === "voice" || !isVideoOn) && (
+                <div className="relative">
+                  {!isAdmin && adminProfile?.avatar_url ? (
+                    <img src={adminProfile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-white" />
+                  ) : isAdmin && conversation.profile?.avatar_url ? (
+                    <img src={conversation.profile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-white" />
+                  ) : (
+                    <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-white">
+                      {(isAdmin ? conversation.profile?.display_name?.[0] : adminProfile?.display_name?.[0]) ?? "?"}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
 
-            {/* Call info */}
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-foreground">
-                {isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"}
-              </h1>
-              <p className="text-lg text-muted-foreground mt-2">
-                {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, "0")}
-              </p>
+              {/* Call info */}
+              <div className="text-center">
+                <h1 className="text-3xl font-bold text-white drop-shadow-lg">
+                  {isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"}
+                </h1>
+                <p className="text-lg text-white/80 mt-2 drop-shadow-lg">
+                  {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, "0")}
+                </p>
+              </div>
             </div>
           </div>
 
           {/* Control buttons */}
-          <div className="flex gap-4 pb-12">
+          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex gap-4 pointer-events-auto z-10">
             {activeCall.call_type === "video" && (
               <button
                 onClick={toggleVideo}
