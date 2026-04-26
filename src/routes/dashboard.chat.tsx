@@ -402,10 +402,20 @@ function ChatPage() {
   useEffect(() => {
     if (!user || !notifsOn) return;
 
+    // Initialize with current unread counts
+    const initializeUnreadCounts = () => {
+      conversations.forEach((conv) => {
+        const unread = isAdmin ? conv.unread_admin : conv.unread_user;
+        lastUnreadRef.current.set(conv.id, unread);
+      });
+    };
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // App went to background — start aggressive polling
+        // App went to background — initialize and start polling
         console.log("App hidden - starting background message polling");
+        initializeUnreadCounts();
+        
         const pollTimer = setInterval(async () => {
           try {
             const { data: convs } = await supabase.from("conversations").select("*");
@@ -417,6 +427,7 @@ function ChatPage() {
 
               // New unread messages detected
               if (unread > lastUnread && conv.id !== activeId) {
+                console.log(`New message in conversation ${conv.id}: ${lastUnread} -> ${unread}`);
                 lastUnreadRef.current.set(conv.id, unread);
                 
                 // Get conversation details for notification
@@ -458,7 +469,7 @@ function ChatPage() {
           } catch (err) {
             console.error("Background polling error:", err);
           }
-        }, 3000); // Poll every 3 seconds
+        }, 2000); // Poll every 2 seconds for faster detection
 
         // Store timer ID for cleanup
         (window as any).__bgPollTimer = pollTimer;
@@ -481,7 +492,7 @@ function ChatPage() {
       const pollTimer = (window as any).__bgPollTimer;
       if (pollTimer) clearInterval(pollTimer);
     };
-  }, [user, isAdmin, activeId, soundOn, notifsOn, adminProfile?.display_name]);
+  }, [user, isAdmin, activeId, soundOn, notifsOn, adminProfile?.display_name, conversations]);
 
   const filtered = useMemo(() => {
     if (!search) return conversations;
