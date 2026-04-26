@@ -1545,17 +1545,29 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
     ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
     : "bg-surface-elevated text-foreground rounded-bl-sm";
 
+  // ── Voice ───────────────────────────────────────────────────────────────────
   if (m.type === "voice" && m.file_url) {
     return <VoiceBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} />;
   }
 
+  // ── Image ───────────────────────────────────────────────────────────────────
   if (m.type === "image" && m.file_url) {
     return (
-      <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} max-w-[240px]`}>
-        <img src={m.file_url} alt={m.file_name ?? "image"} className="w-full object-cover" />
+      <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} w-[260px] max-w-[260px]`}>
+        <a href={m.file_url} target="_blank" rel="noreferrer" className="block relative group">
+          <img
+            src={m.file_url}
+            alt={m.file_name ?? "image"}
+            className="w-full object-cover block"
+            style={{ maxHeight: 300, minHeight: 120 }}
+          />
+          {/* Hover overlay */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+        </a>
         <div className={`flex items-center justify-between gap-2 px-3 py-2 ${mine ? "bg-gradient-primary text-primary-foreground" : "bg-surface-elevated"}`}>
-          <span className="text-xs truncate">{m.file_name}</span>
-          <a href={m.file_url} download={m.file_name ?? "image"} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 transition-opacity">
+          <span className={`text-[11px] truncate ${mine ? "text-white/70" : "text-muted-foreground"}`}>{m.file_name}</span>
+          <a href={m.file_url} download={m.file_name ?? "image"} target="_blank" rel="noreferrer"
+            className="shrink-0 hover:opacity-70 transition-opacity" onClick={e => e.stopPropagation()}>
             <Download className="h-3.5 w-3.5" />
           </a>
         </div>
@@ -1563,66 +1575,84 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
     );
   }
 
+  // ── File / Video / Document ─────────────────────────────────────────────────
   if (m.type === "file" && m.file_url) {
-    // Check if it's a video by file extension
-    const isVideo = m.file_name ? /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(m.file_name) : false;
+    const name = m.file_name ?? "File";
+    const ext = name.split(".").pop()?.toLowerCase() ?? "";
+    const isVideo = /^(mp4|mov|webm|avi|mkv|m4v|3gp)$/.test(ext);
+
+    // Video — inline player like WhatsApp
     if (isVideo) {
       return (
-        <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} max-w-[280px]`}>
+        <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} w-[260px] max-w-[260px]`}>
           <video
             src={m.file_url}
             controls
-            className="w-full rounded-t-2xl"
-            style={{ maxHeight: 200 }}
+            playsInline
+            className="w-full block bg-black"
+            style={{ maxHeight: 260, minHeight: 120 }}
           />
           <div className={`flex items-center justify-between gap-2 px-3 py-2 ${mine ? "bg-gradient-primary text-primary-foreground" : "bg-surface-elevated"}`}>
-            <span className="text-xs truncate">{m.file_name}</span>
-            <a href={m.file_url} download={m.file_name ?? "video"} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 transition-opacity">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${mine ? "bg-white/20 text-white" : "bg-primary/15 text-primary"}`}>{ext}</span>
+              <span className={`text-[11px] truncate ${mine ? "text-white/70" : "text-muted-foreground"}`}>{name}</span>
+            </div>
+            <a href={m.file_url} download={name} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 transition-opacity">
               <Download className="h-3.5 w-3.5" />
             </a>
           </div>
         </div>
       );
     }
+
+    // Document card — WhatsApp style with coloured type badge
+    const bgColor = mine ? "bg-white/20" : docBgColor(ext);
     return (
-      <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${base} min-w-[180px] max-w-[260px]`}>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg shrink-0 ${mine ? "bg-white/20" : "bg-primary/10"}`}>
-          <FileText className="h-4 w-4" />
+      <a
+        href={m.file_url}
+        target="_blank"
+        rel="noreferrer"
+        className={`flex items-center gap-3 px-3 py-3 rounded-2xl ${base} min-w-[200px] max-w-[280px] hover:opacity-90 active:scale-[0.98] transition-all`}
+      >
+        {/* Coloured type block */}
+        <div className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${bgColor}`}>
+          <span className="text-[11px] font-black uppercase text-white leading-none tracking-tight">
+            {ext.slice(0, 4) || "FILE"}
+          </span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{m.file_name ?? "File"}</div>
-          {m.file_size && <div className={`text-[10px] ${mine ? "text-white/60" : "text-muted-foreground"}`}>{formatBytes(m.file_size)}</div>}
+          <div className={`text-sm font-semibold truncate leading-tight ${mine ? "text-white" : "text-foreground"}`}>{name}</div>
+          <div className={`text-[11px] mt-0.5 ${mine ? "text-white/60" : "text-muted-foreground"}`}>
+            {m.file_size ? formatBytes(m.file_size) : ext.toUpperCase() + " Document"}
+          </div>
         </div>
-        <a href={m.file_url} download={m.file_name ?? "file"} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 transition-opacity">
-          <Download className="h-4 w-4" />
-        </a>
-      </div>
+        <Download className={`h-4 w-4 shrink-0 ${mine ? "text-white/70" : "text-muted-foreground"}`} />
+      </a>
     );
   }
 
-  // text
+  // ── Deleted ─────────────────────────────────────────────────────────────────
   if (m.deleted_at) {
     return (
-      <div className={`px-4 py-2.5 rounded-2xl text-sm italic text-muted-foreground bg-muted/30 rounded-${mine ? "br" : "bl"}-sm`}>
+      <div className="px-4 py-2.5 rounded-2xl text-sm italic text-muted-foreground bg-muted/30">
         This message was deleted
       </div>
     );
   }
 
-  // Detect emoji-only messages — render big with bounce like WhatsApp
+  // ── Emoji-only — big bounce ──────────────────────────────────────────────────
   const emojiOnly = m.content ? /^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+$/u.test(m.content.trim()) : false;
-  const emojiCount = emojiOnly && m.content ? [...m.content.trim()].filter(c => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c)).length : 0;
+  const emojiChars = emojiOnly && m.content
+    ? [...m.content.trim()].filter(c => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c))
+    : [];
 
-  if (emojiOnly && emojiCount > 0 && emojiCount <= 3) {
-    const size = emojiCount === 1 ? "text-6xl" : emojiCount === 2 ? "text-5xl" : "text-4xl";
+  if (emojiChars.length > 0 && emojiChars.length <= 3) {
+    const size = emojiChars.length === 1 ? "text-6xl" : emojiChars.length === 2 ? "text-5xl" : "text-4xl";
     return (
-      <div className={`flex gap-1 px-1 py-1 ${mine ? "justify-end" : "justify-start"}`}>
-        {[...m.content!.trim()].filter(c => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c)).map((emoji, i) => (
-          <span
-            key={i}
-            className={`${size} select-none inline-block animate-emoji-bounce`}
-            style={{ animationDelay: `${i * 80}ms` }}
-          >
+      <div className="flex gap-1 px-1 py-1">
+        {emojiChars.map((emoji, i) => (
+          <span key={i} className={`${size} select-none inline-block animate-emoji-bounce`}
+            style={{ animationDelay: `${i * 80}ms` }}>
             {emoji}
           </span>
         ))}
@@ -1630,6 +1660,7 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
     );
   }
 
+  // ── Plain text ───────────────────────────────────────────────────────────────
   return (
     <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words ${base}`}>
       {m.pinned && <Pin className="inline h-3 w-3 mr-1 opacity-70" />}
@@ -1638,3 +1669,15 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
   );
 }
 
+function docBgColor(ext: string): string {
+  const map: Record<string, string> = {
+    pdf: "bg-red-500",
+    doc: "bg-blue-600", docx: "bg-blue-600",
+    xls: "bg-green-600", xlsx: "bg-green-600", csv: "bg-emerald-600",
+    ppt: "bg-orange-500", pptx: "bg-orange-500",
+    zip: "bg-yellow-600", rar: "bg-yellow-600", "7z": "bg-yellow-600",
+    txt: "bg-gray-500", md: "bg-gray-500",
+    mp3: "bg-purple-500", wav: "bg-purple-500", m4a: "bg-purple-500",
+  };
+  return map[ext] ?? "bg-primary";
+}
