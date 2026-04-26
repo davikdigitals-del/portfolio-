@@ -4,7 +4,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") ?? "ajibolagbengajoseph@gmail.com";
 const ADMIN_NAME = Deno.env.get("ADMIN_NAME") ?? "Ajibola Gbenga Joseph";
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://yourdomain.com";
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://ajibola-gbenga-joseph.onrender.com";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
