@@ -244,32 +244,20 @@ function ChatPage() {
   // Fetch admin profile + subscribe immediately — no race condition
   useEffect(() => {
     if (isAdmin) return;
-    let adminUserId: string | null = null;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     async function init() {
       console.log("[AdminProfile] Fetching admin profile...");
       
-      // Step 1: get admin user_id
-      const { data: adminRole, error: roleError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin")
-        .limit(1)
-        .maybeSingle();
+      // Use RPC to get admin user_id — direct user_roles query is blocked by RLS for clients
+      const { data: adminUserId, error: rpcError } = await supabase.rpc("get_admin_user_id");
       
-      if (roleError) {
-        console.error("[AdminProfile] Error fetching admin role:", roleError);
+      if (rpcError || !adminUserId) {
+        console.error("[AdminProfile] Could not get admin user_id:", rpcError);
         return;
       }
-      
-      if (!adminRole?.user_id) {
-        console.error("[AdminProfile] No admin user found in user_roles table");
-        return;
-      }
-      
-      adminUserId = adminRole.user_id;
+
       console.log("[AdminProfile] Found admin user_id:", adminUserId);
 
       // Step 2: fetch full profile
@@ -1370,15 +1358,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     let receiverId = isAdmin ? conversation.user_id : (adminProfile?.user_id ?? "");
 
     if (!isAdmin && !receiverId) {
-      // adminProfile hasn't loaded yet — fetch admin user_id directly
+      // adminProfile hasn't loaded yet — fetch admin user_id via secure RPC
+      // (direct user_roles query is blocked by RLS for non-admin users)
       try {
-        const { data: adminRole } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", "admin")
-          .limit(1)
-          .maybeSingle();
-        receiverId = adminRole?.user_id ?? "";
+        const { data } = await supabase.rpc("get_admin_user_id");
+        receiverId = data ?? "";
       } catch { /* ignore */ }
     }
 
