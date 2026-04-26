@@ -277,7 +277,8 @@ function ChatPage() {
         const byUser = new Map(profiles?.map((p) => [p.user_id, p]) ?? []);
         const enriched = convs.map((c) => ({ ...c, profile: byUser.get(c.user_id) ?? undefined })) as Conversation[];
         setConversations(enriched);
-        if (enriched.length && !activeId) setActiveId(enriched[0].id);
+        // Admin: do NOT auto-open any conversation — let them choose
+        // (previously this auto-jumped to the most recent chat)
       }
     }
     setLoading(false);
@@ -1651,8 +1652,18 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
     return (
       <div className="flex gap-1 px-1 py-1">
         {emojiChars.map((emoji, i) => (
-          <span key={i} className={`${size} select-none inline-block animate-emoji-bounce`}
-            style={{ animationDelay: `${i * 80}ms` }}>
+          <span
+            key={`${m.id}-${i}`}
+            className={`${size} select-none inline-block`}
+            style={{
+              animationName: "emoji-bounce",
+              animationDuration: "0.5s",
+              animationTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+              animationFillMode: "both",
+              animationDelay: `${i * 80}ms`,
+              display: "inline-block",
+            }}
+          >
             {emoji}
           </span>
         ))}
