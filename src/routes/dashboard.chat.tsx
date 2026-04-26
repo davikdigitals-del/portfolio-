@@ -323,6 +323,10 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [counterpartStatus, setCounterpartStatus] = useState<string>(
+    isAdmin ? (conversation.profile?.status ?? "offline") : (adminProfile?.status ?? "offline")
+  );
+  const [lastSeen, setLastSeen] = useState<string | null>(null);
   // Voice recording
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -349,8 +353,40 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       // Load existing summary
       const { data: sumData } = await supabase.from("ai_summaries").select("summary").eq("conversation_id", conversation.id).maybeSingle();
       if (sumData) setSummary(sumData.summary);
+      
+      // Load counterpart's profile for status and last_seen
+      const counterpartId = isAdmin ? conversation.user_id : (adminProfile ? null : conversation.user_id);
+      if (counterpartId) {
+        const { data: profile } = await supabase.from("profiles").select("status, last_seen").eq("user_id", counterpartId).maybeSingle();
+        if (profile) {
+          setCounterpartStatus(profile.status);
+          setLastSeen(profile.last_seen);
+        }
+      }
     })();
-  }, [conversation.id, user, isAdmin]);
+  }, [conversation.id, user, isAdmin, adminProfile]);
+
+  // Real-time status updates
+  useEffect(() => {
+    if (!conversation) return;
+    const counterpartId = isAdmin ? conversation.user_id : null;
+    if (!counterpartId) return;
+    
+    const statusChannel = supabase.channel(`profile:${counterpartId}`)
+      .on("postgres_changes", { 
+        event: "UPDATE", 
+        schema: "public", 
+        table: "profiles", 
+        filter: `user_id=eq.${counterpartId}` 
+      }, (payload) => {
+        const updated = payload.new as { status: string; last_seen: string };
+        setCounterpartStatus(updated.status);
+        setLastSeen(updated.last_seen);
+      })
+      .subscribe();
+    
+    return () => { void supabase.removeChannel(statusChannel); };
+  }, [conversation, isAdmin]);
 
   // Realtime messages
   useEffect(() => {
@@ -362,7 +398,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         const updates = isAdmin ? { unread_admin: 0 } : { unread_user: 0 };
         if (msg.sender_id !== user.id) {
           void supabase.from("conversations").update(updates).eq("id", conversation.id);
+          // Mark message as seen
           void supabase.from("messages").update({ status: "seen" }).eq("id", msg.id);
+        } else {
+          // Mark own message as delivered initially
+          void supabase.from("messages").update({ status: "delivered" }).eq("id", msg.id);
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversation.id}` }, (payload) => {
@@ -388,8 +428,22 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       })
       .subscribe();
     typingChannelRef.current = ch;
+    
+    // Mark all existing messages from counterpart as seen
+    void (async () => {
+      const counterpartId = isAdmin ? conversation.user_id : null;
+      if (counterpartId) {
+        await supabase
+          .from("messages")
+          .update({ status: "seen" })
+          .eq("conversation_id", conversation.id)
+          .eq("sender_id", counterpartId)
+          .neq("status", "seen");
+      }
+    })();
+    
     return () => { void supabase.removeChannel(ch); typingChannelRef.current = null; };
-  }, [conversation.id, user, isAdmin]);
+  }, [conversation.id, user, isAdmin, adminProfile]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -582,7 +636,24 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "User")
     : (adminProfile?.display_name ?? "...");
   const counterpartInitial = counterpartName[0].toUpperCase();
-  const isOnline = isAdmin ? conversation.profile?.status === "online" : (adminProfile?.status === "online");
+  const isOnline = counterpartStatus === "online";
+  
+  function formatLastSeen(lastSeenStr: string | null) {
+    if (!lastSeenStr) return "Last seen recently";
+    const lastSeenDate = new Date(lastSeenStr);
+    const now = new Date();
+    const diffMs = now.getTime() - lastSeenDate.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return "Last seen just now";
+    if (diffMins < 60) return `Last seen ${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `Last seen ${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return "Last seen yesterday";
+    if (diffDays < 7) return `Last seen ${diffDays}d ago`;
+    return `Last seen ${lastSeenDate.toLocaleDateString()}`;
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -599,7 +670,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{counterpartName}</div>
-          <div className="text-xs text-muted-foreground">{isOnline ? "Online" : "Offline"}</div>
+          <div className="text-xs text-muted-foreground">
+            {isOnline ? "Online" : formatLastSeen(lastSeen)}
+          </div>
         </div>
         {isAdmin && conversation.profile?.email && (
           <div className="hidden md:block text-xs text-muted-foreground mr-2">{conversation.profile.email}</div>
@@ -658,10 +731,30 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
           const mine = m.sender_id === user?.id;
           const prev = messages[i - 1];
           const showGap = !prev || prev.sender_id !== m.sender_id;
+          const showAvatar = !mine && (!messages[i + 1] || messages[i + 1].sender_id !== m.sender_id);
+          
           return (
-            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"} ${showGap ? "mt-3" : ""} animate-message-in`}>
+            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start items-end gap-2"} ${showGap ? "mt-3" : ""} animate-message-in`}>
+              {/* Show admin avatar for their messages */}
+              {!mine && showAvatar && (
+                <div className="shrink-0 mb-1">
+                  {adminProfile?.avatar_url ? (
+                    <img 
+                      src={adminProfile.avatar_url} 
+                      alt={adminProfile.display_name || "Admin"} 
+                      className="h-7 w-7 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">
+                      {counterpartInitial}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!mine && !showAvatar && <div className="w-7 shrink-0" />}
+              
               <div className="max-w-[75%]">
-                <MessageBubble message={m} mine={mine} playingId={playingId} onTogglePlay={togglePlay} />
+                <MessageBubble message={m} mine={mine} playingId={playingId} onTogglePlay={togglePlay} />MessageBubble message={m} mine={mine} playingId={playingId} onTogglePlay={togglePlay} />
                 <div className={`flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ${mine ? "justify-end mr-2" : "ml-2"}`}>
                   <span>{formatTime(m.created_at)}</span>
                   {mine && (m.status === "seen" ? <CheckCheck className="h-3 w-3 text-primary" /> : <Check className="h-3 w-3" />)}
