@@ -366,6 +366,7 @@ function ChatPage() {
             .eq("status", "sent")       // only sent → delivered, never downgrade seen
             .then(({ error }) => {
               if (error) console.error("Delivered update error:", error);
+              else console.log("Marked messages as delivered");
             });
         }
 
