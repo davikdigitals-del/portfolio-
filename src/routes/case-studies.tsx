@@ -89,7 +89,7 @@ const projects = [
     result: "Premium Design",
     color: "from-pink-500 to-rose-600",
     link: "https://hairsoda.ca/",
-    image: "/Portfolio1.png",
+    image: "/portfolio1.png",
     featured: true,
   },
   {
@@ -101,7 +101,7 @@ const projects = [
     result: "Live Platform",
     color: "from-blue-500 to-cyan-600",
     link: "https://www.onemedical.com/",
-    image: "/Portfolio2.png",
+    image: "/portfolio2.png",
     featured: true,
   },
   {
@@ -113,7 +113,7 @@ const projects = [
     result: "+40% conversions",
     color: "from-emerald-500 to-teal-600",
     link: "https://www.hoffmancarwash.com/",
-    image: "/Portfolio 3.png",
+    image: "/portfolio3.png",
     featured: true,
   },
   {
@@ -125,7 +125,7 @@ const projects = [
     result: "Brand Authority",
     color: "from-purple-500 to-indigo-500",
     link: "https://interiors.co.nz/",
-    image: "/Portfolio 4.png",
+    image: "/portfolio4.png",
     featured: false,
   },
   {
@@ -137,7 +137,7 @@ const projects = [
     result: "Premium Listings",
     color: "from-amber-500 to-orange-500",
     link: "https://www.johnfarhathomes.com/",
-    image: "/Portfolio5.png",
+    image: "/portfolio5.png",
     featured: false,
   },
   {
@@ -161,7 +161,7 @@ const projects = [
     result: "Industry Leader",
     color: "from-slate-500 to-gray-600",
     link: "https://www.mattconstruction.com/",
-    image: "/Portfolio7.png",
+    image: "/portfolio7.png",
     featured: false,
   },
 ];
