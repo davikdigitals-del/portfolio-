@@ -1,19 +1,11 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
-// Use Node.js preset when deploying to Render (non-Cloudflare environments)
-const isRender = process.env.RENDER === "true";
+// Disable Cloudflare plugin when building for Render (Node.js environment)
+// The RENDER env var is automatically set by Render's build environment
+const isRender = !!process.env.RENDER;
 
 export default defineConfig(
   isRender
-    ? {
-        vite: {
-          plugins: [
-            tanstackStart({
-              target: "node",
-            }),
-          ],
-        },
-      }
+    ? { cloudflare: false }
     : {}
 );

@@ -8,9 +8,9 @@ services:
     startCommand: node .output/server/index.mjs
     envVars:
       - key: NODE_VERSION
-        value: 20
+        value: 20.18.0
       - key: RENDER
-        value: true
+        value: "true"
       - key: VITE_SUPABASE_URL
         value: https://gcckwqkzjoxraikosash.supabase.co
       - key: VITE_SUPABASE_PROJECT_ID
@@ -27,3 +27,5 @@ services:
         value: ajibolagbengajoseph@gmail.com
       - key: ADMIN_NAME
         value: Ajibola Gbenga Joseph
+      - key: SITE_URL
+        value: https://ajibola-portfolio.onrender.com
