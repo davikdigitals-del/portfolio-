@@ -26,18 +26,30 @@ function usePresence(userId: string | undefined) {
     }
 
     async function setOffline() {
-      if (navigator.sendBeacon) {
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
-        const blob = new Blob(
-          [JSON.stringify({ status: "offline", last_seen: new Date().toISOString() })],
-          { type: "application/json" }
+      const now = new Date().toISOString();
+      // sendBeacon fires even when tab is being destroyed
+      // Must include apikey header — use a FormData workaround since sendBeacon
+      // doesn't support custom headers. Fall back to fetch with keepalive.
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({ status: "offline", last_seen: now }),
+            keepalive: true, // fires even when page is unloading
+          }
         );
-        navigator.sendBeacon(url, blob);
-      }
+      } catch { /* ignore — page may be closing */ }
+      // Also try via supabase client as backup
       try {
         await supabase
           .from("profiles")
-          .update({ status: "offline", last_seen: new Date().toISOString() })
+          .update({ status: "offline", last_seen: now })
           .eq("user_id", userId);
       } catch { /* ignore */ }
     }

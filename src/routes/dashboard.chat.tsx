@@ -63,21 +63,21 @@ interface AdminProfile {
   last_seen?: string | null;
 }
 
-// ── Stale presence cleanup: mark users offline if last_seen > 60s ago ─────────
-// Runs on admin side to auto-expire sessions that missed the offline signal
+// ── Stale presence cleanup: mark users offline if last_seen > 45s ago ─────────
+// Heartbeat is every 20s, so 45s = 2 missed heartbeats = definitely offline
 function useStalePresenceCleanup(isAdmin: boolean) {
   useEffect(() => {
     if (!isAdmin) return;
     async function cleanup() {
-      const cutoff = new Date(Date.now() - 60_000).toISOString();
+      const cutoff = new Date(Date.now() - 45_000).toISOString(); // 45s
       await supabase
         .from("profiles")
         .update({ status: "offline" })
         .eq("status", "online")
         .lt("last_seen", cutoff);
     }
-    void cleanup();
-    const interval = setInterval(() => void cleanup(), 20_000);
+    void cleanup(); // run immediately
+    const interval = setInterval(() => void cleanup(), 15_000); // check every 15s
     return () => clearInterval(interval);
   }, [isAdmin]);
 }
@@ -117,8 +117,9 @@ function formatBytes(b: number) {
 function formatLastSeenShort(iso: string | null): string {
   if (!iso) return "Last seen recently";
   const d = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
+  // If last_seen is in the future or within 5 seconds, they just went offline
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 5_000) return "Last seen just now";
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return "Last seen just now";
   if (diffMins === 1) return "Last seen 1 minute ago";
@@ -137,9 +138,14 @@ function useLastSeenLabel(iso: string | null, isOnline: boolean): string {
   const [label, setLabel] = useState(() => isOnline ? "Online" : formatLastSeenShort(iso));
 
   useEffect(() => {
-    if (isOnline) { setLabel("Online"); return; }
-    setLabel(formatLastSeenShort(iso));
-    const t = setInterval(() => setLabel(formatLastSeenShort(iso)), 30_000);
+    if (isOnline) {
+      setLabel("Online");
+      return;
+    }
+    // When they just went offline, use current time as last_seen if iso is null
+    const effectiveIso = iso ?? new Date().toISOString();
+    setLabel(formatLastSeenShort(effectiveIso));
+    const t = setInterval(() => setLabel(formatLastSeenShort(effectiveIso)), 30_000);
     return () => clearInterval(t);
   }, [iso, isOnline]);
 

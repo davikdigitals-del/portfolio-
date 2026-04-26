@@ -1,4 +1,4 @@
-// Service Worker — handles background push notifications and message relay
+// Service Worker — handles background push notifications
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
@@ -12,37 +12,29 @@ self.addEventListener("push", (e) => {
       icon: "/me.webp",
       tag: data.tag ?? "msg",
       data: { url: data.url ?? "/dashboard/chat" },
+      vibrate: [200, 100, 200],
     })
   );
 });
 
-// ── Handle messages from the app (background notification relay) ─────────────
+// ── Handle messages from the app ─────────────────────────────────────────────
+// App posts here when it wants to show a notification (background/locked screen)
 self.addEventListener("message", (e) => {
   if (e.data?.type !== "SHOW_NOTIFICATION") return;
-
   const { title, body, tag } = e.data;
-
-  // Check if any window is currently focused — if so, skip SW notification
-  // (the app already showed a basic Notification directly)
+  // Always show — the app already decided it needs a notification
   e.waitUntil(
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clients) => {
-        const anyFocused = clients.some((c) => c.focused);
-        if (anyFocused) return; // app handled it directly
-
-        return self.registration.showNotification(title, {
-          body,
-          icon: "/me.webp",
-          tag: tag ?? "msg",
-          data: { url: "/dashboard/chat" },
-          vibrate: [200, 100, 200],
-        });
-      })
+    self.registration.showNotification(title, {
+      body,
+      icon: "/me.webp",
+      tag: tag ?? "msg",
+      data: { url: "/dashboard/chat" },
+      vibrate: [200, 100, 200],
+    })
   );
 });
 
-// ── When user clicks the notification, focus or open the app ─────────────────
+// ── Notification click — focus or open the app ───────────────────────────────
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const target = e.notification.data?.url ?? "/dashboard/chat";
@@ -57,9 +49,7 @@ self.addEventListener("notificationclick", (e) => {
             return;
           }
         }
-        if (self.clients.openWindow) {
-          return self.clients.openWindow(target);
-        }
+        if (self.clients.openWindow) return self.clients.openWindow(target);
       })
   );
 });
