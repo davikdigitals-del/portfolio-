@@ -363,7 +363,10 @@ function ChatPage() {
             .update({ status: "delivered" })
             .eq("conversation_id", updated.id)
             .neq("sender_id", user.id)  // messages sent by the OTHER person
-            .eq("status", "sent");       // only sent → delivered, never downgrade seen
+            .eq("status", "sent")       // only sent → delivered, never downgrade seen
+            .then(({ error }) => {
+              if (error) console.error("Delivered update error:", error);
+            });
         }
 
         if (unread > 0 && updated.id !== activeId && notifsOn) {
@@ -738,13 +741,16 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 
       // Mark counterpart's messages as seen
       if (counterpartId) {
-        const { data: seenMsgs } = await supabase
+        const { data: seenMsgs, error: seenErr } = await supabase
           .from("messages")
           .update({ status: "seen" })
           .eq("conversation_id", conversation.id)
           .eq("sender_id", counterpartId)
           .neq("status", "seen")
           .select("id");
+        if (seenErr) {
+          console.error("Seen status update error:", seenErr);
+        }
         if (seenMsgs?.length) {
           const ids = new Set(seenMsgs.map((m: { id: string }) => m.id));
           setMessages((prev) => prev.map((m) => ids.has(m.id) ? { ...m, status: "seen" } : m));
