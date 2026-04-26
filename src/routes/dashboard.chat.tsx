@@ -211,7 +211,26 @@ function ChatPage() {
         );
       })
       .subscribe();
-    return () => { void supabase.removeChannel(ch); };
+
+    // Poll every 15s as a fallback in case realtime misses an update
+    const poll = setInterval(async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("status, last_seen")
+        .eq("user_id", adminProfile.user_id!)
+        .maybeSingle();
+      if (data) {
+        setAdminProfile((prev) => prev
+          ? { ...prev, status: data.status, last_seen: data.last_seen ?? prev.last_seen }
+          : prev
+        );
+      }
+    }, 15_000);
+
+    return () => {
+      void supabase.removeChannel(ch);
+      clearInterval(poll);
+    };
   }, [isAdmin, adminProfile?.user_id]);
 
   const loadConversations = useCallback(async () => {
@@ -508,8 +527,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       const { data: sumData } = await supabase.from("ai_summaries").select("summary").eq("conversation_id", conversation.id).maybeSingle();
       if (sumData) setSummary(sumData.summary);
 
-      // For admin: watch the client's profile
-      // For client: watch the admin's profile (use adminProfile.user_id)
+      // Load counterpart's current status fresh from DB
       const counterpartId = isAdmin ? conversation.user_id : adminProfile?.user_id ?? null;
       if (counterpartId) {
         const { data: profile } = await supabase
@@ -525,33 +543,46 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     })();
   }, [conversation.id, user, isAdmin, adminProfile?.user_id]);
 
-  // Real-time status updates for counterpart
+  // Real-time status updates — re-runs whenever counterpartId becomes available
   useEffect(() => {
-    if (!conversation) return;
     const counterpartId = isAdmin ? conversation.user_id : adminProfile?.user_id ?? null;
-    if (!counterpartId) return;
+    if (!counterpartId) return; // wait until adminProfile loads for client side
 
-    const statusChannel = supabase.channel(`presence-watch:${counterpartId}`)
+    // Also fetch fresh status right now (in case we missed an update)
+    void supabase
+      .from("profiles")
+      .select("status, last_seen")
+      .eq("user_id", counterpartId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setCounterpartStatus(data.status);
+          setLastSeen(data.last_seen ?? null);
+        }
+      });
+
+    const ch = supabase.channel(`presence-watch:${counterpartId}-${conversation.id}`)
       .on("postgres_changes", {
         event: "UPDATE",
         schema: "public",
         table: "profiles",
         filter: `user_id=eq.${counterpartId}`,
       }, (payload) => {
-        const updated = payload.new as { status: string; last_seen: string };
-        setCounterpartStatus(updated.status);
-        setLastSeen(updated.last_seen ?? null);
+        const p = payload.new as { status: string; last_seen: string };
+        setCounterpartStatus(p.status);
+        setLastSeen(p.last_seen ?? null);
       })
       .subscribe();
 
-    return () => { void supabase.removeChannel(statusChannel); };
-  }, [conversation.id, isAdmin, adminProfile?.user_id]);
+    return () => { void supabase.removeChannel(ch); };
+  }, [conversation.id, isAdmin, conversation.user_id, adminProfile?.user_id]);
 
-  // Sync counterpart status when adminProfile prop updates (for client side)
+  // For client: also sync from adminProfile prop whenever it updates
+  // (adminProfile is kept live by ChatPage's own subscription)
   useEffect(() => {
     if (!isAdmin && adminProfile) {
       setCounterpartStatus(adminProfile.status);
-      setLastSeen(adminProfile.last_seen ?? null);
+      if (adminProfile.last_seen) setLastSeen(adminProfile.last_seen);
     }
   }, [isAdmin, adminProfile?.status, adminProfile?.last_seen]);
 
