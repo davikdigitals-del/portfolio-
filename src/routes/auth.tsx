@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type Search = { mode?: "login" | "register" };
@@ -32,12 +33,35 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
       void navigate({ to: "/dashboard" });
     }
   }, [loading, user, navigate]);
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Password reset email sent! Check your inbox.");
+        setShowForgotPassword(false);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,16 +73,28 @@ function AuthPage() {
           toast.error("Password must be at least 6 characters");
           return;
         }
-        const { error } = await signUp(email, password, displayName || email.split("@")[0]);
+        const { error, message } = await signUp(email, password, displayName || email.split("@")[0]);
         if (error) {
           toast.error(error);
+        } else if (message) {
+          toast.success(message, { duration: 6000 });
         } else {
           toast.success("Welcome to Pulse!");
         }
       } else {
         const { error } = await signIn(email, password);
-        if (error) toast.error(error);
-        else toast.success("Welcome back!");
+        if (error) {
+          // Provide more helpful error messages
+          if (error.includes("Invalid login credentials")) {
+            toast.error("Invalid email or password. Please try again.");
+          } else if (error.includes("Email not confirmed")) {
+            toast.error("Please confirm your email address before signing in. Check your inbox.");
+          } else {
+            toast.error(error);
+          }
+        } else {
+          toast.success("Welcome back!");
+        }
       }
     } finally {
       setSubmitting(false);
@@ -78,12 +114,44 @@ function AuthPage() {
             </div>
             <span className="text-xl font-bold">Pulse</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">{isRegister ? "Create your account" : "Welcome back"}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {showForgotPassword ? "Reset Password" : isRegister ? "Create your account" : "Welcome back"}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {isRegister ? "Start chatting in under a minute." : "Sign in to continue your conversations."}
+            {showForgotPassword 
+              ? "Enter your email to receive a password reset link." 
+              : isRegister 
+                ? "Start chatting in under a minute." 
+                : "Sign in to continue your conversations."}
           </p>
 
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          {showForgotPassword ? (
+            <form onSubmit={handleForgotPassword} className="mt-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  required 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  placeholder="you@company.com" 
+                  autoComplete="email" 
+                />
+              </div>
+              <Button type="submit" disabled={submitting} className="w-full h-11 bg-gradient-primary hover:opacity-90 shadow-glow">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Reset Link"}
+              </Button>
+              <button 
+                type="button"
+                onClick={() => setShowForgotPassword(false)} 
+                className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Back to sign in
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={onSubmit} className="mt-6 space-y-4">
             {isRegister && (
               <div className="space-y-1.5">
                 <Label htmlFor="name">Display name</Label>
@@ -95,20 +163,34 @@ function AuthPage() {
               <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" autoComplete="email" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                {!isRegister && (
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete={isRegister ? "new-password" : "current-password"} />
             </div>
             <Button type="submit" disabled={submitting} className="w-full h-11 bg-gradient-primary hover:opacity-90 shadow-glow">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isRegister ? "Create account" : "Sign in"}
             </Button>
           </form>
+          )}
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            {isRegister ? "Already have an account?" : "New to Pulse?"}{" "}
-            <button onClick={() => setIsRegister(!isRegister)} className="text-primary hover:underline font-medium">
-              {isRegister ? "Sign in" : "Create one"}
-            </button>
-          </div>
+          {!showForgotPassword && (
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              {isRegister ? "Already have an account?" : "New to Pulse?"}{" "}
+              <button onClick={() => setIsRegister(!isRegister)} className="text-primary hover:underline font-medium">
+                {isRegister ? "Sign in" : "Create one"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
