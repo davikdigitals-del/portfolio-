@@ -1199,18 +1199,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   // ---- Context menu (long press / right click) ----
   const [ctxMenu, setCtxMenu] = useState<{ msgId: string; x: number; y: number; mine: boolean; type: string } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressDataRef = useRef<{ msg: Message; mine: boolean; x: number; y: number } | null>(null);
 
-  function openCtxMenu(e: React.MouseEvent | React.TouchEvent, msg: Message, mine: boolean) {
-    e.preventDefault();
-    e.stopPropagation();
-    let x: number, y: number;
-    if ("touches" in e) {
-      x = e.touches[0].clientX;
-      y = e.touches[0].clientY;
-    } else {
-      x = (e as React.MouseEvent).clientX;
-      y = (e as React.MouseEvent).clientY;
-    }
+  function openCtxMenu(x: number, y: number, msg: Message, mine: boolean) {
     // Clamp to viewport
     const menuW = 160, menuH = 140;
     x = Math.min(x, window.innerWidth - menuW - 8);
@@ -1219,13 +1210,22 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   }
 
   function startLongPress(e: React.TouchEvent, msg: Message, mine: boolean) {
+    // Capture coordinates immediately
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    longPressDataRef.current = { msg, mine, x, y };
+    
     longPressTimer.current = setTimeout(() => {
-      openCtxMenu(e, msg, mine);
+      if (longPressDataRef.current) {
+        const { msg, mine, x, y } = longPressDataRef.current;
+        openCtxMenu(x, y, msg, mine);
+      }
     }, 500);
   }
 
   function cancelLongPress() {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressDataRef.current = null;
   }
 
   // Close context menu on outside click
@@ -1720,7 +1720,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
                   </div>
                 ) : (
                   <div
-                    onContextMenu={(e) => openCtxMenu(e, m, mine)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openCtxMenu(e.clientX, e.clientY, m, mine);
+                    }}
                     onTouchStart={(e) => startLongPress(e, m, mine)}
                     onTouchEnd={cancelLongPress}
                     onTouchMove={cancelLongPress}
