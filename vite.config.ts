@@ -1,11 +1,5 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-// Disable Cloudflare plugin when building for Render (Node.js environment)
-// The RENDER env var is automatically set by Render's build environment
-const isRender = !!process.env.RENDER;
-
-export default defineConfig(
-  isRender
-    ? { cloudflare: false }
-    : {}
-);
+// Always disable Cloudflare plugin — we deploy to Render (Node.js)
+// The wrangler.jsonc is kept for reference but not used in build
+export default defineConfig({ cloudflare: false });

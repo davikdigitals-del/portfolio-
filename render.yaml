@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: node dist/server/server.js
+    startCommand: node dist/server/index.js
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
