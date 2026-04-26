@@ -1541,99 +1541,117 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         </div>
       )}
 
-      {/* Incoming call modal */}
+      {/* Incoming call modal - WhatsApp style fullscreen */}
       {incomingCall && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-card rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl animate-fade-up">
-            <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
-                {incomingCall.call_type === "video" ? (
-                  <Video className="h-8 w-8" />
-                ) : (
-                  <Phone className="h-8 w-8" />
-                )}
-              </div>
-              <h2 className="text-xl font-semibold mb-2">
-                {incomingCall.call_type === "video" ? "Video call" : "Voice call"}
-              </h2>
-              <p className="text-muted-foreground mb-6">
-                {isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"} is calling...
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => declineCall(incomingCall)}
-                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95"
-                >
-                  <PhoneOff className="h-5 w-5" />
-                  Decline
-                </button>
-                <button
-                  onClick={() => answerCall(incomingCall)}
-                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 shadow-glow"
-                >
-                  <Phone className="h-5 w-5" />
-                  Answer
-                </button>
-              </div>
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-b from-primary/20 to-background">
+          {/* Caller info */}
+          <div className="flex-1 flex flex-col items-center justify-center gap-6">
+            {/* Avatar */}
+            <div className="relative">
+              {!isAdmin && adminProfile?.avatar_url ? (
+                <img src={adminProfile.avatar_url} alt="Caller" className="h-32 w-32 rounded-full object-cover ring-4 ring-primary" />
+              ) : isAdmin && conversation.profile?.avatar_url ? (
+                <img src={conversation.profile.avatar_url} alt="Caller" className="h-32 w-32 rounded-full object-cover ring-4 ring-primary" />
+              ) : (
+                <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-primary">
+                  {(isAdmin ? conversation.profile?.display_name?.[0] : adminProfile?.display_name?.[0]) ?? "?"}
+                </div>
+              )}
             </div>
+
+            {/* Caller name */}
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-foreground">
+                {isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"}
+              </h1>
+              <p className="text-lg text-muted-foreground mt-2">
+                {incomingCall.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call"}
+              </p>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-8 pb-12">
+            <button
+              onClick={() => declineCall(incomingCall)}
+              className="flex items-center justify-center h-16 w-16 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95 shadow-lg"
+              title="Decline call"
+            >
+              <PhoneOff className="h-7 w-7" />
+            </button>
+            <button
+              onClick={() => answerCall(incomingCall)}
+              className="flex items-center justify-center h-16 w-16 rounded-full bg-green-500 text-white hover:opacity-90 transition-all active:scale-95 shadow-lg"
+              title="Answer call"
+            >
+              <Phone className="h-7 w-7" />
+            </button>
           </div>
         </div>
       )}
 
-      {/* Active call UI */}
+      {/* Active call UI - WhatsApp style fullscreen */}
       {activeCall && (
-        <div className="border-b border-border bg-primary/5 px-5 py-4 shrink-0">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                {activeCall.call_type === "video" ? (
-                  <Video className="h-5 w-5" />
-                ) : (
-                  <Phone className="h-5 w-5" />
-                )}
-              </div>
-              <div>
-                <div className="font-semibold text-sm">
-                  {activeCall.call_type === "video" ? "Video call" : "Voice call"} in progress
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-b from-primary/20 to-background">
+          {/* Caller info */}
+          <div className="flex-1 flex flex-col items-center justify-center gap-6">
+            {/* Avatar */}
+            <div className="relative">
+              {!isAdmin && adminProfile?.avatar_url ? (
+                <img src={adminProfile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-primary" />
+              ) : isAdmin && conversation.profile?.avatar_url ? (
+                <img src={conversation.profile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-primary" />
+              ) : (
+                <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-primary">
+                  {(isAdmin ? conversation.profile?.display_name?.[0] : adminProfile?.display_name?.[0]) ?? "?"}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, "0")}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {activeCall.call_type === "video" && (
-                <button
-                  onClick={toggleVideo}
-                  title={isVideoOn ? "Turn off camera" : "Turn on camera"}
-                  className={`p-2 rounded-full transition-colors ${
-                    isVideoOn
-                      ? "bg-primary text-primary-foreground hover:opacity-90"
-                      : "bg-destructive text-destructive-foreground hover:opacity-90"
-                  }`}
-                >
-                  <Video className="h-4 w-4" />
-                </button>
               )}
+            </div>
+
+            {/* Call info */}
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-foreground">
+                {isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"}
+              </h1>
+              <p className="text-lg text-muted-foreground mt-2">
+                {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, "0")}
+              </p>
+            </div>
+          </div>
+
+          {/* Control buttons */}
+          <div className="flex gap-4 pb-12">
+            {activeCall.call_type === "video" && (
               <button
-                onClick={toggleMute}
-                title={isMuted ? "Unmute" : "Mute"}
-                className={`p-2 rounded-full transition-colors ${
-                  isMuted
-                    ? "bg-destructive text-destructive-foreground hover:opacity-90"
-                    : "bg-primary text-primary-foreground hover:opacity-90"
+                onClick={toggleVideo}
+                title={isVideoOn ? "Turn off camera" : "Turn on camera"}
+                className={`flex items-center justify-center h-14 w-14 rounded-full transition-all active:scale-95 shadow-lg ${
+                  isVideoOn
+                    ? "bg-primary text-primary-foreground hover:opacity-90"
+                    : "bg-destructive text-destructive-foreground hover:opacity-90"
                 }`}
               >
-                {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                <Video className="h-6 w-6" />
               </button>
-              <button
-                onClick={endCall}
-                className="p-2 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-colors"
-                title="End call"
-              >
-                <PhoneOff className="h-4 w-4" />
-              </button>
-            </div>
+            )}
+            <button
+              onClick={toggleMute}
+              title={isMuted ? "Unmute" : "Mute"}
+              className={`flex items-center justify-center h-14 w-14 rounded-full transition-all active:scale-95 shadow-lg ${
+                isMuted
+                  ? "bg-destructive text-destructive-foreground hover:opacity-90"
+                  : "bg-primary text-primary-foreground hover:opacity-90"
+              }`}
+            >
+              {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+            </button>
+            <button
+              onClick={endCall}
+              className="flex items-center justify-center h-14 w-14 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95 shadow-lg"
+              title="End call"
+            >
+              <PhoneOff className="h-6 w-6" />
+            </button>
           </div>
         </div>
       )}

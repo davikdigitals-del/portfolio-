@@ -18,7 +18,7 @@ export interface Call {
   updated_at: string;
 }
 
-// WebRTC configuration
+// WebRTC configuration with multiple STUN servers
 const rtcConfig = {
   iceServers: [
     { urls: ["stun:stun.l.google.com:19302"] },
@@ -36,7 +36,11 @@ export class CallManager {
   private callId: string | null = null;
   private signalingChannel: RealtimeChannel | null = null;
   private callType: CallType = "voice";
+  private startTime: number | null = null;
+  private onRemoteStreamCallback: ((stream: MediaStream) => void) | null = null;
+  private onCallEndCallback: (() => void) | null = null;
 
+  // Initiate a call
   async initiateCall(
     conversationId: string,
     receiverId: string,
@@ -79,7 +83,7 @@ export class CallManager {
       // Send offer through signaling
       await this.sendSignalingMessage(call.id, receiverId, {
         type: "offer",
-        offer: offer,
+        offer: offer.sdp,
       });
 
       return call as Call;
@@ -89,10 +93,12 @@ export class CallManager {
     }
   }
 
+  // Answer an incoming call
   async answerCall(call: Call, userId: string): Promise<void> {
     try {
       this.callId = call.id;
       this.callType = call.call_type;
+      this.startTime = Date.now();
 
       // Get local media stream
       await this.getLocalStream(call.call_type);
@@ -119,6 +125,7 @@ export class CallManager {
     }
   }
 
+  // Decline an incoming call
   async declineCall(callId: string, receiverId: string): Promise<void> {
     try {
       await supabase
@@ -129,16 +136,19 @@ export class CallManager {
       await this.sendSignalingMessage(callId, receiverId, {
         type: "declined",
       });
+
+      this.cleanup();
     } catch (err) {
       console.error("Failed to decline call:", err);
       throw err;
     }
   }
 
+  // End an active call
   async endCall(): Promise<void> {
     try {
       if (this.callId) {
-        const duration = this.calculateCallDuration();
+        const duration = this.startTime ? Math.floor((Date.now() - this.startTime) / 1000) : 0;
         await supabase
           .from("calls")
           .update({
@@ -150,12 +160,16 @@ export class CallManager {
       }
 
       this.cleanup();
+      if (this.onCallEndCallback) {
+        this.onCallEndCallback();
+      }
     } catch (err) {
       console.error("Failed to end call:", err);
       throw err;
     }
   }
 
+  // Get local media stream
   private async getLocalStream(callType: CallType): Promise<void> {
     try {
       const constraints =
@@ -170,6 +184,7 @@ export class CallManager {
     }
   }
 
+  // Create WebRTC peer connection
   private createPeerConnection(): void {
     this.peerConnection = new RTCPeerConnection(rtcConfig);
 
@@ -187,6 +202,9 @@ export class CallManager {
         this.remoteStream = new MediaStream();
       }
       this.remoteStream.addTrack(event.track);
+      if (this.onRemoteStreamCallback) {
+        this.onRemoteStreamCallback(this.remoteStream);
+      }
     };
 
     // Handle ICE candidates
@@ -195,7 +213,7 @@ export class CallManager {
         this.sendSignalingMessage(this.callId, "", {
           type: "ice-candidate",
           candidate: event.candidate,
-        });
+        }).catch(err => console.error("Failed to send ICE candidate:", err));
       }
     };
 
@@ -206,11 +224,12 @@ export class CallManager {
         this.peerConnection?.connectionState === "failed" ||
         this.peerConnection?.connectionState === "disconnected"
       ) {
-        this.endCall();
+        this.endCall().catch(err => console.error("Failed to end call on disconnect:", err));
       }
     };
   }
 
+  // Set up signaling channel
   private setupSignaling(callId: string, peerId: string): void {
     const channelName = `call:${callId}`;
     this.signalingChannel = supabase.channel(channelName);
@@ -222,6 +241,7 @@ export class CallManager {
       .subscribe();
   }
 
+  // Send signaling message
   private async sendSignalingMessage(
     callId: string,
     peerId: string,
@@ -236,23 +256,25 @@ export class CallManager {
     });
   }
 
+  // Handle incoming signaling messages
   private async handleSignalingMessage(message: any): Promise<void> {
     try {
       if (message.type === "offer" && this.peerConnection) {
         await this.peerConnection.setRemoteDescription(
-          new RTCSessionDescription(message.offer)
+          new RTCSessionDescription({ type: "offer", sdp: message.offer })
         );
         const answer = await this.peerConnection.createAnswer();
         await this.peerConnection.setLocalDescription(answer);
 
         await this.sendSignalingMessage(this.callId || "", message.from, {
           type: "answer",
-          answer: answer,
+          answer: answer.sdp,
         });
       } else if (message.type === "answer" && this.peerConnection) {
         await this.peerConnection.setRemoteDescription(
-          new RTCSessionDescription(message.answer)
+          new RTCSessionDescription({ type: "answer", sdp: message.answer })
         );
+        this.startTime = Date.now();
       } else if (message.type === "ice-candidate" && this.peerConnection) {
         try {
           await this.peerConnection.addIceCandidate(
@@ -267,11 +289,7 @@ export class CallManager {
     }
   }
 
-  private calculateCallDuration(): number {
-    // This will be calculated based on started_at and ended_at in the database
-    return 0;
-  }
-
+  // Clean up resources
   private cleanup(): void {
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => track.stop());
@@ -290,8 +308,10 @@ export class CallManager {
 
     this.callId = null;
     this.remoteStream = null;
+    this.startTime = null;
   }
 
+  // Public getters
   getLocalStream(): MediaStream | null {
     return this.localStream;
   }
@@ -302,6 +322,15 @@ export class CallManager {
 
   getCallType(): CallType {
     return this.callType;
+  }
+
+  // Set callbacks
+  onRemoteStream(callback: (stream: MediaStream) => void): void {
+    this.onRemoteStreamCallback = callback;
+  }
+
+  onCallEnd(callback: () => void): void {
+    this.onCallEndCallback = callback;
   }
 }
 
