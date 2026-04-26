@@ -200,64 +200,71 @@ function ChatPage() {
   const [alerts, setAlerts] = useState<{ id: string; text: string; convId: string }[]>([]);
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
 
-  // Fetch admin profile — clients need to see admin's real name/avatar/status
+  // Fetch admin profile + subscribe immediately — no race condition
   useEffect(() => {
     if (isAdmin) return;
-    void (async () => {
+    let adminUserId: string | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    async function init() {
+      // Step 1: get admin user_id
       const { data: adminRole } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("role", "admin")
         .limit(1)
         .maybeSingle();
-      if (!adminRole) return;
+      if (!adminRole?.user_id) return;
+      adminUserId = adminRole.user_id;
+
+      // Step 2: fetch full profile
       const { data: profile } = await supabase
         .from("profiles")
         .select("user_id, display_name, avatar_url, status, last_seen")
-        .eq("user_id", adminRole.user_id)
+        .eq("user_id", adminUserId)
         .maybeSingle();
       if (profile) setAdminProfile(profile as AdminProfile);
-    })();
-  }, [isAdmin]);
 
-  // Real-time admin profile updates (so client sees live online/offline in sidebar too)
-  useEffect(() => {
-    if (isAdmin || !adminProfile?.user_id) return;
-    const ch = supabase.channel(`admin-presence:${adminProfile.user_id}`)
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "profiles",
-        filter: `user_id=eq.${adminProfile.user_id}`,
-      }, (payload) => {
-        const p = payload.new as AdminProfile;
-        setAdminProfile((prev) => prev
-          ? { ...prev, status: p.status, last_seen: p.last_seen ?? prev.last_seen }
-          : prev
-        );
-      })
-      .subscribe();
+      // Step 3: subscribe to live updates immediately
+      channel = supabase.channel(`admin-presence:${adminUserId}`)
+        .on("postgres_changes", {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `user_id=eq.${adminUserId}`,
+        }, (payload) => {
+          const p = payload.new as AdminProfile;
+          setAdminProfile((prev) => prev
+            ? { ...prev, status: p.status, last_seen: p.last_seen ?? prev.last_seen }
+            : { user_id: adminUserId!, display_name: null, avatar_url: null, status: p.status, last_seen: p.last_seen }
+          );
+        })
+        .subscribe();
 
-    // Poll every 15s as a fallback in case realtime misses an update
-    const poll = setInterval(async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("status, last_seen")
-        .eq("user_id", adminProfile.user_id!)
-        .maybeSingle();
-      if (data) {
-        setAdminProfile((prev) => prev
-          ? { ...prev, status: data.status, last_seen: data.last_seen ?? prev.last_seen }
-          : prev
-        );
-      }
-    }, 15_000);
+      // Step 4: poll every 10s as fallback
+      pollTimer = setInterval(async () => {
+        const { data } = await supabase
+          .from("profiles")
+          .select("status, last_seen")
+          .eq("user_id", adminUserId!)
+          .maybeSingle();
+        if (data) {
+          setAdminProfile((prev) => prev
+            ? { ...prev, status: data.status, last_seen: data.last_seen ?? prev.last_seen }
+            : prev
+          );
+        }
+      }, 10_000);
+    }
+
+    void init();
 
     return () => {
-      void supabase.removeChannel(ch);
-      clearInterval(poll);
+      if (channel) void supabase.removeChannel(channel);
+      if (pollTimer) clearInterval(pollTimer);
     };
-  }, [isAdmin, adminProfile?.user_id]);
+  }, [isAdmin]);
 
   const loadConversations = useCallback(async () => {
     if (!user) return;
@@ -317,6 +324,18 @@ function ChatPage() {
         void loadConversations();
         const updated = payload.new as Conversation;
         const unread = isAdmin ? updated.unread_admin : updated.unread_user;
+
+        // When a conversation updates, mark the sender's messages as delivered
+        // (recipient is connected = their realtime subscription fired)
+        if (updated.id && user) {
+          void supabase
+            .from("messages")
+            .update({ status: "delivered" })
+            .eq("conversation_id", updated.id)
+            .eq("sender_id", user.id)
+            .eq("status", "sent");
+        }
+
         if (unread > 0 && updated.id !== activeId && notifsOn) {
           const label = isAdmin
             ? "A client sent you a message"
@@ -628,18 +647,17 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         });
 
         if (msg.sender_id !== user.id) {
-          // Message from counterpart — mark as seen immediately and clear unread
+          // Message from counterpart — I'm reading it right now, mark as seen
           const updates = isAdmin ? { unread_admin: 0 } : { unread_user: 0 };
           void supabase.from("conversations").update(updates).eq("id", conversation.id);
           void supabase.from("messages").update({ status: "seen" }).eq("id", msg.id).then(() => {
-            // Update local state immediately so sender sees "seen" right away
             setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "seen" } : m));
           });
         } else {
-          // Our own message — mark as delivered
-          void supabase.from("messages").update({ status: "delivered" }).eq("id", msg.id).then(() => {
-            setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "delivered" } : m));
-          });
+          // My own message just arrived on server — it's "sent"
+          // It becomes "delivered" automatically via the UPDATE subscription
+          // when the other person's realtime connection processes it
+          setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "sent" } : m));
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversation.id}` }, (payload) => {
@@ -666,10 +684,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       .subscribe();
     typingChannelRef.current = ch;
 
-    // Mark all existing unread messages from counterpart as seen on open
+    // When chat opens: mark counterpart's messages as seen, mark my unread as delivered
     void (async () => {
       const counterpartId = isAdmin ? conversation.user_id : adminProfile?.user_id ?? null;
+
       if (counterpartId) {
+        // Mark all counterpart messages as seen (I'm reading them now)
         const { data: updated } = await supabase
           .from("messages")
           .update({ status: "seen" })
@@ -677,11 +697,23 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
           .eq("sender_id", counterpartId)
           .neq("status", "seen")
           .select("id");
-        // Update local state immediately
-        if (updated && updated.length > 0) {
+        if (updated?.length) {
           const seenIds = new Set(updated.map((m: { id: string }) => m.id));
           setMessages((prev) => prev.map((m) => seenIds.has(m.id) ? { ...m, status: "seen" } : m));
         }
+      }
+
+      // Mark my own sent messages as delivered (recipient is connected = chat is open)
+      const { data: myDelivered } = await supabase
+        .from("messages")
+        .update({ status: "delivered" })
+        .eq("conversation_id", conversation.id)
+        .eq("sender_id", user.id)
+        .eq("status", "sent")
+        .select("id");
+      if (myDelivered?.length) {
+        const deliveredIds = new Set(myDelivered.map((m: { id: string }) => m.id));
+        setMessages((prev) => prev.map((m) => deliveredIds.has(m.id) ? { ...m, status: "delivered" } : m));
       }
     })();
     
@@ -1230,7 +1262,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
                 )}
                 <div className={`flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ${mine ? "justify-end mr-2" : "ml-2"}`}>
                   <span>{formatTime(m.created_at)}</span>
-                  {mine && !m.deleted_at && (m.status === "seen" ? <CheckCheck className="h-3 w-3 text-primary" /> : <Check className="h-3 w-3" />)}
+                  {mine && !m.deleted_at && (
+                    m.status === "seen"
+                      ? <CheckCheck className="h-3 w-3 text-primary" />        // blue double — seen
+                      : m.status === "delivered"
+                        ? <CheckCheck className="h-3 w-3 text-muted-foreground" />  // grey double — delivered
+                        : <Check className="h-3 w-3 text-muted-foreground" />       // grey single — sent
+                  )}
                 </div>
               </div>
             </div>
