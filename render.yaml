@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: ajibola-portfolio
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node .output/server/index.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: RENDER
+        value: true
+      - key: VITE_SUPABASE_URL
+        value: https://gcckwqkzjoxraikosash.supabase.co
+      - key: VITE_SUPABASE_PROJECT_ID
+        value: gcckwqkzjoxraikosash
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjY2t3cWt6am94cmFpa29zYXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzA4MzQsImV4cCI6MjA5Mjc0NjgzNH0.BCjatcjeUane_yN9IAyI3iNdyyesq85pevZSH9LO-6E
+      - key: SUPABASE_URL
+        value: https://gcckwqkzjoxraikosash.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjY2t3cWt6am94cmFpa29zYXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzA4MzQsImV4cCI6MjA5Mjc0NjgzNH0.BCjatcjeUane_yN9IAyI3iNdyyesq85pevZSH9LO-6E
+      - key: RESEND_API_KEY
+        value: re_c4KHeFH6_Fqesax112zyPU1qmNSuywS4W
+      - key: ADMIN_EMAIL
+        value: ajibolagbengajoseph@gmail.com
+      - key: ADMIN_NAME
+        value: Ajibola Gbenga Joseph
