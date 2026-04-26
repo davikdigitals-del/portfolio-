@@ -14,6 +14,70 @@ export type Database = {
   }
   public: {
     Tables: {
+      calls: {
+        Row: {
+          id: string
+          conversation_id: string
+          initiator_id: string
+          receiver_id: string
+          call_type: Database["public"]["Enums"]["call_type"]
+          status: Database["public"]["Enums"]["call_status"]
+          started_at: string | null
+          ended_at: string | null
+          duration_seconds: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          initiator_id: string
+          receiver_id: string
+          call_type: Database["public"]["Enums"]["call_type"]
+          status?: Database["public"]["Enums"]["call_status"]
+          started_at?: string | null
+          ended_at?: string | null
+          duration_seconds?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          initiator_id?: string
+          receiver_id?: string
+          call_type?: Database["public"]["Enums"]["call_type"]
+          status?: Database["public"]["Enums"]["call_status"]
+          started_at?: string | null
+          ended_at?: string | null
+          duration_seconds?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calls_initiator_id_fkey"
+            columns: ["initiator_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calls_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_tags: {
         Row: {
           color: string | null
@@ -94,6 +158,7 @@ export type Database = {
           id: string
           pinned: boolean
           replied_to_id: string | null
+          call_id: string | null
           sender_id: string
           status: Database["public"]["Enums"]["message_status"]
           type: Database["public"]["Enums"]["message_type"]
@@ -109,6 +174,7 @@ export type Database = {
           id?: string
           pinned?: boolean
           replied_to_id?: string | null
+          call_id?: string | null
           sender_id: string
           status?: Database["public"]["Enums"]["message_status"]
           type?: Database["public"]["Enums"]["message_type"]
@@ -124,6 +190,7 @@ export type Database = {
           id?: string
           pinned?: boolean
           replied_to_id?: string | null
+          call_id?: string | null
           sender_id?: string
           status?: Database["public"]["Enums"]["message_status"]
           type?: Database["public"]["Enums"]["message_type"]
@@ -141,6 +208,13 @@ export type Database = {
             columns: ["replied_to_id"]
             isOneToOne: false
             referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
             referencedColumns: ["id"]
           },
         ]
@@ -268,6 +342,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      call_type: "voice" | "video"
+      call_status: "ringing" | "active" | "ended" | "missed" | "declined"
       message_status: "sent" | "delivered" | "seen"
       message_type: "text" | "file" | "image" | "voice"
       task_status: "open" | "in_progress" | "done"
@@ -400,6 +476,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      call_type: ["voice", "video"],
+      call_status: ["ringing", "active", "ended", "missed", "declined"],
       message_status: ["sent", "delivered", "seen"],
       message_type: ["text", "file", "image", "voice"],
       task_status: ["open", "in_progress", "done"],

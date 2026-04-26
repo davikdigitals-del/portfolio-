@@ -6,6 +6,7 @@ import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
   Play, Pause, FileText, Bell, BellOff, Trash2, Pencil, Reply,
+  Phone, Video, PhoneOff, Maximize2, Minimize2, MicOff, Volume,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import {
   startBackgroundRefresh,
   stopBackgroundRefresh,
 } from "@/lib/notifications";
+import { callManager, type Call, type CallType } from "@/lib/calls";
 
 export const Route = createFileRoute("/dashboard/chat")({
   head: () => ({ meta: [{ title: "Chat - Pulse" }] }),
@@ -689,6 +691,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   );
   const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
+  const [activeCall, setActiveCall] = useState<Call | null>(null);
+  const [callDuration, setCallDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOn, setIsVideoOn] = useState(true);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Keep counterpartStatus in sync with conversation.profile.status (admin side)
   // This fires whenever ChatPage's client-profiles-presence subscription updates conversations
@@ -1297,6 +1305,145 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     setSending(false);
   }
 
+  // ---- Call functions ----
+  async function initiateCall(callType: CallType) {
+    if (!user) return;
+    try {
+      const call = await callManager.initiateCall(
+        conversation.id,
+        isAdmin ? conversation.user_id : (adminProfile?.user_id ?? ""),
+        callType,
+        user.id
+      );
+      setActiveCall(call as Call);
+
+      // Send call notification
+      const callLabel = callType === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call";
+      void sendPushNotification(
+        callLabel,
+        `${isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"} is calling...`,
+        { tag: `call-${call.id}` }
+      );
+
+      // Start call timer
+      setCallDuration(0);
+      callTimerRef.current = setInterval(() => {
+        setCallDuration((prev) => prev + 1);
+      }, 1000);
+
+      toast.success(`${callType} call initiated`);
+    } catch (err) {
+      console.error("Failed to initiate call:", err);
+      toast.error("Failed to start call");
+    }
+  }
+
+  async function answerCall(call: Call) {
+    if (!user) return;
+    try {
+      await callManager.answerCall(call, user.id);
+      setActiveCall(call);
+      setIncomingCall(null);
+
+      // Start call timer
+      setCallDuration(0);
+      callTimerRef.current = setInterval(() => {
+        setCallDuration((prev) => prev + 1);
+      }, 1000);
+
+      toast.success("Call connected");
+    } catch (err) {
+      console.error("Failed to answer call:", err);
+      toast.error("Failed to answer call");
+    }
+  }
+
+  async function declineCall(call: Call) {
+    if (!user) return;
+    try {
+      await callManager.declineCall(
+        call.id,
+        isAdmin ? conversation.user_id : (adminProfile?.user_id ?? "")
+      );
+      setIncomingCall(null);
+      toast.info("Call declined");
+    } catch (err) {
+      console.error("Failed to decline call:", err);
+      toast.error("Failed to decline call");
+    }
+  }
+
+  async function endCall() {
+    try {
+      await callManager.endCall();
+      setActiveCall(null);
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+      setCallDuration(0);
+      toast.success("Call ended");
+    } catch (err) {
+      console.error("Failed to end call:", err);
+      toast.error("Failed to end call");
+    }
+  }
+
+  function toggleMute() {
+    const localStream = callManager.getLocalStream();
+    if (localStream) {
+      localStream.getAudioTracks().forEach((track) => {
+        track.enabled = !track.enabled;
+      });
+      setIsMuted(!isMuted);
+    }
+  }
+
+  function toggleVideo() {
+    const localStream = callManager.getLocalStream();
+    if (localStream) {
+      localStream.getVideoTracks().forEach((track) => {
+        track.enabled = !track.enabled;
+      });
+      setIsVideoOn(!isVideoOn);
+    }
+  }
+
+  // Subscribe to incoming calls
+  useEffect(() => {
+    if (!user || !conversation) return;
+
+    const ch = supabase.channel(`calls:${conversation.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "calls",
+        filter: `conversation_id=eq.${conversation.id}`,
+      }, (payload) => {
+        const call = payload.new as Call;
+        // Only show incoming call notification if we're the receiver
+        if (call.receiver_id === user.id && call.status === "ringing") {
+          setIncomingCall(call);
+          void sendPushNotification(
+            call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
+            `${isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"} is calling...`,
+            { tag: `call-${call.id}` }
+          );
+        }
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "calls",
+        filter: `id=eq.${activeCall?.id ?? ""}`,
+      }, (payload) => {
+        const call = payload.new as Call;
+        if (call.status === "ended" || call.status === "declined") {
+          endCall();
+        }
+      })
+      .subscribe();
+
+    return () => { void supabase.removeChannel(ch); };
+  }, [user, conversation.id, activeCall?.id, isAdmin, conversation.profile?.display_name, adminProfile?.display_name]);
+
   const counterpartName = isAdmin
     ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "User")
     : (adminProfile?.display_name ?? "Ajibola Gbenga Joseph");
@@ -1335,6 +1482,23 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         {isAdmin && conversation.profile?.email && (
           <div className="hidden md:block text-xs text-muted-foreground mr-2">{conversation.profile.email}</div>
         )}
+        {/* Call buttons */}
+        <button
+          onClick={() => initiateCall("voice")}
+          disabled={activeCall !== null}
+          title="Start voice call"
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors disabled:opacity-40 shrink-0"
+        >
+          <Phone className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => initiateCall("video")}
+          disabled={activeCall !== null}
+          title="Start video call"
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors disabled:opacity-40 shrink-0"
+        >
+          <Video className="h-4 w-4" />
+        </button>
         {isAdmin && (
           <Button
             variant="outline"
@@ -1371,6 +1535,103 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
               </Button>
               <button onClick={() => setShowSummary(false)} className="text-muted-foreground hover:text-foreground p-1">
                 <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Incoming call modal */}
+      {incomingCall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl animate-fade-up">
+            <div className="text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary mb-4">
+                {incomingCall.call_type === "video" ? (
+                  <Video className="h-8 w-8" />
+                ) : (
+                  <Phone className="h-8 w-8" />
+                )}
+              </div>
+              <h2 className="text-xl font-semibold mb-2">
+                {incomingCall.call_type === "video" ? "Video call" : "Voice call"}
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                {isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"} is calling...
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => declineCall(incomingCall)}
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95"
+                >
+                  <PhoneOff className="h-5 w-5" />
+                  Decline
+                </button>
+                <button
+                  onClick={() => answerCall(incomingCall)}
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 shadow-glow"
+                >
+                  <Phone className="h-5 w-5" />
+                  Answer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active call UI */}
+      {activeCall && (
+        <div className="border-b border-border bg-primary/5 px-5 py-4 shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                {activeCall.call_type === "video" ? (
+                  <Video className="h-5 w-5" />
+                ) : (
+                  <Phone className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <div className="font-semibold text-sm">
+                  {activeCall.call_type === "video" ? "Video call" : "Voice call"} in progress
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, "0")}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeCall.call_type === "video" && (
+                <button
+                  onClick={toggleVideo}
+                  title={isVideoOn ? "Turn off camera" : "Turn on camera"}
+                  className={`p-2 rounded-full transition-colors ${
+                    isVideoOn
+                      ? "bg-primary text-primary-foreground hover:opacity-90"
+                      : "bg-destructive text-destructive-foreground hover:opacity-90"
+                  }`}
+                >
+                  <Video className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                onClick={toggleMute}
+                title={isMuted ? "Unmute" : "Mute"}
+                className={`p-2 rounded-full transition-colors ${
+                  isMuted
+                    ? "bg-destructive text-destructive-foreground hover:opacity-90"
+                    : "bg-primary text-primary-foreground hover:opacity-90"
+                }`}
+              >
+                {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={endCall}
+                className="p-2 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-colors"
+                title="End call"
+              >
+                <PhoneOff className="h-4 w-4" />
               </button>
             </div>
           </div>
