@@ -1273,10 +1273,10 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
                   <span>{formatTime(m.created_at)}</span>
                   {mine && !m.deleted_at && (
                     m.status === "seen"
-                      ? <CheckCheck className="h-3 w-3 text-primary" />        // blue double — seen
+                      ? <CheckCheck className="h-3 w-3 text-primary" />              // blue double — seen
                       : m.status === "delivered"
-                        ? <CheckCheck className="h-3 w-3 text-muted-foreground" />  // grey double — delivered
-                        : <Check className="h-3 w-3 text-muted-foreground" />       // grey single — sent
+                        ? <CheckCheck className="h-3 w-3 text-muted-foreground" />   // grey double — delivered
+                        : <Check className="h-3 w-3 text-muted-foreground" />        // grey single — sent
                   )}
                 </div>
               </div>
@@ -1577,8 +1577,29 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
   const [scale, setScale] = useState(1);
   const [dragging, setDragging] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [startDrag, setStartDrag] = useState({ x: 0, y: 0 });
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const res = await fetch(src);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name || "image";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // Fallback: open in new tab
+      window.open(src, "_blank");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   // Close on Escape
   useEffect(() => {
@@ -1640,10 +1661,13 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
             −
           </button>
           {/* Download */}
-          <a href={src} download={name} target="_blank" rel="noreferrer"
-            className="text-white/70 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
-            <Download className="h-5 w-5" />
-          </a>
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="text-white/70 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-40"
+          >
+            {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+          </button>
           {/* Close */}
           <button onClick={onClose}
             className="text-white/70 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
