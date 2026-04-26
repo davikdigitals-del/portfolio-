@@ -52,7 +52,7 @@ interface Message {
 interface FilePreview {
   file: File;
   previewUrl: string | null;
-  kind: "image" | "file";
+  kind: "image" | "video" | "file";
 }
 
 interface AdminProfile {
@@ -264,6 +264,29 @@ function ChatPage() {
   }, [user, isAdmin]);
 
   useEffect(() => { if (user) void loadConversations(); }, [user, isAdmin]);
+
+  // Admin: subscribe to client profile changes for real-time online status
+  useEffect(() => {
+    if (!isAdmin || !user) return;
+    const ch = supabase.channel("client-profiles-presence")
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "profiles",
+      }, (payload) => {
+        const updated = payload.new as { user_id: string; status: string; last_seen: string; display_name: string | null; avatar_url: string | null; email: string | null };
+        // Update the matching conversation's profile in state immediately
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.user_id === updated.user_id
+              ? { ...c, profile: { ...c.profile, display_name: updated.display_name, email: updated.email ?? c.profile?.email ?? null, avatar_url: updated.avatar_url, status: updated.status } as Conversation["profile"] }
+              : c
+          )
+        );
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [isAdmin, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -653,11 +676,15 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    const previews: FilePreview[] = files.map((f) => ({
-      file: f,
-      previewUrl: f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
-      kind: f.type.startsWith("image/") ? "image" : "file",
-    }));
+    const previews: FilePreview[] = files.map((f) => {
+      const isImage = f.type.startsWith("image/");
+      const isVideo = f.type.startsWith("video/");
+      return {
+        file: f,
+        previewUrl: (isImage || isVideo) ? URL.createObjectURL(f) : null,
+        kind: isImage ? "image" : isVideo ? "video" : "file",
+      };
+    });
     setFilePreviews((prev) => [...prev, ...previews]);
     e.target.value = "";
   }
@@ -674,23 +701,67 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   async function uploadAndSendFiles() {
     if (!user || !filePreviews.length) return;
     setUploading(true);
+
+    // Optimistic: insert placeholder messages immediately so UI updates instantly
+    const optimisticIds: string[] = [];
     for (const fp of filePreviews) {
-      const ext = fp.file.name.split(".").pop() ?? "bin";
-      const path = `${conversation.id}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("chat-files").upload(path, fp.file);
-      if (upErr) { toast.error(`Failed to upload ${fp.file.name}`); continue; }
-      const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
-      const fileUrl = urlData?.publicUrl ?? path;
-      await supabase.from("messages").insert({
+      const tempId = `temp-${crypto.randomUUID()}`;
+      optimisticIds.push(tempId);
+      const optimistic: Message = {
+        id: tempId,
         conversation_id: conversation.id,
         sender_id: user.id,
         content: fp.file.name,
-        type: fp.kind === "image" ? "image" : "file",
+        type: fp.kind === "image" ? "image" : fp.kind === "video" ? "file" : "file",
+        status: "sent",
+        file_url: fp.previewUrl,
+        file_name: fp.file.name,
+        file_size: fp.file.size,
+        created_at: new Date().toISOString(),
+        pinned: false,
+        deleted_at: null,
+      };
+      setMessages((prev) => [...prev, optimistic]);
+    }
+
+    // Upload all files in parallel
+    await Promise.all(filePreviews.map(async (fp, idx) => {
+      const ext = fp.file.name.split(".").pop() ?? "bin";
+      const path = `${conversation.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("chat-files")
+        .upload(path, fp.file, { contentType: fp.file.type });
+
+      if (upErr) {
+        toast.error(`Failed to upload ${fp.file.name}`);
+        // Remove optimistic message
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticIds[idx]));
+        return;
+      }
+
+      const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
+      const fileUrl = urlData?.publicUrl ?? path;
+
+      const msgType = fp.kind === "image" ? "image" : "file";
+
+      const { data: inserted } = await supabase.from("messages").insert({
+        conversation_id: conversation.id,
+        sender_id: user.id,
+        content: fp.file.name,
+        type: msgType,
         file_url: fileUrl,
         file_name: fp.file.name,
         file_size: fp.file.size,
-      });
-    }
+      }).select("*").single();
+
+      // Replace optimistic with real message
+      if (inserted) {
+        setMessages((prev) =>
+          prev.map((m) => m.id === optimisticIds[idx] ? (inserted as Message) : m)
+        );
+      }
+    }));
+
     setFilePreviews([]);
     setUploading(false);
   }
@@ -825,13 +896,40 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     setSending(true);
     const content = text.trim();
     setText("");
-    const { error } = await supabase.from("messages").insert({
+
+    // Optimistic insert — show message immediately
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimistic: Message = {
+      id: tempId,
       conversation_id: conversation.id,
       sender_id: user.id,
       content,
       type: "text",
-    });
-    if (error) { toast.error("Failed to send"); setText(content); }
+      status: "sent",
+      file_url: null,
+      file_name: null,
+      file_size: null,
+      created_at: new Date().toISOString(),
+      pinned: false,
+      deleted_at: null,
+    };
+    setMessages((prev) => [...prev, optimistic]);
+
+    const { data: inserted, error } = await supabase.from("messages").insert({
+      conversation_id: conversation.id,
+      sender_id: user.id,
+      content,
+      type: "text",
+    }).select("*").single();
+
+    if (error) {
+      toast.error("Failed to send");
+      setText(content);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    } else if (inserted) {
+      // Replace optimistic with real
+      setMessages((prev) => prev.map((m) => m.id === tempId ? (inserted as Message) : m));
+    }
     setSending(false);
   }
 
@@ -988,6 +1086,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
             <div key={idx} className="relative group">
               {fp.kind === "image" && fp.previewUrl ? (
                 <img src={fp.previewUrl} alt={fp.file.name} className="h-16 w-16 object-cover rounded-lg border border-border" />
+              ) : fp.kind === "video" && fp.previewUrl ? (
+                <div className="h-16 w-24 relative rounded-lg border border-border overflow-hidden bg-black">
+                  <video src={fp.previewUrl} className="h-full w-full object-cover opacity-70" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Play className="h-5 w-5 text-white" />
+                  </div>
+                </div>
               ) : (
                 <div className="h-16 w-32 flex flex-col items-center justify-center rounded-lg border border-border bg-muted/40 px-2 gap-1">
                   <FileText className="h-5 w-5 text-muted-foreground" />
@@ -1055,7 +1160,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
           </div>
         ) : (
           <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 focus-within:border-primary/60 focus-within:shadow-glow transition-all">
-            <input ref={fileInputRef} type="file" multiple accept="image/*,application/pdf,.doc,.docx,.txt,.zip,.csv" className="hidden" onChange={handleFileSelect} />
+            <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.csv,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileSelect} />
             <button type="button" onClick={() => fileInputRef.current?.click()} title="Attach file" className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0">
               <Paperclip className="h-4 w-4" />
             </button>
@@ -1245,6 +1350,26 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
   }
 
   if (m.type === "file" && m.file_url) {
+    // Check if it's a video by file extension
+    const isVideo = m.file_name ? /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(m.file_name) : false;
+    if (isVideo) {
+      return (
+        <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} max-w-[280px]`}>
+          <video
+            src={m.file_url}
+            controls
+            className="w-full rounded-t-2xl"
+            style={{ maxHeight: 200 }}
+          />
+          <div className={`flex items-center justify-between gap-2 px-3 py-2 ${mine ? "bg-gradient-primary text-primary-foreground" : "bg-surface-elevated"}`}>
+            <span className="text-xs truncate">{m.file_name}</span>
+            <a href={m.file_url} download={m.file_name ?? "video"} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 transition-opacity">
+              <Download className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl ${base} min-w-[180px] max-w-[260px]`}>
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg shrink-0 ${mine ? "bg-white/20" : "bg-primary/10"}`}>
