@@ -130,6 +130,10 @@ export async function sendPushNotification(
           vibrate: [300, 100, 300, 100, 300], // Strong vibration
           badge: "/me.webp",
           requireInteraction: true, // Keep notification until user interacts
+          actions: [
+            { action: "open", title: "Open" },
+            { action: "close", title: "Close" }
+          ]
         } as NotificationOptions);
         return;
       }

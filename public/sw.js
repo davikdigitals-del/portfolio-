@@ -8,7 +8,9 @@ self.addEventListener("push", (e) => {
   let data = { title: "New message", body: "", url: "/dashboard/chat" };
   try {
     if (e.data) data = { ...data, ...e.data.json() };
-  } catch { /* use defaults */ }
+  } catch (err) {
+    console.error("Push data parse error:", err);
+  }
 
   e.waitUntil(
     self.registration.showNotification(data.title, {
@@ -17,8 +19,12 @@ self.addEventListener("push", (e) => {
       badge: "/me.webp",
       tag: "msg-push",
       data: { url: data.url },
-      vibrate: [200, 100, 200, 100, 200],
-      requireInteraction: false,
+      vibrate: [300, 100, 300, 100, 300], // Stronger vibration for iPhone
+      requireInteraction: true, // Keep notification visible on iPhone
+      actions: [
+        { action: "open", title: "Open" },
+        { action: "close", title: "Close" }
+      ]
     })
   );
 });
@@ -26,7 +32,7 @@ self.addEventListener("push", (e) => {
 // ── Background relay (app is open but tab is hidden) ─────────────────────────
 self.addEventListener("message", (e) => {
   if (e.data?.type !== "SHOW_NOTIFICATION") return;
-  const { title, body, tag } = e.data;
+  const { title, body, tag, vibrate } = e.data;
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
@@ -34,7 +40,12 @@ self.addEventListener("message", (e) => {
       badge: "/me.webp",
       tag: tag ?? "msg",
       data: { url: "/dashboard/chat" },
-      vibrate: [200, 100, 200],
+      vibrate: vibrate || [300, 100, 300, 100, 300], // Strong vibration
+      requireInteraction: true, // Keep notification visible
+      actions: [
+        { action: "open", title: "Open" },
+        { action: "close", title: "Close" }
+      ]
     })
   );
 });
@@ -56,5 +67,14 @@ self.addEventListener("notificationclick", (e) => {
         }
         if (self.clients.openWindow) return self.clients.openWindow(target);
       })
+      .catch((err) => {
+        console.error("Notification click error:", err);
+        if (self.clients.openWindow) return self.clients.openWindow(target);
+      })
   );
+});
+
+// ── Notification close ────────────────────────────────────────────────────────
+self.addEventListener("notificationclose", (e) => {
+  console.log("Notification closed:", e.notification.tag);
 });
