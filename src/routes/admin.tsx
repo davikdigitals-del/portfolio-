@@ -43,40 +43,88 @@ function AdminAuthPage() {
       if (mode === "login") {
         const { error } = await signIn(email, password);
         if (error) {
-          toast.error(error);
+          if (error.includes("Invalid login credentials")) {
+            toast.error("Invalid email or password");
+          } else if (error.includes("Email not confirmed")) {
+            toast.error("Please confirm your email before signing in");
+          } else {
+            toast.error(error);
+          }
+        } else {
+          // Check if user has admin role
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", (await supabase.auth.getUser()).data.user?.id);
+          
+          const isAdmin = roles?.some(r => r.role === "admin");
+          if (!isAdmin) {
+            toast.error("This account does not have admin privileges");
+            await signOut();
+            return;
+          }
+          toast.success("Welcome back!");
         }
-        // navigation handled by useEffect above
       } else {
-        // Register and immediately assign admin role
+        // Register admin account
         if (password.length < 6) {
           toast.error("Password must be at least 6 characters");
           return;
         }
+        
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
+            emailRedirectTo: `${window.location.origin}/admin`,
             data: { display_name: name || email.split("@")[0] },
           },
         });
+        
         if (error) {
           toast.error(error.message);
           return;
         }
-        if (data.user) {
-          // Assign admin role directly
+        
+        if (!data.user) {
+          toast.error("Failed to create account");
+          return;
+        }
+        
+        // Check if email confirmation is required
+        if (data.user && !data.session) {
+          toast.success("Account created! Please check your email to confirm before signing in.", { duration: 6000 });
+          setMode("login");
+          return;
+        }
+        
+        // If we have a session, assign admin role
+        if (data.session) {
+          // First, delete the default "user" role created by the trigger
+          await supabase
+            .from("user_roles")
+            .delete()
+            .eq("user_id", data.user.id)
+            .eq("role", "user");
+          
+          // Then insert admin role
           const { error: roleError } = await supabase
             .from("user_roles")
-            .upsert({ user_id: data.user.id, role: "admin" }, { onConflict: "user_id,role" });
+            .insert({ user_id: data.user.id, role: "admin" });
+          
           if (roleError) {
-            toast.error("Account created but role assignment failed: " + roleError.message);
+            console.error("Role assignment error:", roleError);
+            toast.error("Account created but admin role assignment failed. Please contact support.");
           } else {
-            toast.success("Admin account created! Signing you in...");
-            // Sign in immediately
-            await signIn(email, password);
+            toast.success("Admin account created successfully!");
+            // Force reload to update auth context
+            window.location.href = "/dashboard";
           }
         }
       }
+    } catch (err) {
+      console.error("Auth error:", err);
+      toast.error("An unexpected error occurred");
     } finally {
       setSubmitting(false);
     }
@@ -186,6 +234,20 @@ function AdminAuthPage() {
               {mode === "login" ? "Create admin account" : "Sign in"}
             </button>
           </div>
+          
+          {/* Troubleshooting */}
+          {mode === "login" && (
+            <div className="mt-4 p-3 rounded-lg bg-muted/50 border border-border">
+              <p className="text-xs text-muted-foreground">
+                <strong>Troubleshooting:</strong> If you created an account but can't sign in:
+              </p>
+              <ul className="text-xs text-muted-foreground mt-1 space-y-1 ml-4 list-disc">
+                <li>Check your email for a confirmation link</li>
+                <li>Make sure you're using the correct email/password</li>
+                <li>Contact support if the issue persists</li>
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Security note */}
