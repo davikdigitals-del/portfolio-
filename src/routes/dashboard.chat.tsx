@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
-  Play, Pause, FileText, Bell, BellOff, Trash2,
+  Play, Pause, FileText, Bell, BellOff, Trash2, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -931,6 +931,67 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     setUploading(false);
   }
 
+  // ---- Edit message ----
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+
+  async function saveEdit(msgId: string) {
+    if (!editText.trim()) return;
+    const { error } = await supabase
+      .from("messages")
+      .update({ content: editText.trim() })
+      .eq("id", msgId);
+    if (error) toast.error("Failed to edit message");
+    else {
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, content: editText.trim() } : m));
+      setEditingId(null);
+    }
+  }
+
+  // ---- Context menu (long press / right click) ----
+  const [ctxMenu, setCtxMenu] = useState<{ msgId: string; x: number; y: number; mine: boolean; type: string } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function openCtxMenu(e: React.MouseEvent | React.TouchEvent, msg: Message, mine: boolean) {
+    e.preventDefault();
+    e.stopPropagation();
+    let x: number, y: number;
+    if ("touches" in e) {
+      x = e.touches[0].clientX;
+      y = e.touches[0].clientY;
+    } else {
+      x = (e as React.MouseEvent).clientX;
+      y = (e as React.MouseEvent).clientY;
+    }
+    // Clamp to viewport
+    const menuW = 160, menuH = 100;
+    x = Math.min(x, window.innerWidth - menuW - 8);
+    y = Math.min(y, window.innerHeight - menuH - 8);
+    setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
+  }
+
+  function startLongPress(e: React.TouchEvent, msg: Message, mine: boolean) {
+    longPressTimer.current = setTimeout(() => {
+      openCtxMenu(e, msg, mine);
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    document.addEventListener("click", close);
+    document.addEventListener("touchstart", close);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("touchstart", close);
+    };
+  }, [ctxMenu]);
+
   // ---- Delete message ----
   async function deleteMessage(msgId: string) {
     const { error } = await supabase
@@ -938,6 +999,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       .update({ deleted_at: new Date().toISOString(), content: "This message was deleted" })
       .eq("id", msgId);
     if (error) toast.error("Failed to delete message");
+    else setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted_at: new Date().toISOString(), content: "This message was deleted" } : m));
+    setCtxMenu(null);
   }
 
   // ---- Send text ----
@@ -1058,7 +1121,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       )}
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3" onClick={() => setCtxMenu(null)}>
         {messages.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-12">
             <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-40" />
@@ -1070,49 +1133,64 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
           const prev = messages[i - 1];
           const showGap = !prev || prev.sender_id !== m.sender_id;
           const showAvatar = !mine && (!messages[i + 1] || messages[i + 1].sender_id !== m.sender_id);
-          
+          const canEdit = mine && m.type === "text" && !m.deleted_at;
+          const canDelete = (mine || isAdmin) && !m.deleted_at;
+
           return (
-            <div key={m.id} className={`group flex ${mine ? "justify-end" : "justify-start items-end gap-2"} ${showGap ? "mt-3" : ""} animate-message-in`}>
-              {/* Show correct avatar for received messages */}
+            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start items-end gap-2"} ${showGap ? "mt-3" : ""} animate-message-in`}>
               {!mine && showAvatar && (
                 <div className="shrink-0 mb-1">
-                  {/* Admin view: show client avatar. Client view: show admin avatar */}
                   {isAdmin ? (
                     conversation.profile?.avatar_url ? (
                       <img src={conversation.profile.avatar_url} alt="client" className="h-7 w-7 rounded-full object-cover" />
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">
-                        {counterpartInitial}
-                      </div>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">{counterpartInitial}</div>
                     )
                   ) : (
                     adminProfile?.avatar_url ? (
                       <img src={adminProfile.avatar_url} alt={adminProfile.display_name || "Admin"} className="h-7 w-7 rounded-full object-cover" />
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">
-                        {counterpartInitial}
-                      </div>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">{counterpartInitial}</div>
                     )
                   )}
                 </div>
               )}
               {!mine && !showAvatar && <div className="w-7 shrink-0" />}
-              
-              <div className="max-w-[75%] relative">
-                <MessageBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} onDelete={deleteMessage} />
-                {/* Delete button - show on hover */}
-                {(mine || isAdmin) && (
-                  <button
-                    onClick={() => deleteMessage(m.id)}
-                    className={`absolute ${mine ? "-left-7" : "-right-7"} top-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full bg-muted hover:bg-destructive hover:text-destructive-foreground text-muted-foreground`}
-                    title="Delete message"
+
+              <div className="max-w-[75%]">
+                {/* Inline edit mode */}
+                {editingId === m.id ? (
+                  <div className="flex items-end gap-2 rounded-2xl border border-primary/60 bg-card p-2 min-w-[200px]">
+                    <textarea
+                      autoFocus
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void saveEdit(m.id); }
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      rows={1}
+                      className="flex-1 resize-none bg-transparent outline-none text-sm px-1 max-h-24"
+                    />
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => void saveEdit(m.id)} className="text-xs text-primary font-medium hover:underline">Save</button>
+                      <button onClick={() => setEditingId(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onContextMenu={(e) => (canEdit || canDelete) ? openCtxMenu(e, m, mine) : undefined}
+                    onTouchStart={(e) => (canEdit || canDelete) ? startLongPress(e, m, mine) : undefined}
+                    onTouchEnd={cancelLongPress}
+                    onTouchMove={cancelLongPress}
+                    className="select-none"
                   >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                    <MessageBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} onDelete={deleteMessage} />
+                  </div>
                 )}
                 <div className={`flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ${mine ? "justify-end mr-2" : "ml-2"}`}>
                   <span>{formatTime(m.created_at)}</span>
-                  {mine && (m.status === "seen" ? <CheckCheck className="h-3 w-3 text-primary" /> : <Check className="h-3 w-3" />)}
+                  {mine && !m.deleted_at && (m.status === "seen" ? <CheckCheck className="h-3 w-3 text-primary" /> : <Check className="h-3 w-3" />)}
                 </div>
               </div>
             </div>
@@ -1130,6 +1208,38 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
           </div>
         )}
       </div>
+
+      {/* WhatsApp-style context menu */}
+      {ctxMenu && (
+        <div
+          className="fixed z-50 rounded-2xl border border-border bg-card shadow-xl overflow-hidden min-w-[160px] animate-fade-up"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {ctxMenu.mine && ctxMenu.type === "text" && (
+            <button
+              onClick={() => {
+                const msg = messages.find((m) => m.id === ctxMenu.msgId);
+                if (msg) { setEditText(msg.content ?? ""); setEditingId(msg.id); }
+                setCtxMenu(null);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent transition-colors text-left"
+            >
+              <Pencil className="h-4 w-4 text-primary shrink-0" />
+              Edit message
+            </button>
+          )}
+          {(ctxMenu.mine || isAdmin) && (
+            <button
+              onClick={() => deleteMessage(ctxMenu.msgId)}
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-destructive/10 text-destructive transition-colors text-left"
+            >
+              <Trash2 className="h-4 w-4 shrink-0" />
+              Delete message
+            </button>
+          )}
+        </div>
+      )}
 
       {/* File previews */}
       {filePreviews.length > 0 && (
