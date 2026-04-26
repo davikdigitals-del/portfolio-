@@ -13,8 +13,74 @@ export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
 });
 
-// Use dvh (dynamic viewport height) for mobile — accounts for browser chrome
-const MOBILE_BAR_H = 56; // px — matches h-14
+const MOBILE_BAR_H = 56;
+
+// ── Presence lives here so it runs on ALL dashboard pages ────────────────────
+function usePresence(userId: string | undefined) {
+  useEffect(() => {
+    if (!userId) return;
+
+    async function setOnline() {
+      await supabase
+        .from("profiles")
+        .update({ status: "online", last_seen: new Date().toISOString() })
+        .eq("user_id", userId);
+    }
+
+    async function setOffline() {
+      // sendBeacon fires even when tab is being destroyed (mobile close, sleep)
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
+      const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const body = JSON.stringify({ status: "offline", last_seen: new Date().toISOString() });
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        // sendBeacon doesn't support custom headers, so also do a normal fetch
+        navigator.sendBeacon(url, blob);
+      }
+      try {
+        await supabase
+          .from("profiles")
+          .update({ status: "offline", last_seen: new Date().toISOString() })
+          .eq("user_id", userId);
+      } catch { /* ignore — tab may be closing */ }
+    }
+
+    // Set online immediately when dashboard loads
+    void setOnline();
+
+    // Heartbeat every 20s — if it stops, stale cleanup marks them offline
+    const heartbeat = setInterval(() => void setOnline(), 20_000);
+
+    // visibilitychange: hidden = user switched app/tab = offline
+    //                   visible = user came back = online
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        void setOffline();
+      } else {
+        void setOnline();
+      }
+    };
+
+    // pagehide fires on mobile when browser is closed/backgrounded
+    const handlePageHide = (e: PageTransitionEvent) => {
+      if (!e.persisted) void setOffline();
+    };
+
+    const handleUnload = () => void setOffline();
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handleUnload);
+      void setOffline();
+    };
+  }, [userId]);
+}
 
 function DashboardLayout() {
   const { user, role, loading, signOut } = useAuth();
@@ -25,6 +91,9 @@ function DashboardLayout() {
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const routerState = useRouterState();
+
+  // ── Presence runs on every dashboard page ──
+  usePresence(user?.id);
 
   // Close mobile nav on route change
   useEffect(() => { setMobileOpen(false); }, [routerState.location.pathname]);

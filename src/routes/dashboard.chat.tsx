@@ -63,75 +63,21 @@ interface AdminProfile {
   last_seen?: string | null;
 }
 
-// ── WhatsApp-style presence ──────────────────────────────────────────────────
-// Online = heartbeat running. Offline = heartbeat missed for >90s OR explicit unload.
-// We do NOT set offline on visibilitychange (background tab ≠ offline).
-// The DB trigger handles stale sessions: if last_seen > 90s ago → show as offline.
-function usePresence(userId: string | undefined) {
-  useEffect(() => {
-    if (!userId) return;
-
-    async function setOnline() {
-      await supabase
-        .from("profiles")
-        .update({ status: "online", last_seen: new Date().toISOString() })
-        .eq("user_id", userId);
-    }
-
-    async function setOffline() {
-      // Use sendBeacon so it fires even when tab/browser closes on mobile
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
-      const body = JSON.stringify({ status: "offline", last_seen: new Date().toISOString() });
-      if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: "application/json" });
-        navigator.sendBeacon(url, blob);
-      }
-      // Also try normal fetch as fallback
-      await supabase
-        .from("profiles")
-        .update({ status: "offline", last_seen: new Date().toISOString() })
-        .eq("user_id", userId);
-    }
-
-    // Set online immediately
-    void setOnline();
-
-    // Heartbeat every 25 seconds — keeps last_seen fresh
-    const heartbeat = setInterval(() => void setOnline(), 25_000);
-
-    // Set offline on page unload (works on desktop)
-    const handleUnload = () => { void setOffline(); };
-
-    // On mobile: pagehide fires more reliably than beforeunload
-    const handlePageHide = (e: PageTransitionEvent) => {
-      if (!e.persisted) void setOffline(); // not going into bfcache
-    };
-
-    window.addEventListener("beforeunload", handleUnload);
-    window.addEventListener("pagehide", handlePageHide);
-
-    return () => {
-      clearInterval(heartbeat);
-      window.removeEventListener("beforeunload", handleUnload);
-      window.removeEventListener("pagehide", handlePageHide);
-      void setOffline();
-    };
-  }, [userId]);
-}
-
-// ── Stale presence cleanup: mark users offline if last_seen > 90s ago ─────────
-// This runs on the admin side to auto-expire stale "online" statuses
+// ── Stale presence cleanup: mark users offline if last_seen > 60s ago ─────────
+// Runs on admin side to auto-expire sessions that missed the offline signal
 function useStalePresenceCleanup(isAdmin: boolean) {
   useEffect(() => {
     if (!isAdmin) return;
-    const interval = setInterval(async () => {
-      const cutoff = new Date(Date.now() - 90_000).toISOString(); // 90 seconds ago
+    async function cleanup() {
+      const cutoff = new Date(Date.now() - 60_000).toISOString();
       await supabase
         .from("profiles")
         .update({ status: "offline" })
         .eq("status", "online")
         .lt("last_seen", cutoff);
-    }, 30_000); // check every 30s
+    }
+    void cleanup();
+    const interval = setInterval(() => void cleanup(), 20_000);
     return () => clearInterval(interval);
   }, [isAdmin]);
 }
@@ -199,8 +145,7 @@ function ChatPage() {
     "Notification" in window ? Notification.permission : "unsupported"
   );
 
-  // ── WhatsApp-style presence ──
-  usePresence(user?.id);
+  // ── Stale presence cleanup (admin only) ──
   useStalePresenceCleanup(isAdmin);
 
   // Request browser push permission on mount — auto-prompt after 2s
