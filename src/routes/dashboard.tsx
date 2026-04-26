@@ -112,32 +112,42 @@ function DashboardLayout() {
   usePresence(user?.id);
   useViewportHeight();
 
-  // Global call listener for admin - listen for all incoming calls
+  // Global call listener - listen for all incoming calls (both admin and client)
   useEffect(() => {
-    if (!user || !isAdmin) return;
+    if (!user) return;
 
-    console.log("Setting up global call listener for admin");
-    const ch = supabase.channel("admin-calls")
+    console.log(`[CallListener] Setting up global call listener for ${isAdmin ? 'admin' : 'client'}, user ID:`, user.id);
+    
+    const ch = supabase.channel(`global-calls-${user.id}`)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
         table: "calls",
       }, (payload) => {
+        console.log("[CallListener] Received call event:", payload);
         const call = payload.new as Call;
+        
         // Show incoming call if we're the receiver and it's ringing
         if (call.receiver_id === user.id && call.status === "ringing") {
-          console.log("Admin received incoming call:", call.id);
+          console.log("[CallListener] Incoming call for me:", call.id, "Type:", call.call_type);
           setIncomingCall(call);
           void sendPushNotification(
             call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
             "Someone is calling...",
             { tag: `call-${call.id}` }
           );
+        } else {
+          console.log("[CallListener] Call not for me. Receiver:", call.receiver_id, "My ID:", user.id, "Status:", call.status);
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[CallListener] Subscription status:", status);
+      });
 
-    return () => { void supabase.removeChannel(ch); };
+    return () => { 
+      console.log("[CallListener] Cleaning up call listener");
+      void supabase.removeChannel(ch); 
+    };
   }, [user, isAdmin]);
 
   useEffect(() => { setMobileOpen(false); }, [routerState.location.pathname]);
@@ -309,19 +319,21 @@ function DashboardLayout() {
         <Outlet />
       </main>
 
-      {/* Global incoming call modal for admin */}
-      {incomingCall && isAdmin && (
+      {/* Global incoming call modal for both admin and client */}
+      {incomingCall && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-b from-primary/20 to-background">
           {/* Caller info */}
           <div className="flex-1 flex flex-col items-center justify-center gap-6">
             {/* Avatar placeholder */}
             <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-primary">
-              ?
+              {isAdmin ? "C" : "A"}
             </div>
 
             {/* Caller name */}
             <div className="text-center">
-              <h1 className="text-3xl font-bold text-foreground">Incoming Call</h1>
+              <h1 className="text-3xl font-bold text-foreground">
+                {isAdmin ? "Client Calling" : "Ajibola Calling"}
+              </h1>
               <p className="text-lg text-muted-foreground mt-2">
                 {incomingCall.call_type === "video" ? "📹 Video call" : "☎️ Voice call"}
               </p>
@@ -331,7 +343,14 @@ function DashboardLayout() {
           {/* Action buttons */}
           <div className="flex gap-8 pb-12">
             <button
-              onClick={() => setIncomingCall(null)}
+              onClick={async () => {
+                // Decline the call
+                await supabase
+                  .from("calls")
+                  .update({ status: "declined", ended_at: new Date().toISOString() })
+                  .eq("id", incomingCall.id);
+                setIncomingCall(null);
+              }}
               className="flex items-center justify-center h-16 w-16 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95 shadow-lg"
               title="Decline call"
             >

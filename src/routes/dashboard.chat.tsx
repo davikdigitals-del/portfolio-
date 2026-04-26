@@ -1336,6 +1336,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   // ---- Call functions ----
   async function initiateCall(callType: CallType) {
     if (!user) return;
+    
+    console.log("[Call] Initiating call:", {
+      type: callType,
+      conversationId: conversation.id,
+      receiverId: isAdmin ? conversation.user_id : (adminProfile?.user_id ?? ""),
+      initiatorId: user.id,
+    });
+    
     try {
       const call = await callManager.initiateCall(
         conversation.id,
@@ -1343,6 +1351,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         callType,
         user.id
       );
+      
+      console.log("[Call] Call created successfully:", call);
       setActiveCall(call as Call);
 
       // Send call notification
@@ -1368,6 +1378,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
   async function answerCall(call: Call) {
     if (!user) return;
+    
+    console.log("[Call] Answering call:", call.id, "Type:", call.call_type);
+    
     try {
       await callManager.answerCall(call, user.id);
       setActiveCall(call);
@@ -1379,9 +1392,10 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         setCallDuration((prev) => prev + 1);
       }, 1000);
 
+      console.log("[Call] Call answered successfully");
       toast.success("Call connected");
     } catch (err) {
-      console.error("Failed to answer call:", err);
+      console.error("[Call] Failed to answer call:", err);
       toast.error("Failed to answer call");
     }
   }
