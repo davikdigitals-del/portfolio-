@@ -718,6 +718,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
+  // Reset reply state when conversation changes
+  useEffect(() => {
+    setReplyingTo(null);
+  }, [conversation.id]);
+
   // Keep counterpartStatus in sync with conversation.profile.status (admin side)
   // This fires whenever ChatPage's client-profiles-presence subscription updates conversations
   useEffect(() => {
@@ -1238,6 +1243,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   }
 
   function startLongPress(e: React.TouchEvent, msg: Message, mine: boolean) {
+    // Prevent default to avoid text selection and other touch behaviors
+    e.preventDefault();
+    
     // Capture coordinates immediately
     const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
@@ -1247,6 +1255,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       if (longPressDataRef.current) {
         const { msg, mine, x, y } = longPressDataRef.current;
         openCtxMenu(x, y, msg, mine);
+        
+        // Haptic feedback on mobile
+        if ('vibrate' in navigator) {
+          navigator.vibrate(50);
+        }
       }
     }, 500);
   }
@@ -1381,6 +1394,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     
     console.log("[Call] Answering call:", call.id, "Type:", call.call_type);
     
+    // Clear missed call timer
+    if ((call as any)._missedTimer) {
+      clearTimeout((call as any)._missedTimer);
+    }
+    
     try {
       await callManager.answerCall(call, user.id);
       setActiveCall(call);
@@ -1402,6 +1420,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
   async function declineCall(call: Call) {
     if (!user) return;
+    
+    // Clear missed call timer
+    if ((call as any)._missedTimer) {
+      clearTimeout((call as any)._missedTimer);
+    }
+    
     try {
       await callManager.declineCall(call.id);
       setIncomingCall(null);
@@ -1504,6 +1528,21 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         // Only show incoming call notification if we're the receiver
         if (call.receiver_id === user.id && call.status === "ringing") {
           setIncomingCall(call);
+          
+          // Set missed call timer - 30 seconds
+          const missedTimer = setTimeout(async () => {
+            console.log("[Call] Call not answered within 30s, marking as missed:", call.id);
+            await supabase
+              .from("calls")
+              .update({ status: "missed", ended_at: new Date().toISOString() })
+              .eq("id", call.id)
+              .eq("status", "ringing"); // Only update if still ringing
+            setIncomingCall(null);
+          }, 30000);
+          
+          // Store timer to clean up if answered
+          (call as any)._missedTimer = missedTimer;
+          
           void sendPushNotification(
             call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
             `${isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"} is calling...`,

@@ -131,6 +131,28 @@ function DashboardLayout() {
         if (call.receiver_id === user.id && call.status === "ringing") {
           console.log("[CallListener] Incoming call for me:", call.id, "Type:", call.call_type);
           setIncomingCall(call);
+          
+          // Set missed call timer - 30 seconds
+          const missedTimer = setTimeout(async () => {
+            console.log("[CallListener] Call not answered within 30s, marking as missed:", call.id);
+            await supabase
+              .from("calls")
+              .update({ status: "missed", ended_at: new Date().toISOString() })
+              .eq("id", call.id)
+              .eq("status", "ringing"); // Only update if still ringing
+            setIncomingCall(null);
+            
+            // Show missed call notification
+            void sendPushNotification(
+              "📞 Missed Call",
+              call.call_type === "video" ? "You missed a video call" : "You missed a voice call",
+              { tag: `missed-${call.id}` }
+            );
+          }, 30000);
+          
+          // Store timer to clean up if answered
+          (call as any)._missedTimer = missedTimer;
+          
           void sendPushNotification(
             call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
             "Someone is calling...",
@@ -344,6 +366,11 @@ function DashboardLayout() {
           <div className="flex gap-8 pb-12">
             <button
               onClick={async () => {
+                // Clear missed call timer
+                if ((incomingCall as any)._missedTimer) {
+                  clearTimeout((incomingCall as any)._missedTimer);
+                }
+                
                 // Decline the call
                 await supabase
                   .from("calls")
@@ -358,6 +385,11 @@ function DashboardLayout() {
             </button>
             <button
               onClick={() => {
+                // Clear missed call timer
+                if ((incomingCall as any)._missedTimer) {
+                  clearTimeout((incomingCall as any)._missedTimer);
+                }
+                
                 // Navigate to chat with this conversation and answer the call
                 const conversationId = incomingCall.conversation_id;
                 void navigate({ to: `/dashboard/chat?conv=${conversationId}&call=${incomingCall.id}` });
