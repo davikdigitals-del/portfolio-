@@ -121,13 +121,39 @@ function formatLastSeenShort(iso: string | null): string {
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return "Last seen just now";
-  if (diffMins < 60) return `Last seen ${diffMins}m ago`;
+  if (diffMins === 1) return "Last seen 1 minute ago";
+  if (diffMins < 60) return `Last seen ${diffMins} minutes ago`;
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `Last seen ${diffHours}h ago`;
+  if (diffHours === 1) return "Last seen 1 hour ago";
+  if (diffHours < 24) return `Last seen ${diffHours} hours ago`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays === 1) return "Last seen yesterday";
-  if (diffDays < 7) return `Last seen ${diffDays}d ago`;
+  if (diffDays < 7) return `Last seen ${diffDays} days ago`;
   return `Last seen ${d.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+}
+
+// Live last-seen label — ticks every 30s so the minutes update automatically
+function useLastSeenLabel(iso: string | null, isOnline: boolean): string {
+  const [label, setLabel] = useState(() => isOnline ? "Online" : formatLastSeenShort(iso));
+
+  useEffect(() => {
+    if (isOnline) { setLabel("Online"); return; }
+    setLabel(formatLastSeenShort(iso));
+    const t = setInterval(() => setLabel(formatLastSeenShort(iso)), 30_000);
+    return () => clearInterval(t);
+  }, [iso, isOnline]);
+
+  return label;
+}
+
+// Live last-seen component for sidebar rows — ticks every 30s
+function LiveLastSeen({ iso, online }: { iso: string | null; online: boolean }) {
+  const label = useLastSeenLabel(iso, online);
+  return (
+    <span className={`text-xs truncate ${online ? "text-green-500 font-medium" : "text-muted-foreground"}`}>
+      {label}
+    </span>
+  );
 }
 
 // ---- ChatPage ----------------------------------------------------------------
@@ -419,9 +445,7 @@ function ChatPage() {
                             {c.last_message_at && <span className="text-[10px] text-muted-foreground shrink-0">{formatTime(c.last_message_at)}</span>}
                           </div>
                           <div className="flex items-center justify-between gap-2 mt-0.5">
-                            <span className={`text-xs truncate ${adminOnline ? "text-green-500 font-medium" : "text-muted-foreground"}`}>
-                              {adminOnline ? "Online" : formatLastSeenShort(adminProfile?.last_seen ?? null)}
-                            </span>
+                            <LiveLastSeen iso={adminProfile?.last_seen ?? null} online={adminOnline} />
                             {unread > 0 && <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 text-[10px] font-semibold rounded-full bg-primary text-primary-foreground">{unread}</span>}
                           </div>
                         </div>
@@ -1065,6 +1089,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     : (adminProfile?.display_name ?? "Ajibola Gbenga Joseph");
   const counterpartInitial = counterpartName[0].toUpperCase();
   const isOnline = counterpartStatus === "online";
+  const statusLabel = useLastSeenLabel(lastSeen, isOnline);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -1090,7 +1115,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{counterpartName}</div>
           <div className={`text-xs font-medium ${isOnline ? "text-green-500" : "text-muted-foreground"}`}>
-            {isOnline ? "Online" : formatLastSeenShort(lastSeen)}
+            {statusLabel}
           </div>
         </div>
         {isAdmin && conversation.profile?.email && (
