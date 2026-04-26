@@ -732,14 +732,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   );
   const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [activeCall, setActiveCall] = useState<Call | null>(null);
-  const [callDuration] = useState(0);
-  const [isMuted] = useState(false);
-  const [isVideoOn] = useState(true);
-  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   // Reset reply state when conversation changes
   useEffect(() => {
@@ -1416,8 +1408,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       const setActiveCallGlobal = (window as any).__setActiveCall;
       if (setActiveCallGlobal) {
         setActiveCallGlobal(call, profile);
-      } else {
-        setActiveCall(call as Call);
       }
 
       toast.success(`${callType === "video" ? "Video" : "Voice"} call started — waiting for answer`);
