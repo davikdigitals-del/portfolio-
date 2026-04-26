@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, MicOff, Download, X, Volume2, VolumeX,
-  Play, Pause, FileText, Image as ImageIcon, Bell, BellOff,
+  Play, Pause, FileText, Bell, BellOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,9 +55,55 @@ interface FilePreview {
 }
 
 interface AdminProfile {
+  user_id?: string;
   display_name: string | null;
   avatar_url: string | null;
   status: string;
+  last_seen?: string | null;
+}
+
+// ── WhatsApp-style presence: heartbeat every 30s, mark offline on unload ──────
+function usePresence(userId: string | undefined) {
+  useEffect(() => {
+    if (!userId) return;
+
+    async function setOnline() {
+      await supabase
+        .from("profiles")
+        .update({ status: "online", last_seen: new Date().toISOString() })
+        .eq("user_id", userId);
+    }
+
+    async function setOffline() {
+      await supabase
+        .from("profiles")
+        .update({ status: "offline", last_seen: new Date().toISOString() })
+        .eq("user_id", userId);
+    }
+
+    // Set online immediately
+    void setOnline();
+
+    // Heartbeat every 30 seconds
+    const heartbeat = setInterval(() => void setOnline(), 30_000);
+
+    // Set offline when tab closes / navigates away
+    const handleUnload = () => { void setOffline(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") void setOffline();
+      else void setOnline();
+    };
+
+    window.addEventListener("beforeunload", handleUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(heartbeat);
+      window.removeEventListener("beforeunload", handleUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      void setOffline();
+    };
+  }, [userId]);
 }
 
 function playBeep() {
@@ -92,6 +138,22 @@ function formatBytes(b: number) {
   return (b / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+function formatLastSeenShort(iso: string | null): string {
+  if (!iso) return "Last seen recently";
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Last seen just now";
+  if (diffMins < 60) return `Last seen ${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `Last seen ${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return "Last seen yesterday";
+  if (diffDays < 7) return `Last seen ${diffDays}d ago`;
+  return `Last seen ${d.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+}
+
 // ---- ChatPage ----------------------------------------------------------------
 
 function ChatPage() {
@@ -103,6 +165,9 @@ function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [soundOn, setSoundOn] = useState(true);
   const [notifsOn, setNotifsOn] = useState(true);
+
+  // ── WhatsApp-style presence ──
+  usePresence(user?.id);
 
   // Request browser push permission on mount
   useEffect(() => {
@@ -121,12 +186,13 @@ function ChatPage() {
     startUnreadReminder(() => totalUnread, isAdmin);
     return () => stopUnreadReminder();
   }, [totalUnread, isAdmin, notifsOn]);
+
   const [alerts, setAlerts] = useState<{ id: string; text: string; convId: string }[]>([]);
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
 
-  // Fetch the admin's profile so clients see the real name/avatar
+  // Fetch admin profile — clients need to see admin's real name/avatar/status
   useEffect(() => {
-    if (isAdmin) return; // admin doesn't need to fetch themselves
+    if (isAdmin) return;
     void (async () => {
       const { data: adminRole } = await supabase
         .from("user_roles")
@@ -137,12 +203,29 @@ function ChatPage() {
       if (!adminRole) return;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name, avatar_url, status")
+        .select("user_id, display_name, avatar_url, status, last_seen")
         .eq("user_id", adminRole.user_id)
         .maybeSingle();
       if (profile) setAdminProfile(profile as AdminProfile);
     })();
   }, [isAdmin]);
+
+  // Real-time admin profile updates (so client sees live online/offline)
+  useEffect(() => {
+    if (isAdmin || !adminProfile?.user_id) return;
+    const ch = supabase.channel(`admin-presence:${adminProfile.user_id}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "profiles",
+        filter: `user_id=eq.${adminProfile.user_id}`,
+      }, (payload) => {
+        const p = payload.new as AdminProfile;
+        setAdminProfile((prev) => prev ? { ...prev, status: p.status, last_seen: p.last_seen } : prev);
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [isAdmin, adminProfile?.user_id]);
 
   const loadConversations = useCallback(async () => {
     if (!user) return;
@@ -260,22 +343,58 @@ function ChatPage() {
             <ul className="p-2 space-y-1">
               {filtered.map((c) => {
                 const unread = isAdmin ? c.unread_admin : c.unread_user;
-                const initial = (c.profile?.display_name ?? c.profile?.email ?? "U")[0].toUpperCase();
-                const name = isAdmin ? (c.profile?.display_name ?? c.profile?.email ?? "User") : (adminProfile?.display_name ?? "...");
+
+                // CLIENT view: show admin's avatar, name, online status
+                if (!isAdmin) {
+                  const adminOnline = adminProfile?.status === "online";
+                  const adminName = adminProfile?.display_name ?? "Ajibola Gbenga Joseph";
+                  const adminInitial = adminName[0].toUpperCase();
+                  return (
+                    <li key={c.id}>
+                      <button onClick={() => setActiveId(c.id)} className={`w-full text-left flex items-center gap-3 p-3 rounded-xl transition-colors ${activeId === c.id ? "bg-accent" : "hover:bg-accent/50"}`}>
+                        <div className="relative shrink-0">
+                          {adminProfile?.avatar_url ? (
+                            <img src={adminProfile.avatar_url} alt={adminName} className="h-10 w-10 rounded-full object-cover ring-2 ring-border" />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">{adminInitial}</div>
+                          )}
+                          <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface ${adminOnline ? "bg-green-500" : "bg-gray-400"}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-sm truncate">{adminName}</span>
+                            {c.last_message_at && <span className="text-[10px] text-muted-foreground shrink-0">{formatTime(c.last_message_at)}</span>}
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <span className={`text-xs truncate ${adminOnline ? "text-green-500 font-medium" : "text-muted-foreground"}`}>
+                              {adminOnline ? "Online" : formatLastSeenShort(adminProfile?.last_seen ?? null)}
+                            </span>
+                            {unread > 0 && <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 text-[10px] font-semibold rounded-full bg-primary text-primary-foreground">{unread}</span>}
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                }
+
+                // ADMIN view: show client avatar, name, online status
+                const clientOnline = c.profile?.status === "online";
+                const clientName = c.profile?.display_name ?? c.profile?.email ?? "User";
+                const clientInitial = clientName[0].toUpperCase();
                 return (
                   <li key={c.id}>
                     <button onClick={() => setActiveId(c.id)} className={`w-full text-left flex items-center gap-3 p-3 rounded-xl transition-colors ${activeId === c.id ? "bg-accent" : "hover:bg-accent/50"}`}>
                       <div className="relative shrink-0">
-                        {!isAdmin && adminProfile?.avatar_url ? (
-                          <img src={adminProfile.avatar_url} alt="avatar" className="h-10 w-10 rounded-full object-cover" />
+                        {c.profile?.avatar_url ? (
+                          <img src={c.profile.avatar_url} alt={clientName} className="h-10 w-10 rounded-full object-cover ring-2 ring-border" />
                         ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">{initial}</div>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">{clientInitial}</div>
                         )}
-                        {c.profile?.status === "online" && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-success border-2 border-surface" />}
+                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface ${clientOnline ? "bg-green-500" : "bg-gray-400"}`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-sm truncate">{name}</span>
+                          <span className="font-medium text-sm truncate">{clientName}</span>
                           {c.last_message_at && <span className="text-[10px] text-muted-foreground shrink-0">{formatTime(c.last_message_at)}</span>}
                         </div>
                         <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -634,26 +753,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 
   const counterpartName = isAdmin
     ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "User")
-    : (adminProfile?.display_name ?? "...");
+    : (adminProfile?.display_name ?? "Ajibola Gbenga Joseph");
   const counterpartInitial = counterpartName[0].toUpperCase();
   const isOnline = counterpartStatus === "online";
-  
-  function formatLastSeen(lastSeenStr: string | null) {
-    if (!lastSeenStr) return "Last seen recently";
-    const lastSeenDate = new Date(lastSeenStr);
-    const now = new Date();
-    const diffMs = now.getTime() - lastSeenDate.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return "Last seen just now";
-    if (diffMins < 60) return `Last seen ${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `Last seen ${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays === 1) return "Last seen yesterday";
-    if (diffDays < 7) return `Last seen ${diffDays}d ago`;
-    return `Last seen ${lastSeenDate.toLocaleDateString()}`;
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -662,16 +764,18 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         <Button variant="ghost" size="sm" className="md:hidden" onClick={onBack}>&#8592;</Button>
         <div className="relative">
           {!isAdmin && adminProfile?.avatar_url ? (
-            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-9 w-9 rounded-full object-cover" />
+            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-9 w-9 rounded-full object-cover ring-2 ring-border" />
+          ) : isAdmin && conversation.profile?.avatar_url ? (
+            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-9 w-9 rounded-full object-cover ring-2 ring-border" />
           ) : (
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">{counterpartInitial}</div>
           )}
-          {isOnline && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-success border-2 border-surface" />}
+          <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface ${isOnline ? "bg-green-500" : "bg-gray-400"}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{counterpartName}</div>
-          <div className="text-xs text-muted-foreground">
-            {isOnline ? "Online" : formatLastSeen(lastSeen)}
+          <div className={`text-xs font-medium ${isOnline ? "text-green-500" : "text-muted-foreground"}`}>
+            {isOnline ? "Online" : formatLastSeenShort(lastSeen)}
           </div>
         </div>
         {isAdmin && conversation.profile?.email && (
