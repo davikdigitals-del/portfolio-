@@ -249,23 +249,47 @@ function ChatPage() {
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     async function init() {
+      console.log("[AdminProfile] Fetching admin profile...");
+      
       // Step 1: get admin user_id
-      const { data: adminRole } = await supabase
+      const { data: adminRole, error: roleError } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("role", "admin")
         .limit(1)
         .maybeSingle();
-      if (!adminRole?.user_id) return;
+      
+      if (roleError) {
+        console.error("[AdminProfile] Error fetching admin role:", roleError);
+        return;
+      }
+      
+      if (!adminRole?.user_id) {
+        console.error("[AdminProfile] No admin user found in user_roles table");
+        return;
+      }
+      
       adminUserId = adminRole.user_id;
+      console.log("[AdminProfile] Found admin user_id:", adminUserId);
 
       // Step 2: fetch full profile
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("user_id, display_name, avatar_url, status, last_seen")
         .eq("user_id", adminUserId)
         .maybeSingle();
-      if (profile) setAdminProfile(profile as AdminProfile);
+      
+      if (profileError) {
+        console.error("[AdminProfile] Error fetching admin profile:", profileError);
+        return;
+      }
+      
+      if (profile) {
+        console.log("[AdminProfile] ✅ Admin profile loaded:", profile);
+        setAdminProfile(profile as AdminProfile);
+      } else {
+        console.error("[AdminProfile] No profile found for admin user_id:", adminUserId);
+      }
 
       // Step 3: subscribe to live updates immediately
       channel = supabase.channel(`admin-presence:${adminUserId}`)
@@ -1355,13 +1379,24 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     console.log("[Call] ===== INITIATING CALL =====");
     console.log("[Call] Call type:", callType);
     console.log("[Call] Conversation ID:", conversation.id);
+    console.log("[Call] Is admin:", isAdmin);
+    console.log("[Call] Admin profile:", adminProfile);
     console.log("[Call] Receiver ID:", receiverId);
     console.log("[Call] Initiator ID (me):", user.id);
-    console.log("[Call] Is admin:", isAdmin);
     
     if (!receiverId) {
       console.error("[Call] ❌ No receiver ID found!");
-      toast.error("Cannot find receiver for call");
+      console.error("[Call] Admin profile state:", adminProfile);
+      console.error("[Call] Is admin:", isAdmin);
+      console.error("[Call] Conversation user_id:", conversation.user_id);
+      
+      if (!isAdmin && !adminProfile) {
+        toast.error("Admin profile not loaded yet. Please wait a moment and try again.");
+      } else if (!isAdmin && !adminProfile?.user_id) {
+        toast.error("Admin user ID not found. Please refresh the page.");
+      } else {
+        toast.error("Cannot find receiver for call");
+      }
       return;
     }
     
