@@ -1609,6 +1609,27 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: 
     );
   }
 
+  // Detect emoji-only messages — render big with bounce like WhatsApp
+  const emojiOnly = m.content ? /^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+$/u.test(m.content.trim()) : false;
+  const emojiCount = emojiOnly && m.content ? [...m.content.trim()].filter(c => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c)).length : 0;
+
+  if (emojiOnly && emojiCount > 0 && emojiCount <= 3) {
+    const size = emojiCount === 1 ? "text-6xl" : emojiCount === 2 ? "text-5xl" : "text-4xl";
+    return (
+      <div className={`flex gap-1 px-1 py-1 ${mine ? "justify-end" : "justify-start"}`}>
+        {[...m.content!.trim()].filter(c => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c)).map((emoji, i) => (
+          <span
+            key={i}
+            className={`${size} select-none inline-block animate-emoji-bounce`}
+            style={{ animationDelay: `${i * 80}ms` }}
+          >
+            {emoji}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words ${base}`}>
       {m.pinned && <Pin className="inline h-3 w-3 mr-1 opacity-70" />}
