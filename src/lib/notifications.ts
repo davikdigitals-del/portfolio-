@@ -16,33 +16,57 @@ export function canNotify(): boolean {
   return "Notification" in window && Notification.permission === "granted";
 }
 
-export function sendPushNotification(
+export async function sendPushNotification(
   title: string,
   body: string,
   options?: { icon?: string; tag?: string; onClick?: () => void }
 ) {
   if (!canNotify()) return;
 
-  // Try service worker first (works in background on all browsers that support it)
+  // Check if any app window is currently visible/focused
+  const appVisible = !document.hidden && document.visibilityState === "visible";
+
+  // If app is in background/minimized, use service worker to show notification
+  // (this works even when phone is locked or app is backgrounded)
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.ready
-      .then((reg) => {
-        // showNotification is supported in all modern browsers with SW
-        return reg.showNotification(title, {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+
+      if (!appVisible) {
+        // App is in background — use SW to show notification (works on mobile)
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: "SHOW_NOTIFICATION",
+            title,
+            body,
+            tag: options?.tag,
+          });
+          return;
+        }
+        // Fallback: use showNotification directly
+        await reg.showNotification(title, {
           body,
           icon: options?.icon ?? "/me.webp",
           tag: options?.tag,
           data: { url: "/dashboard/chat" },
         });
-      })
-      .catch(() => {
-        // SW not ready or not supported — fall back to basic Notification
-        _showBasicNotification(title, body, options);
+        return;
+      }
+
+      // App is visible — still show notification (user might be on a different tab)
+      await reg.showNotification(title, {
+        body,
+        icon: options?.icon ?? "/me.webp",
+        tag: options?.tag,
+        data: { url: "/dashboard/chat" },
       });
-    return;
+      return;
+    } catch {
+      // SW not ready — fall through to basic notification
+    }
   }
 
-  // No service worker support — use basic Notification API
+  // Fallback: basic Notification API (no SW)
   _showBasicNotification(title, body, options);
 }
 
@@ -64,7 +88,7 @@ function _showBasicNotification(
     };
     setTimeout(() => n.close(), 6000);
   } catch {
-    // Notification API not available (e.g. iOS Safari)
+    // Notification API not available
   }
 }
 
@@ -77,7 +101,7 @@ export function startUnreadReminder(getUnreadCount: () => number, isAdmin: boole
   reminderTimer = setInterval(() => {
     const count = getUnreadCount();
     if (count > 0 && canNotify()) {
-      sendPushNotification(
+      void sendPushNotification(
         isAdmin ? "📬 Unread messages" : "💬 You have a reply",
         isAdmin
           ? `You have ${count} unread message${count > 1 ? "s" : ""} from client${count > 1 ? "s" : ""}.`

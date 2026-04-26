@@ -63,7 +63,10 @@ interface AdminProfile {
   last_seen?: string | null;
 }
 
-// ── WhatsApp-style presence: heartbeat every 30s, mark offline on unload ──────
+// ── WhatsApp-style presence ──────────────────────────────────────────────────
+// Online = heartbeat running. Offline = heartbeat missed for >90s OR explicit unload.
+// We do NOT set offline on visibilitychange (background tab ≠ offline).
+// The DB trigger handles stale sessions: if last_seen > 90s ago → show as offline.
 function usePresence(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return;
@@ -76,6 +79,14 @@ function usePresence(userId: string | undefined) {
     }
 
     async function setOffline() {
+      // Use sendBeacon so it fires even when tab/browser closes on mobile
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
+      const body = JSON.stringify({ status: "offline", last_seen: new Date().toISOString() });
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        navigator.sendBeacon(url, blob);
+      }
+      // Also try normal fetch as fallback
       await supabase
         .from("profiles")
         .update({ status: "offline", last_seen: new Date().toISOString() })
@@ -85,26 +96,44 @@ function usePresence(userId: string | undefined) {
     // Set online immediately
     void setOnline();
 
-    // Heartbeat every 30 seconds
-    const heartbeat = setInterval(() => void setOnline(), 30_000);
+    // Heartbeat every 25 seconds — keeps last_seen fresh
+    const heartbeat = setInterval(() => void setOnline(), 25_000);
 
-    // Set offline when tab closes / navigates away
+    // Set offline on page unload (works on desktop)
     const handleUnload = () => { void setOffline(); };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") void setOffline();
-      else void setOnline();
+
+    // On mobile: pagehide fires more reliably than beforeunload
+    const handlePageHide = (e: PageTransitionEvent) => {
+      if (!e.persisted) void setOffline(); // not going into bfcache
     };
 
     window.addEventListener("beforeunload", handleUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
 
     return () => {
       clearInterval(heartbeat);
       window.removeEventListener("beforeunload", handleUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
       void setOffline();
     };
   }, [userId]);
+}
+
+// ── Stale presence cleanup: mark users offline if last_seen > 90s ago ─────────
+// This runs on the admin side to auto-expire stale "online" statuses
+function useStalePresenceCleanup(isAdmin: boolean) {
+  useEffect(() => {
+    if (!isAdmin) return;
+    const interval = setInterval(async () => {
+      const cutoff = new Date(Date.now() - 90_000).toISOString(); // 90 seconds ago
+      await supabase
+        .from("profiles")
+        .update({ status: "offline" })
+        .eq("status", "online")
+        .lt("last_seen", cutoff);
+    }, 30_000); // check every 30s
+    return () => clearInterval(interval);
+  }, [isAdmin]);
 }
 
 function playBeep() {
@@ -169,6 +198,7 @@ function ChatPage() {
 
   // ── WhatsApp-style presence ──
   usePresence(user?.id);
+  useStalePresenceCleanup(isAdmin);
 
   // Request browser push permission on mount
   useEffect(() => {
@@ -296,13 +326,15 @@ function ChatPage() {
         const updated = payload.new as Conversation;
         const unread = isAdmin ? updated.unread_admin : updated.unread_user;
         if (unread > 0 && updated.id !== activeId && notifsOn) {
-          const label = isAdmin ? "A user sent a message" : `New message from ${adminProfile?.display_name ?? "your host"}`;
+          const label = isAdmin
+            ? "A client sent you a message"
+            : `New message from ${adminProfile?.display_name ?? "Ajibola"}`;
           const nid = crypto.randomUUID();
           setAlerts((prev) => [{ id: nid, text: label, convId: updated.id }, ...prev.slice(0, 3)]);
           if (soundOn) playBeep();
-          // Phone-style push notification (works in background tab too)
-          sendPushNotification(
-            isAdmin ? "📩 New client message" : "💬 New message",
+          // Always send push notification — SW handles showing it even in background
+          void sendPushNotification(
+            isAdmin ? "📩 New message" : "💬 New message",
             label,
             { tag: `msg-${updated.id}` }
           );
@@ -310,7 +342,7 @@ function ChatPage() {
         }
       }).subscribe();
     return () => { void supabase.removeChannel(ch); };
-  }, [user, isAdmin, activeId, soundOn, notifsOn, loadConversations]);
+  }, [user, isAdmin, activeId, soundOn, notifsOn, loadConversations, adminProfile?.display_name]);
 
   const filtered = useMemo(() => {
     if (!search) return conversations;
@@ -561,15 +593,29 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     const ch = supabase.channel(`conv:${conversation.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversation.id}` }, (payload) => {
         const msg = payload.new as Message;
-        setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
-        const updates = isAdmin ? { unread_admin: 0 } : { unread_user: 0 };
+        // Skip if it's one of our optimistic messages (already in state)
+        setMessages((prev) => {
+          const exists = prev.some((m) => m.id === msg.id);
+          if (exists) return prev;
+          // Replace any matching optimistic temp message
+          const hasTemp = prev.some((m) => m.id.startsWith("temp-") && m.sender_id === msg.sender_id && m.content === msg.content);
+          if (hasTemp) return prev.map((m) => (m.id.startsWith("temp-") && m.sender_id === msg.sender_id && m.content === msg.content) ? msg : m);
+          return [...prev, msg];
+        });
+
         if (msg.sender_id !== user.id) {
+          // Message from counterpart — mark as seen immediately and clear unread
+          const updates = isAdmin ? { unread_admin: 0 } : { unread_user: 0 };
           void supabase.from("conversations").update(updates).eq("id", conversation.id);
-          // Mark message as seen
-          void supabase.from("messages").update({ status: "seen" }).eq("id", msg.id);
+          void supabase.from("messages").update({ status: "seen" }).eq("id", msg.id).then(() => {
+            // Update local state immediately so sender sees "seen" right away
+            setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "seen" } : m));
+          });
         } else {
-          // Mark own message as delivered initially
-          void supabase.from("messages").update({ status: "delivered" }).eq("id", msg.id);
+          // Our own message — mark as delivered
+          void supabase.from("messages").update({ status: "delivered" }).eq("id", msg.id).then(() => {
+            setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "delivered" } : m));
+          });
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversation.id}` }, (payload) => {
@@ -580,12 +626,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         if (payload.payload?.userId !== user.id) {
           setTheyTyping(true);
           setTimeout(() => setTheyTyping(false), 2500);
-          // Push typing notification only when tab is not focused
+          // Show push notification when app is in background
           if (document.hidden) {
             const typingName = isAdmin
               ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "A client")
               : (adminProfile?.display_name ?? "Ajibola");
-            sendPushNotification(
+            void sendPushNotification(
               `✍️ ${typingName} is typing...`,
               "Open the chat to reply.",
               { tag: "typing-indicator" }
@@ -595,17 +641,23 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       })
       .subscribe();
     typingChannelRef.current = ch;
-    
-    // Mark all existing messages from counterpart as seen
+
+    // Mark all existing unread messages from counterpart as seen on open
     void (async () => {
-      const counterpartId = isAdmin ? conversation.user_id : null;
+      const counterpartId = isAdmin ? conversation.user_id : adminProfile?.user_id ?? null;
       if (counterpartId) {
-        await supabase
+        const { data: updated } = await supabase
           .from("messages")
           .update({ status: "seen" })
           .eq("conversation_id", conversation.id)
           .eq("sender_id", counterpartId)
-          .neq("status", "seen");
+          .neq("status", "seen")
+          .select("id");
+        // Update local state immediately
+        if (updated && updated.length > 0) {
+          const seenIds = new Set(updated.map((m: { id: string }) => m.id));
+          setMessages((prev) => prev.map((m) => seenIds.has(m.id) ? { ...m, status: "seen" } : m));
+        }
       }
     })();
     
