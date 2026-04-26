@@ -219,39 +219,28 @@ function _showBasicNotification(
   }
 }
 
-// ─── Persistent notification to prevent sleep ────────────────────────────────
+// ─── 15-minute unread reminder ────────────────────────────────────────────────
 
-let persistentNotificationTimer: ReturnType<typeof setInterval> | null = null;
-let lastMessageTime = Date.now();
+let reminderTimer: ReturnType<typeof setInterval> | null = null;
 
-export function startPersistentNotifications(getUnreadCount: () => number, isAdmin: boolean) {
-  stopPersistentNotifications();
-  
-  persistentNotificationTimer = setInterval(() => {
+export function startUnreadReminder(getUnreadCount: () => number, isAdmin: boolean) {
+  stopUnreadReminder();
+  reminderTimer = setInterval(() => {
     const count = getUnreadCount();
-    const now = Date.now();
-    
-    // If there are unread messages and app is hidden, send a persistent notification every 30 seconds
-    if (count > 0 && document.hidden && canNotify()) {
-      lastMessageTime = now;
-      
-      // Send notification to keep device awake
+    if (count > 0 && canNotify()) {
       void sendPushNotification(
-        isAdmin ? "📬 You have unread messages" : "💬 New message waiting",
+        isAdmin ? "📬 Unread messages" : "💬 You have a reply",
         isAdmin
-          ? `${count} unread message${count > 1 ? "s" : ""} from client${count > 1 ? "s" : ""}`
-          : `${count} unread message${count > 1 ? "s" : ""} from Ajibola`,
-        { tag: "persistent-unread" }
+          ? `You have ${count} unread message${count > 1 ? "s" : ""} from client${count > 1 ? "s" : ""}.`
+          : `You have ${count} unread message${count > 1 ? "s" : ""} from Ajibola.`,
+        { tag: "unread-reminder" }
       );
     }
-  }, 30 * 1000); // Every 30 seconds
+  }, 15 * 60 * 1000);
 }
 
-export function stopPersistentNotifications() {
-  if (persistentNotificationTimer) {
-    clearInterval(persistentNotificationTimer);
-    persistentNotificationTimer = null;
-  }
+export function stopUnreadReminder() {
+  if (reminderTimer) { clearInterval(reminderTimer); reminderTimer = null; }
 }
 
 // ─── Background refresh when app is hidden ────────────────────────────────────
