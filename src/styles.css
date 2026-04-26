@@ -259,3 +259,25 @@
     transform: translateY(0);
   }
 }
+
+/* ── Mobile safe-area & viewport fixes ─────────────────────────────────────── */
+@layer utilities {
+  /* Pad bottom for iPhone home indicator */
+  .safe-area-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+  /* Prevent overscroll bounce on iOS inside scrollable containers */
+  .overscroll-contain {
+    overscroll-behavior: contain;
+  }
+}
+
+/* Prevent body scroll on mobile when dashboard is open */
+body {
+  overscroll-behavior: none;
+}
+
+/* Make sure 100dvh works — fallback to 100vh for older browsers */
+@supports not (height: 100dvh) {
+  .h-dvh { height: 100vh; }
+}

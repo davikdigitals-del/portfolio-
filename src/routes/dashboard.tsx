@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Loader2, MessageCircle, Home, Users, Settings,
-  FileText, LogOut, CheckSquare, ShieldCheck, Menu, X, Bell,
+  FileText, LogOut, CheckSquare, ShieldCheck, Menu, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,9 @@ export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
   component: DashboardLayout,
 });
+
+// Use dvh (dynamic viewport height) for mobile — accounts for browser chrome
+const MOBILE_BAR_H = 56; // px — matches h-14
 
 function DashboardLayout() {
   const { user, role, loading, signOut } = useAuth();
@@ -30,7 +33,7 @@ function DashboardLayout() {
     if (!loading && !user) void navigate({ to: "/auth" });
   }, [loading, user, navigate]);
 
-  // Load profile (name + avatar for sidebar)
+  // Load profile
   useEffect(() => {
     if (!user) return;
     void supabase
@@ -44,32 +47,22 @@ function DashboardLayout() {
       });
   }, [user]);
 
-  // Unread badge — admin sees total unread_admin, client sees unread_user
+  // Unread badge
   useEffect(() => {
     if (!user) return;
     async function fetchUnread() {
       if (isAdmin) {
-        const { data } = await supabase
-          .from("conversations")
-          .select("unread_admin");
-        const total = (data ?? []).reduce((s, c) => s + (c.unread_admin ?? 0), 0);
-        setUnreadCount(total);
+        const { data } = await supabase.from("conversations").select("unread_admin");
+        setUnreadCount((data ?? []).reduce((s, c) => s + (c.unread_admin ?? 0), 0));
       } else {
         const { data } = await supabase
-          .from("conversations")
-          .select("unread_user")
-          .eq("user_id", user!.id)
-          .maybeSingle();
+          .from("conversations").select("unread_user").eq("user_id", user!.id).maybeSingle();
         setUnreadCount(data?.unread_user ?? 0);
       }
     }
     void fetchUnread();
-
-    // Real-time unread updates
     const ch = supabase.channel("dashboard-unread")
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
-        void fetchUnread();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => void fetchUnread())
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
   }, [user, isAdmin]);
@@ -97,10 +90,9 @@ function DashboardLayout() {
 
   const SidebarContent = () => (
     <>
-      {/* Logo */}
       <Link
         to="/"
-        className="flex items-center gap-2 px-5 h-16 border-b border-border hover:bg-sidebar-accent transition-colors shrink-0"
+        className="flex items-center gap-2 px-5 h-14 md:h-16 border-b border-border hover:bg-sidebar-accent transition-colors shrink-0"
       >
         <div className="flex h-8 w-8 items-center justify-center rounded-lg overflow-hidden border border-border/60">
           <img src="/me.webp" alt="Ajibola" className="w-full h-full object-cover object-top" />
@@ -108,7 +100,6 @@ function DashboardLayout() {
         <span className="font-bold">Ajibola.</span>
       </Link>
 
-      {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => (
           <NavItem
@@ -123,7 +114,6 @@ function DashboardLayout() {
         ))}
       </nav>
 
-      {/* User info */}
       <div className="p-3 border-t border-border shrink-0">
         <div className="flex items-center gap-2 px-2 py-2 mb-2">
           {avatarUrl ? (
@@ -155,14 +145,19 @@ function DashboardLayout() {
   );
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 flex-col border-r border-border bg-sidebar">
+    // Use 100dvh so mobile browser chrome is accounted for
+    <div className="flex bg-background overflow-hidden" style={{ height: "100dvh" }}>
+
+      {/* ── Desktop sidebar ── */}
+      <aside className="hidden md:flex w-60 flex-col border-r border-border bg-sidebar shrink-0">
         <SidebarContent />
       </aside>
 
-      {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-sidebar border-b border-border flex items-center justify-between px-4">
+      {/* ── Mobile top bar ── */}
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-40 bg-sidebar border-b border-border flex items-center justify-between px-4"
+        style={{ height: MOBILE_BAR_H }}
+      >
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg overflow-hidden border border-border/60">
             <img src="/me.webp" alt="Ajibola" className="w-full h-full object-cover object-top" />
@@ -184,7 +179,7 @@ function DashboardLayout() {
         </div>
       </div>
 
-      {/* Mobile drawer overlay */}
+      {/* ── Mobile drawer overlay ── */}
       {mobileOpen && (
         <div
           className="md:hidden fixed inset-0 z-30 bg-black/50"
@@ -192,7 +187,7 @@ function DashboardLayout() {
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* ── Mobile drawer ── */}
       <aside
         className={`md:hidden fixed top-0 left-0 bottom-0 z-40 w-72 flex flex-col bg-sidebar border-r border-border transform transition-transform duration-300 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -201,8 +196,13 @@ function DashboardLayout() {
         <SidebarContent />
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-hidden flex flex-col md:pt-0 pt-14">
+      {/* ── Main content — offset by mobile top bar ── */}
+      <main
+        className="flex-1 overflow-hidden flex flex-col min-w-0"
+        style={{ paddingTop: `${MOBILE_BAR_H}px` }}
+      >
+        {/* Remove top padding on desktop */}
+        <style>{`@media (min-width: 768px) { main { padding-top: 0 !important; } }`}</style>
         <Outlet />
       </main>
     </div>
@@ -224,7 +224,7 @@ function NavItem({
       to={to}
       activeOptions={{ exact }}
       onClick={onClick}
-      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
       activeProps={{ className: "bg-sidebar-accent text-sidebar-foreground font-medium" }}
     >
       <Icon className="h-4 w-4 shrink-0" />

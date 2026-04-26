@@ -358,21 +358,21 @@ function ChatPage() {
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
   return (
-    <div className="flex h-full relative">
+    <div className="flex h-full relative overflow-hidden">
       {/* Notification alerts */}
-      <div className="fixed top-16 md:top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      <div className="fixed top-16 right-2 z-50 flex flex-col gap-2 pointer-events-none w-[calc(100vw-1rem)] md:w-auto md:right-4 md:top-4 md:max-w-xs">
         {alerts.map((a) => (
-          <div key={a.id} className="pointer-events-auto flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 shadow-lg animate-fade-up text-sm max-w-xs">
+          <div key={a.id} className="pointer-events-auto flex items-center gap-3 bg-card border border-border rounded-xl px-3 py-2.5 shadow-lg animate-fade-up text-sm">
             <Bell className="h-4 w-4 text-primary shrink-0" />
-            <span className="flex-1 truncate">{a.text}</span>
+            <span className="flex-1 truncate text-xs">{a.text}</span>
             <button onClick={() => { setActiveId(a.convId); setAlerts((p) => p.filter((x) => x.id !== a.id)); }} className="text-primary text-xs font-medium hover:underline shrink-0">View</button>
-            <button onClick={() => setAlerts((p) => p.filter((x) => x.id !== a.id))} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>
+            <button onClick={() => setAlerts((p) => p.filter((x) => x.id !== a.id))} className="text-muted-foreground hover:text-foreground ml-1"><X className="h-3 w-3" /></button>
           </div>
         ))}
       </div>
 
-      {/* Sidebar */}
-      <aside className={`flex flex-col border-r border-border bg-surface/50 ${active ? "hidden md:flex md:w-80" : "flex w-full md:w-80"}`}>
+      {/* Sidebar — full screen on mobile when no chat open */}
+      <aside className={`flex flex-col border-r border-border bg-surface/50 shrink-0 ${active ? "hidden md:flex md:w-80" : "flex w-full md:w-80"}`}>
         <div className="h-16 border-b border-border px-5 flex items-center justify-between">
           <h2 className="font-semibold">{isAdmin ? "Inbox" : "Your conversation"}</h2>
           <div className="flex items-center gap-1">
@@ -501,8 +501,8 @@ function ChatPage() {
         </div>
       </aside>
 
-      {/* Active chat */}
-      <section className={`flex-1 flex-col ${active ? "flex" : "hidden md:flex"}`}>
+      {/* Active chat — full screen on mobile when open */}
+      <section className={`flex-1 flex-col min-w-0 ${active ? "flex" : "hidden md:flex"}`}>
         {active ? (
           <ActiveChat conversation={active} isAdmin={isAdmin} adminProfile={adminProfile} onBack={() => setActiveId(null)} />
         ) : (
@@ -1081,8 +1081,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="h-16 border-b border-border px-5 flex items-center gap-3 bg-surface/40 shrink-0">
-        <Button variant="ghost" size="sm" className="md:hidden" onClick={onBack}>&#8592;</Button>
+      <header className="h-14 md:h-16 border-b border-border px-3 md:px-5 flex items-center gap-2 md:gap-3 bg-surface/40 shrink-0">
+        {/* Back button — mobile only */}
+        <button
+          onClick={onBack}
+          className="md:hidden flex items-center justify-center h-9 w-9 rounded-full hover:bg-accent transition-colors shrink-0 text-foreground"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
         <div className="relative">
           {!isAdmin && adminProfile?.avatar_url ? (
             <img src={adminProfile.avatar_url} alt={counterpartName} className="h-9 w-9 rounded-full object-cover ring-2 ring-border" />
@@ -1144,8 +1150,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         </div>
       )}
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3" onClick={() => setCtxMenu(null)}>
+      {/* Messages — flex-1 so it fills remaining space, overflow scrolls */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 overscroll-contain" onClick={() => setCtxMenu(null)}>
         {messages.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-12">
             <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-40" />
@@ -1295,7 +1301,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       )}
 
       {/* Composer */}
-      <form onSubmit={send} className="p-4 border-t border-border bg-surface/40 shrink-0">
+      <form onSubmit={send} className="p-2 md:p-4 border-t border-border bg-surface/40 shrink-0 safe-area-bottom">
         {recording ? (
           <div className="flex items-center gap-3 rounded-2xl border border-red-500/40 bg-red-500/5 px-4 py-3">
             {/* Cancel */}
