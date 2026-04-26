@@ -50,20 +50,18 @@ function AdminAuthPage() {
           } else {
             toast.error(error);
           }
-        } else {
-          // Check if user has admin role
-          const { data: roles } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", (await supabase.auth.getUser()).data.user?.id);
-          
-          const isAdmin = roles?.some(r => r.role === "admin");
-          if (!isAdmin) {
-            toast.error("This account does not have admin privileges");
-            await signOut();
-            return;
-          }
+          return;
+        }
+        // After sign in, check admin role via RPC (avoids RLS timing issues)
+        const { data: roleResult } = await supabase.rpc("claim_admin_role");
+        // If they're already admin, claim_admin_role returns 'ok:already_admin'
+        // If they're not admin and no bootstrap, returns 'error:not_authorized'
+        if (roleResult === "ok:already_admin" || roleResult === "ok:bootstrapped" || roleResult === "ok:promoted") {
           toast.success("Welcome back!");
+          window.location.href = "/dashboard";
+        } else {
+          toast.error("This account does not have admin privileges");
+          await signOut();
         }
       } else {
         // Register admin account
@@ -71,7 +69,7 @@ function AdminAuthPage() {
           toast.error("Password must be at least 6 characters");
           return;
         }
-        
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -80,46 +78,40 @@ function AdminAuthPage() {
             data: { display_name: name || email.split("@")[0] },
           },
         });
-        
+
         if (error) {
           toast.error(error.message);
           return;
         }
-        
+
         if (!data.user) {
           toast.error("Failed to create account");
           return;
         }
-        
-        // Check if email confirmation is required
-        if (data.user && !data.session) {
-          toast.success("Account created! Please check your email to confirm before signing in.", { duration: 6000 });
+
+        // Email confirmation required
+        if (!data.session) {
+          toast.success(
+            "Account created! Check your email to confirm, then sign in here.",
+            { duration: 8000 }
+          );
           setMode("login");
           return;
         }
-        
-        // If we have a session, assign admin role
-        if (data.session) {
-          // First, delete the default "user" role created by the trigger
-          await supabase
-            .from("user_roles")
-            .delete()
-            .eq("user_id", data.user.id)
-            .eq("role", "user");
-          
-          // Then insert admin role
-          const { error: roleError } = await supabase
-            .from("user_roles")
-            .insert({ user_id: data.user.id, role: "admin" });
-          
-          if (roleError) {
-            console.error("Role assignment error:", roleError);
-            toast.error("Account created but admin role assignment failed. Please contact support.");
-          } else {
-            toast.success("Admin account created successfully!");
-            // Force reload to update auth context
-            window.location.href = "/dashboard";
-          }
+
+        // We have a session — assign admin role via the secure RPC
+        const { data: roleResult, error: rpcError } = await supabase.rpc("claim_admin_role");
+        if (rpcError) {
+          console.error("RPC error:", rpcError);
+          toast.error("Account created but role assignment failed: " + rpcError.message);
+          return;
+        }
+
+        if (roleResult === "ok:bootstrapped" || roleResult === "ok:already_admin" || roleResult === "ok:promoted") {
+          toast.success("Admin account created! Redirecting...");
+          window.location.href = "/dashboard";
+        } else {
+          toast.error("Account created but could not assign admin role. Run the SQL fix in Supabase.");
         }
       }
     } catch (err) {
