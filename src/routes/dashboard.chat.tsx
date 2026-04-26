@@ -171,7 +171,14 @@ function ChatPage() {
 
   // Request browser push permission on mount
   useEffect(() => {
-    void requestNotificationPermission();
+    void requestNotificationPermission().then((granted) => {
+      if (!granted && "Notification" in window && Notification.permission === "default") {
+        toast("Enable notifications to get message alerts", {
+          action: { label: "Allow", onClick: () => void requestNotificationPermission() },
+          duration: 8000,
+        });
+      }
+    });
   }, []);
 
   // Total unread across all conversations for the reminder
@@ -296,7 +303,7 @@ function ChatPage() {
   return (
     <div className="flex h-full relative">
       {/* Notification alerts */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      <div className="fixed top-16 md:top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {alerts.map((a) => (
           <div key={a.id} className="pointer-events-auto flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 shadow-lg animate-fade-up text-sm max-w-xs">
             <Bell className="h-4 w-4 text-primary shrink-0" />
@@ -308,7 +315,7 @@ function ChatPage() {
       </div>
 
       {/* Sidebar */}
-      <aside className={`${active && "hidden md:flex"} flex-col w-full md:w-80 border-r border-border bg-surface/50`}>
+      <aside className={`flex flex-col border-r border-border bg-surface/50 ${active ? "hidden md:flex md:w-80" : "flex w-full md:w-80"}`}>
         <div className="h-16 border-b border-border px-5 flex items-center justify-between">
           <h2 className="font-semibold">{isAdmin ? "Inbox" : "Your conversation"}</h2>
           <div className="flex items-center gap-1">
@@ -415,7 +422,7 @@ function ChatPage() {
       </aside>
 
       {/* Active chat */}
-      <section className={`${!active && "hidden md:flex"} flex-1 flex-col`}>
+      <section className={`flex-1 flex-col ${active ? "flex" : "hidden md:flex"}`}>
         {active ? (
           <ActiveChat conversation={active} isAdmin={isAdmin} adminProfile={adminProfile} onBack={() => setActiveId(null)} />
         ) : (
