@@ -55,7 +55,7 @@ function usePresence(userId: string | undefined) {
     }
 
     void setOnline();
-    const heartbeat = setInterval(() => void setOnline(), 20_000);
+    const heartbeat = setInterval(() => void setOnline(), 10_000); // Update every 10 seconds instead of 20
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") void setOffline();

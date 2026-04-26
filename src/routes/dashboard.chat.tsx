@@ -277,7 +277,7 @@ function ChatPage() {
             : prev
           );
         }
-      }, 10_000);
+      }, 5_000); // Poll every 5 seconds
     }
 
     void init();
