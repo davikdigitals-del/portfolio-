@@ -754,7 +754,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
               {!mine && !showAvatar && <div className="w-7 shrink-0" />}
               
               <div className="max-w-[75%]">
-                <MessageBubble message={m} mine={mine} playingId={playingId} onTogglePlay={togglePlay} />MessageBubble message={m} mine={mine} playingId={playingId} onTogglePlay={togglePlay} />
+                <MessageBubble message={m} mine={mine} playingId={playingId} onTogglePlay={togglePlay} />
                 <div className={`flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ${mine ? "justify-end mr-2" : "ml-2"}`}>
                   <span>{formatTime(m.created_at)}</span>
                   {mine && (m.status === "seen" ? <CheckCheck className="h-3 w-3 text-primary" /> : <Check className="h-3 w-3" />)}
