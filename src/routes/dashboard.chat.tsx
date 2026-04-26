@@ -6,7 +6,7 @@ import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
   Play, Pause, FileText, Bell, BellOff, Trash2, Pencil, Reply,
-  Phone, Video, PhoneOff, Maximize2, Minimize2, MicOff, Volume,
+  Phone, Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -733,9 +733,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [activeCall, setActiveCall] = useState<Call | null>(null);
-  const [callDuration, setCallDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOn, setIsVideoOn] = useState(true);
+  const [callDuration] = useState(0);
+  const [isMuted] = useState(false);
+  const [isVideoOn] = useState(true);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -1370,128 +1370,60 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   }
 
   // ---- Call functions ----
+  // Active call UI is handled globally in dashboard.tsx via window.__setActiveCall
   async function initiateCall(callType: CallType) {
     if (!user) return;
-    
+
     const receiverId = isAdmin ? conversation.user_id : (adminProfile?.user_id ?? "");
-    
-    console.log("[Call] ===== INITIATING CALL =====");
-    console.log("[Call] Call type:", callType);
-    console.log("[Call] Conversation ID:", conversation.id);
-    console.log("[Call] Is admin:", isAdmin);
-    console.log("[Call] Admin profile:", adminProfile);
-    console.log("[Call] Receiver ID:", receiverId);
-    console.log("[Call] Initiator ID (me):", user.id);
-    
-    // Check if trying to call yourself
-    if (receiverId === user.id) {
-      console.error("[Call] ❌ Cannot call yourself!");
-      toast.error("You cannot call yourself. Please test with a different user account.");
+
+    if (!receiverId || receiverId === user.id) {
+      toast.error(receiverId === user.id ? "You cannot call yourself." : "Cannot find receiver. Please wait and try again.");
       return;
     }
-    
-    if (!receiverId) {
-      console.error("[Call] ❌ No receiver ID found!");
-      console.error("[Call] Admin profile state:", adminProfile);
-      console.error("[Call] Is admin:", isAdmin);
-      console.error("[Call] Conversation user_id:", conversation.user_id);
-      
-      if (!isAdmin && !adminProfile) {
-        toast.error("Admin profile not loaded yet. Please wait a moment and try again.");
-      } else if (!isAdmin && !adminProfile?.user_id) {
-        toast.error("Admin user ID not found. Please refresh the page.");
-      } else {
-        toast.error("Cannot find receiver for call");
-      }
-      return;
-    }
-    
+
     try {
-      const call = await callManager.initiateCall(
-        conversation.id,
-        receiverId,
-        callType,
-        user.id
-      );
-      
-      console.log("[Call] ✅ Call created successfully in database:");
-      console.log("[Call] Call ID:", call.id);
-      console.log("[Call] Status:", call.status);
-      console.log("[Call] Created at:", call.created_at);
-      
-      // Verify the call was inserted by querying it back
-      const { data: verifyCall, error: verifyError } = await supabase
-        .from("calls")
-        .select("*")
-        .eq("id", call.id)
-        .single();
-      
-      if (verifyError) {
-        console.error("[Call] ❌ Error verifying call in DB:", verifyError);
+      toast.loading(`Starting ${callType} call...`, { id: "call-toast" });
+      const call = await callManager.initiateCall(conversation.id, receiverId, callType, user.id);
+      toast.dismiss("call-toast");
+
+      // Get receiver profile for the active call screen
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name, avatar_url")
+        .eq("user_id", receiverId)
+        .maybeSingle();
+
+      // Show global active call screen
+      const setActiveCallGlobal = (window as any).__setActiveCall;
+      if (setActiveCallGlobal) {
+        setActiveCallGlobal(call, profile);
       } else {
-        console.log("[Call] ✅ Verified call exists in DB:", verifyCall);
+        setActiveCall(call as Call);
       }
-      
-      setActiveCall(call as Call);
 
-      // Send call notification
-      const callLabel = callType === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call";
-      void sendPushNotification(
-        callLabel,
-        `${isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"} is calling...`,
-        { tag: `call-${call.id}` }
-      );
-
-      // Start call timer
-      setCallDuration(0);
-      callTimerRef.current = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-
-      toast.success(`${callType} call initiated`);
-    } catch (err) {
-      console.error("Failed to initiate call:", err);
-      toast.error("Failed to start call");
+      toast.success(`${callType === "video" ? "Video" : "Voice"} call started — waiting for answer`);
+    } catch (err: any) {
+      toast.dismiss("call-toast");
+      console.error("[Call] Failed to initiate:", err);
+      toast.error(err?.message ?? "Failed to start call");
     }
   }
 
   async function answerCall(call: Call) {
     if (!user) return;
-    
-    console.log("[Call] Answering call:", call.id, "Type:", call.call_type);
-    
-    // Clear missed call timer
-    if ((call as any)._missedTimer) {
-      clearTimeout((call as any)._missedTimer);
-    }
-    
-    try {
-      await callManager.answerCall(call, user.id);
-      setActiveCall(call);
-      setIncomingCall(null);
-
-      // Start call timer
-      setCallDuration(0);
-      callTimerRef.current = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-
-      console.log("[Call] Call answered successfully");
-      toast.success("Call connected");
-    } catch (err) {
-      console.error("[Call] Failed to answer call:", err);
-      toast.error("Failed to answer call");
+    // Answering is now handled globally in dashboard.tsx via window.__answerCall
+    const answerGlobal = (window as any).__answerCall;
+    if (answerGlobal) {
+      await answerGlobal(call);
     }
   }
 
   async function declineCall(call: Call) {
     if (!user) return;
-    
     // Clear missed call timer
     if ((call as any)._missedTimer) {
       clearTimeout((call as any)._missedTimer);
     }
-    
     try {
       await callManager.declineCall(call.id);
       toast.info("Call declined");
@@ -1501,130 +1433,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     }
   }
 
-  async function endCall() {
-    try {
-      await callManager.endCall();
-      setActiveCall(null);
-      if (callTimerRef.current) clearInterval(callTimerRef.current);
-      setCallDuration(0);
-      toast.success("Call ended");
-    } catch (err) {
-      console.error("Failed to end call:", err);
-      toast.error("Failed to end call");
-    }
-  }
-
-  function toggleMute() {
-    const localStream = callManager.getLocalStream();
-    if (localStream) {
-      localStream.getAudioTracks().forEach((track) => {
-        track.enabled = !track.enabled;
-      });
-      setIsMuted(!isMuted);
-    }
-  }
-
-  function toggleVideo() {
-    const localStream = callManager.getLocalStream();
-    if (localStream) {
-      localStream.getVideoTracks().forEach((track) => {
-        track.enabled = !track.enabled;
-      });
-      setIsVideoOn(!isVideoOn);
-    }
-  }
-
-  // Set up remote stream callback and attach streams to video/audio elements
-  useEffect(() => {
-    if (!activeCall) return;
-
-    // Attach local stream to video element
-    if (localVideoRef.current && callManager.getLocalStream()) {
-      localVideoRef.current.srcObject = callManager.getLocalStream();
-    }
-
-    // Set up remote stream callback
-    callManager.onRemoteStream((stream) => {
-      console.log("Remote stream received, attaching to video element");
-      if (activeCall.call_type === "video" && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream;
-      } else if (activeCall.call_type === "voice" && remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = stream;
-      }
-    });
-
-    // Set up call active callback to update DB status
-    callManager.onCallActive(async () => {
-      console.log("Call is now active, updating DB status");
-      if (activeCall) {
-        await supabase
-          .from("calls")
-          .update({ status: "active", started_at: new Date().toISOString() })
-          .eq("id", activeCall.id);
-      }
-    });
-
-    return () => {
-      // Clean up on unmount
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = null;
-      }
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
-      }
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = null;
-      }
-    };
-  }, [activeCall]);
-
-  // Subscribe to call status updates (not incoming calls - that's handled globally)
-  useEffect(() => {
-    if (!user || !conversation) return;
-
-    const ch = supabase.channel(`calls:${conversation.id}`)
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "calls",
-        filter: `id=eq.${activeCall?.id ?? ""}`,
-      }, (payload) => {
-        const call = payload.new as Call;
-        if (call.status === "ended" || call.status === "declined") {
-          endCall();
-        }
-      })
-      .subscribe();
-
-    return () => { void supabase.removeChannel(ch); };
-  }, [user, conversation.id, activeCall?.id]);
-
-  // Handle URL parameters for incoming calls - auto-answer when navigating from global modal
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const convId = params.get("conv");
-    const callId = params.get("call");
-    
-    if (convId && callId && conversation.id === convId) {
-      console.log("[Call] Auto-answering call from URL:", callId);
-      
-      // Fetch the call details
-      supabase
-        .from("calls")
-        .select("*")
-        .eq("id", callId)
-        .maybeSingle()
-        .then(({ data: call }) => {
-          if (call && call.status === "ringing") {
-            console.log("[Call] Found ringing call, answering:", call);
-            void answerCall(call as Call);
-          }
-        });
-      
-      // Clean up URL
-      window.history.replaceState({}, "", "/dashboard/chat");
-    }
-  }, [conversation.id]);
+  // Call status updates handled globally in dashboard.tsx
 
   const counterpartName = isAdmin
     ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "User")
@@ -1724,100 +1533,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       )}
 
       {/* Incoming call is now handled by the global modal in dashboard.tsx */}
-
-      {/* Active call UI - WhatsApp style fullscreen */}
-      {activeCall && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
-          {/* Remote video/audio */}
-          {activeCall.call_type === "video" ? (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            <audio ref={remoteAudioRef} autoPlay />
-          )}
-
-          {/* Local video preview (small corner) */}
-          {activeCall.call_type === "video" && isVideoOn && (
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute bottom-24 right-4 w-24 h-32 rounded-lg object-cover border-2 border-white shadow-lg"
-            />
-          )}
-
-          {/* Overlay content */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            {/* Caller info */}
-            <div className="flex-1 flex flex-col items-center justify-center gap-6">
-              {/* Avatar (shown if video is off or voice call) */}
-              {(activeCall.call_type === "voice" || !isVideoOn) && (
-                <div className="relative">
-                  {!isAdmin && adminProfile?.avatar_url ? (
-                    <img src={adminProfile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-white" />
-                  ) : isAdmin && conversation.profile?.avatar_url ? (
-                    <img src={conversation.profile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-white" />
-                  ) : (
-                    <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-5xl font-bold ring-4 ring-white">
-                      {(isAdmin ? conversation.profile?.display_name?.[0] : adminProfile?.display_name?.[0]) ?? "?"}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Call info */}
-              <div className="text-center">
-                <h1 className="text-3xl font-bold text-white drop-shadow-lg">
-                  {isAdmin ? conversation.profile?.display_name ?? "A client" : adminProfile?.display_name ?? "Ajibola"}
-                </h1>
-                <p className="text-lg text-white/80 mt-2 drop-shadow-lg">
-                  {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, "0")}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Control buttons */}
-          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex gap-4 pointer-events-auto z-10">
-            {activeCall.call_type === "video" && (
-              <button
-                onClick={toggleVideo}
-                title={isVideoOn ? "Turn off camera" : "Turn on camera"}
-                className={`flex items-center justify-center h-14 w-14 rounded-full transition-all active:scale-95 shadow-lg ${
-                  isVideoOn
-                    ? "bg-primary text-primary-foreground hover:opacity-90"
-                    : "bg-destructive text-destructive-foreground hover:opacity-90"
-                }`}
-              >
-                <Video className="h-6 w-6" />
-              </button>
-            )}
-            <button
-              onClick={toggleMute}
-              title={isMuted ? "Unmute" : "Mute"}
-              className={`flex items-center justify-center h-14 w-14 rounded-full transition-all active:scale-95 shadow-lg ${
-                isMuted
-                  ? "bg-destructive text-destructive-foreground hover:opacity-90"
-                  : "bg-primary text-primary-foreground hover:opacity-90"
-              }`}
-            >
-              {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-            </button>
-            <button
-              onClick={endCall}
-              className="flex items-center justify-center h-14 w-14 rounded-full bg-destructive text-destructive-foreground hover:opacity-90 transition-all active:scale-95 shadow-lg"
-              title="End call"
-            >
-              <PhoneOff className="h-6 w-6" />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Active call UI is now handled globally in dashboard.tsx */}
 
       {/* Messages — flex-1 so it fills remaining space, overflow scrolls */}
       <div

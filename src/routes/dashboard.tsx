@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Loader2, MessageCircle, Home, Users, Settings,
   FileText, LogOut, CheckSquare, ShieldCheck, Menu, X, Phone, Video, PhoneOff,
+  MicOff, Mic, VideoOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,121 +107,241 @@ function DashboardLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
-  const [incomingCallProfile, setIncomingCallProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
   const routerState = useRouterState();
+
+  // ── Call state (global — works from any page) ──────────────────────────────
+  const [incomingCall, setIncomingCall] = useState<Call | null>(null);
+  const [incomingProfile, setIncomingProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
+  const [activeCall, setActiveCall] = useState<Call | null>(null);
+  const [activeProfile, setActiveProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
+  const [callDuration, setCallDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isSpeaker, setIsSpeaker] = useState(true);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
   usePresence(user?.id);
   useViewportHeight();
 
-  // Global call listener - listen for all incoming calls (both admin and client)
+  // ── Ringtone helpers ───────────────────────────────────────────────────────
+  const startRingtone = useCallback(() => {
+    try {
+      // Generate a ringtone using Web Audio API
+      const ctx = new AudioContext();
+      let playing = true;
+      function ring() {
+        if (!playing) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 440;
+        osc.type = "sine";
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.8);
+        setTimeout(() => { if (playing) ring(); }, 1500);
+      }
+      ring();
+      (ringtoneRef as any).current = { stop: () => { playing = false; ctx.close(); } };
+    } catch { /* ignore */ }
+  }, []);
+
+  const stopRingtone = useCallback(() => {
+    (ringtoneRef as any).current?.stop();
+    (ringtoneRef as any).current = null;
+  }, []);
+
+  // ── Global incoming call listener ──────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
+    console.log("[CallListener] Subscribing for user:", user.id);
 
-    console.log(`[CallListener] Setting up global call listener for ${isAdmin ? 'admin' : 'client'}, user ID:`, user.id);
-    
-    // Subscribe to calls where we are the receiver
-    const ch = supabase.channel(`global-calls-${user.id}`, {
-      config: {
-        broadcast: { self: false },
-        presence: { key: user.id },
-      },
-    })
+    const ch = supabase.channel(`global-calls-${user.id}`)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
         table: "calls",
-        filter: `receiver_id=eq.${user.id}`, // Only listen for calls where we're the receiver
-      }, (payload) => {
-        console.log("[CallListener] ===== CALL EVENT RECEIVED =====");
-        console.log("[CallListener] Full payload:", JSON.stringify(payload, null, 2));
-        console.log("[CallListener] Event type:", payload.eventType);
-        console.log("[CallListener] Table:", payload.table);
-        
+        filter: `receiver_id=eq.${user.id}`,
+      }, async (payload) => {
         const call = payload.new as Call;
-        console.log("[CallListener] Call details:", {
-          id: call.id,
-          receiver_id: call.receiver_id,
-          initiator_id: call.initiator_id,
-          status: call.status,
-          call_type: call.call_type,
-        });
-        console.log("[CallListener] My user ID:", user.id);
-        console.log("[CallListener] Am I the receiver?", call.receiver_id === user.id);
-        console.log("[CallListener] Is status ringing?", call.status === "ringing");
-        
-        // Show incoming call if status is ringing
-        if (call.status === "ringing") {
-          console.log("[CallListener] ✅ SHOWING INCOMING CALL MODAL");
-          setIncomingCall(call);
-          
-          // Fetch caller's profile
-          const callerId = call.initiator_id;
-          supabase
-            .from("profiles")
-            .select("display_name, avatar_url")
-            .eq("user_id", callerId)
-            .maybeSingle()
-            .then(({ data }) => {
-              if (data) {
-                setIncomingCallProfile(data);
-              }
-            });
-          
-          // Set missed call timer - 30 seconds
-          const missedTimer = setTimeout(async () => {
-            console.log("[CallListener] Call not answered within 30s, marking as missed:", call.id);
-            await supabase
-              .from("calls")
-              .update({ status: "missed", ended_at: new Date().toISOString() })
-              .eq("id", call.id)
-              .eq("status", "ringing"); // Only update if still ringing
-            setIncomingCall(null);
-            setIncomingCallProfile(null);
-            
-            // Show missed call notification
-            void sendPushNotification(
-              "📞 Missed Call",
-              call.call_type === "video" ? "You missed a video call" : "You missed a voice call",
-              { tag: `missed-${call.id}` }
-            );
-          }, 30000);
-          
-          // Store timer to clean up if answered
-          (call as any)._missedTimer = missedTimer;
-          
-          void sendPushNotification(
-            call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
-            "Someone is calling...",
-            { tag: `call-${call.id}` }
-          );
-        } else {
-          console.log("[CallListener] ❌ NOT showing call. Status is not ringing:", call.status);
+        console.log("[CallListener] Incoming call:", call);
+
+        if (call.status !== "ringing") return;
+
+        // Fetch caller profile
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name, avatar_url")
+          .eq("user_id", call.initiator_id)
+          .maybeSingle();
+
+        setIncomingCall(call);
+        setIncomingProfile(profile ?? null);
+        startRingtone();
+
+        // Vibrate
+        if ("vibrate" in navigator) navigator.vibrate([500, 300, 500, 300, 500]);
+
+        // Push notification
+        void sendPushNotification(
+          call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
+          `${profile?.display_name ?? "Someone"} is calling...`,
+          { tag: `call-${call.id}`, requireInteraction: true }
+        );
+
+        // Auto-miss after 30s
+        missedTimerRef.current = setTimeout(async () => {
+          await supabase.from("calls").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", call.id).eq("status", "ringing");
+          setIncomingCall(null);
+          setIncomingProfile(null);
+          stopRingtone();
+          void sendPushNotification("📞 Missed Call", `Missed ${call.call_type} call from ${profile?.display_name ?? "someone"}`, { tag: `missed-${call.id}` });
+        }, 30_000);
+      })
+      // Also listen for call status changes (e.g. caller cancelled)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "calls",
+      }, (payload) => {
+        const call = payload.new as Call;
+        // If the incoming call was cancelled/ended by caller before we answered
+        if (incomingCall && call.id === incomingCall.id && (call.status === "ended" || call.status === "declined" || call.status === "missed")) {
+          setIncomingCall(null);
+          setIncomingProfile(null);
+          stopRingtone();
+          if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
         }
       })
-      .subscribe((status, err) => {
-        console.log("[CallListener] ===== SUBSCRIPTION STATUS =====");
-        console.log("[CallListener] Status:", status);
-        if (err) {
-          console.error("[CallListener] Subscription error:", err);
-        }
-        if (status === "SUBSCRIBED") {
-          console.log("[CallListener] ✅ Successfully subscribed to calls table");
-          console.log("[CallListener] Listening for calls where receiver_id =", user.id);
-        } else if (status === "CHANNEL_ERROR") {
-          console.error("[CallListener] ❌ Channel error - realtime may not be enabled");
-        } else if (status === "TIMED_OUT") {
-          console.error("[CallListener] ❌ Subscription timed out");
-        } else if (status === "CLOSED") {
-          console.log("[CallListener] Channel closed");
-        }
+      .subscribe((status) => {
+        console.log("[CallListener] Channel status:", status);
       });
 
-    return () => { 
-      console.log("[CallListener] Cleaning up call listener");
-      void supabase.removeChannel(ch); 
+    return () => { void supabase.removeChannel(ch); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // ── Answer call ────────────────────────────────────────────────────────────
+  const answerCall = useCallback(async (call: Call) => {
+    if (!user) return;
+    stopRingtone();
+    if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
+    setIncomingCall(null);
+
+    try {
+      await callManager.answerCall(call, user.id);
+
+      // Fetch the other person's profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name, avatar_url")
+        .eq("user_id", call.initiator_id)
+        .maybeSingle();
+
+      setActiveCall(call);
+      setActiveProfile(profile ?? incomingProfile);
+      setCallDuration(0);
+      setIsMuted(false);
+      setIsVideoOff(false);
+
+      // Start timer
+      callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+
+      // Attach streams
+      callManager.onRemoteStreamCb = (stream) => {
+        console.log("[Dashboard] Remote stream received");
+        if (call.call_type === "video" && remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+        } else if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.play().catch(() => {});
+        }
+      };
+
+      callManager.onCallEndCb = () => {
+        setActiveCall(null);
+        setActiveProfile(null);
+        if (callTimerRef.current) clearInterval(callTimerRef.current);
+        setCallDuration(0);
+      };
+
+      // Attach local video
+      setTimeout(() => {
+        if (call.call_type === "video" && localVideoRef.current) {
+          const ls = callManager.getLocalStream();
+          if (ls) localVideoRef.current.srcObject = ls;
+        }
+      }, 300);
+
+    } catch (err: any) {
+      console.error("[Dashboard] Answer failed:", err);
+      setIncomingCall(null);
+      alert(err?.message ?? "Failed to answer call");
+    }
+  }, [user, incomingProfile, stopRingtone]);
+
+  // ── Decline call ───────────────────────────────────────────────────────────
+  const declineCall = useCallback(async (call: Call) => {
+    stopRingtone();
+    if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
+    setIncomingCall(null);
+    setIncomingProfile(null);
+    await supabase.from("calls").update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", call.id);
+  }, [stopRingtone]);
+
+  // ── End active call ────────────────────────────────────────────────────────
+  const endActiveCall = useCallback(async () => {
+    await callManager.endCall();
+    setActiveCall(null);
+    setActiveProfile(null);
+    if (callTimerRef.current) clearInterval(callTimerRef.current);
+    setCallDuration(0);
+  }, []);
+
+  // ── Expose answer function globally so chat component can trigger it ───────
+  useEffect(() => {
+    (window as any).__answerCall = answerCall;
+    (window as any).__setActiveCall = (call: Call, profile: any) => {
+      setActiveCall(call);
+      setActiveProfile(profile);
+      setCallDuration(0);
+      setIsMuted(false);
+      setIsVideoOff(false);
+      callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+
+      callManager.onRemoteStreamCb = (stream) => {
+        if (call.call_type === "video" && remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+        } else if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.play().catch(() => {});
+        }
+      };
+      callManager.onCallEndCb = () => {
+        setActiveCall(null);
+        setActiveProfile(null);
+        if (callTimerRef.current) clearInterval(callTimerRef.current);
+        setCallDuration(0);
+      };
+      setTimeout(() => {
+        if (call.call_type === "video" && localVideoRef.current) {
+          const ls = callManager.getLocalStream();
+          if (ls) localVideoRef.current.srcObject = ls;
+        }
+      }, 300);
     };
-  }, [user, isAdmin]);
+    return () => {
+      delete (window as any).__answerCall;
+      delete (window as any).__setActiveCall;
+    };
+  }, [answerCall]);
 
   useEffect(() => { setMobileOpen(false); }, [routerState.location.pathname]);
 
@@ -337,8 +458,10 @@ function DashboardLayout() {
     </>
   );
 
+  // ── Format call duration ───────────────────────────────────────────────────
+  const fmtDuration = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+
   return (
-    // calc(var(--vh, 1vh) * 100) = real visible height, shrinks when keyboard opens
     <div className="flex bg-background overflow-hidden" style={{ height: "calc(var(--vh, 1vh) * 100)" }}>
 
       {/* Desktop sidebar */}
@@ -346,7 +469,7 @@ function DashboardLayout() {
         <SidebarContent />
       </aside>
 
-      {/* Mobile top bar — fixed, uses safe-area-inset-top */}
+      {/* Mobile top bar */}
       <div className="md:hidden fixed left-0 right-0 top-0 z-40 bg-sidebar border-b border-border flex items-center justify-between px-4 h-14"
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
@@ -362,116 +485,183 @@ function DashboardLayout() {
               {unreadCount}
             </span>
           )}
-          <button
-            onClick={() => setMobileOpen((v) => !v)}
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
+          <button onClick={() => setMobileOpen((v) => !v)} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
 
       {/* Mobile drawer overlay */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-30 bg-black/60" onClick={() => setMobileOpen(false)} />
-      )}
+      {mobileOpen && <div className="md:hidden fixed inset-0 z-30 bg-black/60" onClick={() => setMobileOpen(false)} />}
 
       {/* Mobile drawer */}
       <aside
-        className={`md:hidden fixed top-0 left-0 bottom-0 z-40 w-72 flex flex-col bg-sidebar border-r border-border transform transition-transform duration-300 ease-in-out ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`md:hidden fixed top-0 left-0 bottom-0 z-40 w-72 flex flex-col bg-sidebar border-r border-border transform transition-transform duration-300 ease-in-out ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
         style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <SidebarContent />
       </aside>
 
-      {/* Main content — offset by mobile top bar height */}
+      {/* Main content */}
       <main className="flex-1 overflow-hidden flex flex-col min-w-0 md:pt-0 pt-14">
         <Outlet />
       </main>
 
-      {/* Global incoming call modal for both admin and client */}
-      {incomingCall && (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-b from-blue-900 to-gray-900 animate-fade-in">
-          {/* Caller info */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-8 px-4">
-            {/* Avatar with pulse animation */}
-            <div className="relative animate-pulse-slow">
-              {incomingCallProfile?.avatar_url ? (
-                <img 
-                  src={incomingCallProfile.avatar_url} 
-                  alt="Caller" 
-                  className="h-40 w-40 md:h-48 md:w-48 rounded-full object-cover ring-8 ring-white/30 shadow-2xl" 
-                />
+      {/* ── INCOMING CALL SCREEN ─────────────────────────────────────────── */}
+      {incomingCall && !activeCall && (
+        <div className="fixed inset-0 z-[9999] flex flex-col" style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
+          {/* Top: call type label */}
+          <div className="pt-16 pb-4 text-center">
+            <p className="text-white/60 text-sm font-medium tracking-widest uppercase">
+              {incomingCall.call_type === "video" ? "Incoming Video Call" : "Incoming Voice Call"}
+            </p>
+          </div>
+
+          {/* Center: avatar + name + pulsing rings */}
+          <div className="flex-1 flex flex-col items-center justify-center gap-6">
+            <div className="relative flex items-center justify-center">
+              {/* Pulsing rings */}
+              <div className="absolute h-56 w-56 rounded-full bg-white/5 animate-ping" style={{ animationDuration: "2s" }} />
+              <div className="absolute h-44 w-44 rounded-full bg-white/10 animate-ping" style={{ animationDuration: "2s", animationDelay: "0.5s" }} />
+              {/* Avatar */}
+              {incomingProfile?.avatar_url ? (
+                <img src={incomingProfile.avatar_url} alt="Caller" className="h-36 w-36 rounded-full object-cover ring-4 ring-white/40 shadow-2xl relative z-10" />
               ) : (
-                <div className="flex h-40 w-40 md:h-48 md:w-48 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white text-6xl md:text-7xl font-bold ring-8 ring-white/30 shadow-2xl">
-                  {(incomingCallProfile?.display_name?.[0] || (isAdmin ? "C" : "A")).toUpperCase()}
+                <div className="h-36 w-36 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center text-white text-6xl font-bold ring-4 ring-white/40 shadow-2xl relative z-10">
+                  {(incomingProfile?.display_name?.[0] ?? "?").toUpperCase()}
                 </div>
               )}
             </div>
-
-            {/* Caller name */}
             <div className="text-center">
-              <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 drop-shadow-lg">
-                {incomingCallProfile?.display_name || (isAdmin ? "Client" : "Ajibola")}
-              </h1>
-              <p className="text-xl md:text-2xl text-white/80 font-medium">
-                {incomingCall.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call"}
+              <h1 className="text-white text-4xl font-bold">{incomingProfile?.display_name ?? (isAdmin ? "Client" : "Ajibola")}</h1>
+              <p className="text-white/50 text-base mt-2">
+                {incomingCall.call_type === "video" ? "📹 Video call" : "☎️ Voice call"}
               </p>
             </div>
           </div>
 
-          {/* Action buttons - Larger and more accessible */}
-          <div className="flex gap-12 md:gap-16 pb-16 md:pb-20">
-            <button
-              onClick={async () => {
-                // Clear missed call timer
-                if ((incomingCall as any)._missedTimer) {
-                  clearTimeout((incomingCall as any)._missedTimer);
-                }
-                
-                // Decline the call
-                await supabase
-                  .from("calls")
-                  .update({ status: "declined", ended_at: new Date().toISOString() })
-                  .eq("id", incomingCall.id);
-                setIncomingCall(null);
-                setIncomingCallProfile(null);
-              }}
-              className="flex flex-col items-center justify-center gap-2 group"
-              title="Decline call"
-            >
-              <div className="flex items-center justify-center h-20 w-20 md:h-24 md:w-24 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all active:scale-90 shadow-2xl group-hover:shadow-red-500/50">
-                <PhoneOff className="h-10 w-10 md:h-12 md:w-12" />
+          {/* Bottom: decline / answer */}
+          <div className="pb-20 flex justify-center gap-20">
+            <div className="flex flex-col items-center gap-3">
+              <button
+                onClick={() => declineCall(incomingCall)}
+                className="h-20 w-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
+              >
+                <PhoneOff className="h-9 w-9 text-white" />
+              </button>
+              <span className="text-white/70 text-sm">Decline</span>
+            </div>
+            <div className="flex flex-col items-center gap-3">
+              <button
+                onClick={() => answerCall(incomingCall)}
+                className="h-20 w-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform animate-bounce"
+              >
+                <Phone className="h-9 w-9 text-white" />
+              </button>
+              <span className="text-white/70 text-sm">Answer</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ACTIVE CALL SCREEN ───────────────────────────────────────────── */}
+      {activeCall && (
+        <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+          {/* Hidden audio element for voice calls */}
+          <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
+
+          {/* Video call: remote video fills screen */}
+          {activeCall.call_type === "video" && (
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+
+          {/* Voice call: dark background with avatar */}
+          {activeCall.call_type === "voice" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-6" style={{ background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)" }}>
+              {activeProfile?.avatar_url ? (
+                <img src={activeProfile.avatar_url} alt="Call" className="h-36 w-36 rounded-full object-cover ring-4 ring-white/30 shadow-2xl" />
+              ) : (
+                <div className="h-36 w-36 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-6xl font-bold ring-4 ring-white/30 shadow-2xl">
+                  {(activeProfile?.display_name?.[0] ?? "?").toUpperCase()}
+                </div>
+              )}
+              <div className="text-center">
+                <h1 className="text-white text-3xl font-bold">{activeProfile?.display_name ?? "Calling..."}</h1>
+                <p className="text-green-400 text-lg mt-2 font-mono">{fmtDuration(callDuration)}</p>
               </div>
-              <span className="text-white text-sm font-medium">Decline</span>
-            </button>
-            <button
-              onClick={() => {
-                // Clear missed call timer
-                if ((incomingCall as any)._missedTimer) {
-                  clearTimeout((incomingCall as any)._missedTimer);
-                }
-                
-                // Navigate to chat with this conversation and answer the call
-                const conversationId = incomingCall.conversation_id;
-                void navigate({ to: `/dashboard/chat?conv=${conversationId}&call=${incomingCall.id}` });
-              }}
-              className="flex flex-col items-center justify-center gap-2 group"
-              title="Answer call"
-            >
-              <div className="flex items-center justify-center h-20 w-20 md:h-24 md:w-24 rounded-full bg-green-500 text-white hover:bg-green-600 transition-all active:scale-90 shadow-2xl group-hover:shadow-green-500/50 animate-bounce-slow">
-                <Phone className="h-10 w-10 md:h-12 md:w-12" />
+            </div>
+          )}
+
+          {/* Video call overlay: name + timer */}
+          {activeCall.call_type === "video" && (
+            <div className="absolute top-0 left-0 right-0 pt-12 pb-4 px-6 bg-gradient-to-b from-black/70 to-transparent">
+              <h1 className="text-white text-2xl font-bold">{activeProfile?.display_name ?? "Calling..."}</h1>
+              <p className="text-green-400 font-mono text-base">{fmtDuration(callDuration)}</p>
+            </div>
+          )}
+
+          {/* Local video preview (video call only) */}
+          {activeCall.call_type === "video" && !isVideoOff && (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute bottom-28 right-4 w-28 h-40 rounded-2xl object-cover border-2 border-white/50 shadow-xl"
+            />
+          )}
+
+          {/* Controls */}
+          <div className="absolute bottom-0 left-0 right-0 pb-12 pt-6 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="flex items-center justify-center gap-6">
+              {/* Mute */}
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  onClick={() => { callManager.toggleAudio(isMuted); setIsMuted(m => !m); }}
+                  className={`h-16 w-16 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                >
+                  {isMuted ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
+                </button>
+                <span className="text-white/70 text-xs">{isMuted ? "Unmute" : "Mute"}</span>
               </div>
-              <span className="text-white text-sm font-medium">Answer</span>
-            </button>
+
+              {/* End call */}
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  onClick={endActiveCall}
+                  className="h-20 w-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
+                >
+                  <PhoneOff className="h-9 w-9 text-white" />
+                </button>
+                <span className="text-white/70 text-xs">End</span>
+              </div>
+
+              {/* Video toggle (video calls only) */}
+              {activeCall.call_type === "video" && (
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    onClick={() => { callManager.toggleVideo(isVideoOff); setIsVideoOff(v => !v); }}
+                    className={`h-16 w-16 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                  >
+                    {isVideoOff ? <VideoOff className="h-7 w-7" /> : <Video className="h-7 w-7" />}
+                  </button>
+                  <span className="text-white/70 text-xs">{isVideoOff ? "Camera on" : "Camera off"}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 }
+
+
 
 function NavItem({
   to, icon: Icon, label, exact, badge, onClick,

@@ -18,456 +18,282 @@ export interface Call {
   updated_at: string;
 }
 
-// WebRTC configuration with STUN and TURN servers for better NAT traversal
-const rtcConfig = {
+// WebRTC ICE servers — Google STUN + free TURN relay
+const rtcConfig: RTCConfiguration = {
   iceServers: [
-    // Google STUN servers
-    { urls: ["stun:stun.l.google.com:19302"] },
-    { urls: ["stun:stun1.l.google.com:19302"] },
-    { urls: ["stun:stun2.l.google.com:19302"] },
-    { urls: ["stun:stun3.l.google.com:19302"] },
-    { urls: ["stun:stun4.l.google.com:19302"] },
-    // Public TURN servers (free tier)
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
     {
-      urls: ["turn:openrelay.metered.ca:80"],
+      urls: "turn:openrelay.metered.ca:80",
       username: "openrelayproject",
       credential: "openrelayproject",
     },
     {
-      urls: ["turn:openrelay.metered.ca:443"],
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
       username: "openrelayproject",
       credential: "openrelayproject",
     },
   ],
+  iceCandidatePoolSize: 10,
 };
 
+type SignalMsg =
+  | { type: "offer"; sdp: string }
+  | { type: "answer"; sdp: string }
+  | { type: "ice"; candidate: string; sdpMLineIndex: number | null; sdpMid: string | null }
+  | { type: "end" }
+  | { type: "declined" };
+
 export class CallManager {
-  private peerConnection: RTCPeerConnection | null = null;
+  private pc: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
-  private remoteStream: MediaStream | null = null;
   private callId: string | null = null;
-  private signalingChannel: RealtimeChannel | null = null;
+  private channel: RealtimeChannel | null = null;
   private callType: CallType = "voice";
   private startTime: number | null = null;
-  private userId: string | null = null;
-  private peerId: string | null = null;
-  private isInitiator: boolean = false;
-  private onRemoteStreamCallback: ((stream: MediaStream) => void) | null = null;
-  private onCallEndCallback: (() => void) | null = null;
-  private onCallActiveCallback: (() => void) | null = null;
-  private pendingCandidates: RTCIceCandidate[] = [];
+  private pendingCandidates: RTCIceCandidateInit[] = [];
+  private isInitiator = false;
 
-  // Initiate a call
+  // ── Callbacks ──────────────────────────────────────────────────────────────
+  onRemoteStreamCb: ((stream: MediaStream) => void) | null = null;
+  onCallEndCb: (() => void) | null = null;
+  onCallActiveCb: (() => void) | null = null;
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  /** Caller side: create DB record, acquire media, create offer */
   async initiateCall(
     conversationId: string,
     receiverId: string,
     callType: CallType,
     userId: string
   ): Promise<Call> {
-    try {
-      this.userId = userId;
-      this.peerId = receiverId;
-      this.isInitiator = true;
-      this.callType = callType;
+    this.isInitiator = true;
+    this.callType = callType;
 
-      // Create call record in database
-      const { data: call, error } = await supabase
-        .from("calls")
-        .insert({
-          conversation_id: conversationId,
-          initiator_id: userId,
-          receiver_id: receiverId,
-          call_type: callType,
-          status: "ringing",
-        })
-        .select("*")
-        .single();
+    // 1. Insert call row — this triggers the receiver's realtime listener
+    const { data: call, error } = await supabase
+      .from("calls")
+      .insert({ conversation_id: conversationId, initiator_id: userId, receiver_id: receiverId, call_type: callType, status: "ringing" })
+      .select("*")
+      .single();
+    if (error || !call) throw error ?? new Error("Failed to create call");
 
-      if (error) throw error;
-      if (!call) throw new Error("Failed to create call");
+    this.callId = call.id;
 
-      this.callId = call.id;
+    // 2. Acquire local media
+    await this.acquireMedia(callType);
 
-      // Get local media stream
-      await this.acquireLocalStream(callType);
+    // 3. Open signaling channel and wait for it to be SUBSCRIBED before sending offer
+    await this.openSignaling(call.id);
 
-      // Create peer connection
-      this.createPeerConnection();
+    // 4. Build peer connection and create offer
+    this.buildPC();
 
-      // Set up signaling channel
-      this.setupSignaling(call.id, receiverId);
+    const offer = await this.pc!.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: callType === "video" });
+    await this.pc!.setLocalDescription(offer);
 
-      // Create and send offer
-      const offer = await this.peerConnection!.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: callType === "video",
-      });
-      await this.peerConnection!.setLocalDescription(offer);
+    await this.send({ type: "offer", sdp: offer.sdp! });
+    console.log("[CallManager] Offer sent for call:", call.id);
 
-      console.log("Sending offer for call:", call.id);
-
-      // Send offer through signaling
-      await this.sendSignalingMessage({
-        type: "offer",
-        sdp: offer.sdp,
-      });
-
-      return call as Call;
-    } catch (err) {
-      console.error("Failed to initiate call:", err);
-      this.cleanup();
-      throw err;
-    }
+    return call as Call;
   }
 
-  // Answer an incoming call
+  /** Receiver side: acquire media, open signaling, wait for offer */
   async answerCall(call: Call, userId: string): Promise<void> {
-    try {
-      this.callId = call.id;
-      this.callType = call.call_type;
-      this.userId = userId;
-      this.peerId = call.initiator_id;
-      this.isInitiator = false;
+    this.isInitiator = false;
+    this.callId = call.id;
+    this.callType = call.call_type;
 
-      // Get local media stream
-      await this.acquireLocalStream(call.call_type);
+    // 1. Acquire local media
+    await this.acquireMedia(call.call_type);
 
-      // Create peer connection
-      this.createPeerConnection();
+    // 2. Open signaling channel — offer may already be waiting
+    await this.openSignaling(call.id);
 
-      // Set up signaling channel
-      this.setupSignaling(call.id, call.initiator_id);
+    // 3. Build peer connection (will handle offer when it arrives via signaling)
+    this.buildPC();
 
-      console.log("Ready to answer call:", call.id);
+    // 4. Update call status to active in DB
+    await supabase.from("calls").update({ status: "active", started_at: new Date().toISOString() }).eq("id", call.id);
 
-      // Send answer ready signal
-      await this.sendSignalingMessage({
-        type: "answer-ready",
-      });
-    } catch (err) {
-      console.error("Failed to answer call:", err);
-      this.cleanup();
-      throw err;
-    }
+    console.log("[CallManager] Ready to receive offer for call:", call.id);
   }
 
-  // Decline an incoming call
   async declineCall(callId: string): Promise<void> {
-    try {
-      await supabase
-        .from("calls")
-        .update({ status: "declined", ended_at: new Date().toISOString() })
-        .eq("id", callId);
-
-      if (this.signalingChannel) {
-        await this.sendSignalingMessage({
-          type: "declined",
-        });
-      }
-
-      this.cleanup();
-    } catch (err) {
-      console.error("Failed to decline call:", err);
-    }
+    await supabase.from("calls").update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", callId);
+    await this.send({ type: "declined" });
+    this.cleanup();
   }
 
-  // End an active call
   async endCall(): Promise<void> {
-    try {
-      if (this.callId) {
-        const duration = this.startTime ? Math.floor((Date.now() - this.startTime) / 1000) : 0;
-        await supabase
-          .from("calls")
-          .update({
-            status: "ended",
-            ended_at: new Date().toISOString(),
-            duration_seconds: duration,
-          })
-          .eq("id", this.callId);
-      }
+    if (this.callId) {
+      const duration = this.startTime ? Math.floor((Date.now() - this.startTime) / 1000) : 0;
+      await supabase.from("calls").update({ status: "ended", ended_at: new Date().toISOString(), duration_seconds: duration }).eq("id", this.callId);
+    }
+    await this.send({ type: "end" });
+    this.cleanup();
+    this.onCallEndCb?.();
+  }
 
-      if (this.signalingChannel) {
-        await this.sendSignalingMessage({
-          type: "end-call",
+  toggleAudio(enabled: boolean) {
+    this.localStream?.getAudioTracks().forEach(t => { t.enabled = enabled; });
+  }
+
+  toggleVideo(enabled: boolean) {
+    this.localStream?.getVideoTracks().forEach(t => { t.enabled = enabled; });
+  }
+
+  getLocalStream() { return this.localStream; }
+  getCallType() { return this.callType; }
+  getCallId() { return this.callId; }
+
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  private async acquireMedia(callType: CallType) {
+    try {
+      this.localStream = await navigator.mediaDevices.getUserMedia(
+        callType === "video" ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } } : { audio: true }
+      );
+      console.log("[CallManager] Local media acquired:", this.localStream.getTracks().map(t => t.kind));
+    } catch (err) {
+      console.error("[CallManager] Media error:", err);
+      throw new Error("Could not access camera/microphone. Please allow permissions and try again.");
+    }
+  }
+
+  /** Open signaling broadcast channel and wait until SUBSCRIBED */
+  private openSignaling(callId: string): Promise<void> {
+    return new Promise((resolve) => {
+      const ch = supabase.channel(`call-signal:${callId}`, { config: { broadcast: { ack: false } } });
+      this.channel = ch;
+
+      ch.on("broadcast", { event: "signal" }, ({ payload }) => {
+        console.log("[CallManager] Signal received:", payload.type);
+        void this.handleSignal(payload as SignalMsg);
+      });
+
+      ch.subscribe((status) => {
+        console.log("[CallManager] Signaling channel:", status);
+        if (status === "SUBSCRIBED") resolve();
+      });
+    });
+  }
+
+  private buildPC() {
+    const pc = new RTCPeerConnection(rtcConfig);
+    this.pc = pc;
+
+    // Add local tracks
+    this.localStream?.getTracks().forEach(track => {
+      pc.addTrack(track, this.localStream!);
+      console.log("[CallManager] Added local track:", track.kind);
+    });
+
+    // Remote stream
+    pc.ontrack = (e) => {
+      console.log("[CallManager] Remote track:", e.track.kind);
+      if (e.streams[0]) {
+        this.onRemoteStreamCb?.(e.streams[0]);
+      }
+    };
+
+    // ICE candidates
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        void this.send({
+          type: "ice",
+          candidate: e.candidate.candidate,
+          sdpMLineIndex: e.candidate.sdpMLineIndex,
+          sdpMid: e.candidate.sdpMid,
         });
       }
+    };
 
+    pc.onconnectionstatechange = () => {
+      console.log("[CallManager] Connection state:", pc.connectionState);
+      if (pc.connectionState === "connected") {
+        if (!this.startTime) this.startTime = Date.now();
+        this.onCallActiveCb?.();
+      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        console.warn("[CallManager] Connection lost, ending call");
+        void this.endCall();
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("[CallManager] ICE state:", pc.iceConnectionState);
+    };
+  }
+
+  private async handleSignal(msg: SignalMsg) {
+    const pc = this.pc;
+    if (!pc) return;
+
+    if (msg.type === "offer") {
+      // Receiver gets offer → set remote desc → create answer
+      await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+      await this.flushPendingCandidates();
+
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await this.send({ type: "answer", sdp: answer.sdp! });
+      console.log("[CallManager] Answer sent");
+
+    } else if (msg.type === "answer") {
+      // Initiator gets answer → set remote desc
+      await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+      await this.flushPendingCandidates();
+      if (!this.startTime) this.startTime = Date.now();
+
+    } else if (msg.type === "ice") {
+      const init: RTCIceCandidateInit = { candidate: msg.candidate, sdpMLineIndex: msg.sdpMLineIndex, sdpMid: msg.sdpMid };
+      if (pc.remoteDescription) {
+        try { await pc.addIceCandidate(init); } catch (e) { console.warn("[CallManager] ICE add failed:", e); }
+      } else {
+        this.pendingCandidates.push(init);
+      }
+
+    } else if (msg.type === "end" || msg.type === "declined") {
       this.cleanup();
-      if (this.onCallEndCallback) {
-        this.onCallEndCallback();
-      }
-    } catch (err) {
-      console.error("Failed to end call:", err);
+      this.onCallEndCb?.();
     }
   }
 
-  // Get local media stream
-  private async acquireLocalStream(callType: CallType): Promise<void> {
-    try {
-      const constraints =
-        callType === "video"
-          ? { audio: true, video: { width: 1280, height: 720 } }
-          : { audio: true };
-
-      this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log("Local stream acquired:", this.localStream?.getTracks().map(t => t.kind));
-    } catch (err) {
-      console.error("Failed to get local stream:", err);
-      throw err;
+  private async flushPendingCandidates() {
+    for (const c of this.pendingCandidates) {
+      try { await this.pc?.addIceCandidate(c); } catch { /* ignore */ }
     }
-  }
-
-  // Create WebRTC peer connection
-  private createPeerConnection(): void {
-    console.log("Creating peer connection with config:", rtcConfig);
-    this.peerConnection = new RTCPeerConnection(rtcConfig);
-
-    // Add local stream tracks
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => {
-        console.log("Adding local track:", track.kind);
-        this.peerConnection!.addTrack(track, this.localStream!);
-      });
-    }
-
-    // Handle remote stream
-    this.peerConnection.ontrack = (event) => {
-      console.log("Remote track received:", event.track.kind, "streams:", event.streams.length);
-      if (event.streams && event.streams[0]) {
-        this.remoteStream = event.streams[0];
-        console.log("Remote stream set with tracks:", this.remoteStream.getTracks().map(t => t.kind));
-        if (this.onRemoteStreamCallback) {
-          this.onRemoteStreamCallback(this.remoteStream);
-        }
-      }
-    };
-
-    // Handle ICE candidates
-    this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log("ICE candidate generated:", event.candidate.candidate.substring(0, 50));
-        this.sendSignalingMessage({
-          type: "ice-candidate",
-          candidate: event.candidate.candidate,
-          sdpMLineIndex: event.candidate.sdpMLineIndex,
-          sdpMid: event.candidate.sdpMid,
-        }).catch(err => console.error("Failed to send ICE candidate:", err));
-      }
-    };
-
-    // Handle connection state changes
-    this.peerConnection.onconnectionstatechange = () => {
-      console.log("Connection state:", this.peerConnection?.connectionState);
-      if (this.peerConnection?.connectionState === "connected") {
-        console.log("Call connected!");
-        if (!this.startTime) {
-          this.startTime = Date.now();
-        }
-        if (this.onCallActiveCallback) {
-          this.onCallActiveCallback();
-        }
-      } else if (
-        this.peerConnection?.connectionState === "failed" ||
-        this.peerConnection?.connectionState === "disconnected"
-      ) {
-        console.log("Call disconnected, ending call");
-        this.endCall().catch(err => console.error("Failed to end call on disconnect:", err));
-      }
-    };
-
-    // Handle ICE connection state
-    this.peerConnection.oniceconnectionstatechange = () => {
-      console.log("ICE connection state:", this.peerConnection?.iceConnectionState);
-    };
-
-    // Handle signaling state
-    this.peerConnection.onsignalingstatechange = () => {
-      console.log("Signaling state:", this.peerConnection?.signalingState);
-    };
-  }
-
-  // Set up signaling channel
-  private setupSignaling(callId: string, peerId: string): void {
-    const channelName = `call:${callId}`;
-    console.log("Setting up signaling channel:", channelName);
-    this.signalingChannel = supabase.channel(channelName);
-
-    this.signalingChannel
-      .on("broadcast", { event: "signal" }, async (payload) => {
-        console.log("Received signaling message:", payload.payload.type);
-        await this.handleSignalingMessage(payload.payload);
-      })
-      .subscribe((status) => {
-        console.log("Signaling channel subscription status:", status);
-      });
-  }
-
-  // Send signaling message
-  private async sendSignalingMessage(message: any): Promise<void> {
-    if (!this.signalingChannel) {
-      console.error("Signaling channel not initialized");
-      return;
-    }
-
-    try {
-      await this.signalingChannel.send({
-        type: "broadcast",
-        event: "signal",
-        payload: message,
-      });
-      console.log("Sent signaling message:", message.type);
-    } catch (err) {
-      console.error("Failed to send signaling message:", err);
-    }
-  }
-
-  // Handle incoming signaling messages
-  private async handleSignalingMessage(message: any): Promise<void> {
-    try {
-      console.log("Handling signaling message:", message.type);
-
-      if (message.type === "offer" && this.peerConnection) {
-        console.log("Received offer, setting remote description");
-        await this.peerConnection.setRemoteDescription(
-          new RTCSessionDescription({ type: "offer", sdp: message.sdp })
-        );
-
-        // Add any pending candidates
-        for (const candidate of this.pendingCandidates) {
-          try {
-            await this.peerConnection.addIceCandidate(candidate);
-          } catch (err) {
-            console.error("Failed to add pending ICE candidate:", err);
-          }
-        }
-        this.pendingCandidates = [];
-
-        const answer = await this.peerConnection.createAnswer();
-        await this.peerConnection.setLocalDescription(answer);
-
-        console.log("Sending answer");
-        await this.sendSignalingMessage({
-          type: "answer",
-          sdp: answer.sdp,
-        });
-      } else if (message.type === "answer" && this.peerConnection) {
-        console.log("Received answer, setting remote description");
-        await this.peerConnection.setRemoteDescription(
-          new RTCSessionDescription({ type: "answer", sdp: message.sdp })
-        );
-
-        // Add any pending candidates
-        for (const candidate of this.pendingCandidates) {
-          try {
-            await this.peerConnection.addIceCandidate(candidate);
-          } catch (err) {
-            console.error("Failed to add pending ICE candidate:", err);
-          }
-        }
-        this.pendingCandidates = [];
-
-        if (!this.startTime) {
-          this.startTime = Date.now();
-        }
-      } else if (message.type === "ice-candidate" && this.peerConnection) {
-        try {
-          const candidate = new RTCIceCandidate({
-            candidate: message.candidate,
-            sdpMLineIndex: message.sdpMLineIndex,
-            sdpMid: message.sdpMid,
-          });
-
-          if (this.peerConnection.remoteDescription) {
-            await this.peerConnection.addIceCandidate(candidate);
-          } else {
-            // Queue candidate if remote description not set yet
-            this.pendingCandidates.push(candidate);
-          }
-        } catch (err) {
-          console.error("Failed to add ICE candidate:", err);
-        }
-      } else if (message.type === "end-call") {
-        console.log("Peer ended call");
-        this.cleanup();
-        if (this.onCallEndCallback) {
-          this.onCallEndCallback();
-        }
-      }
-    } catch (err) {
-      console.error("Failed to handle signaling message:", err);
-    }
-  }
-
-  // Clean up resources
-  private cleanup(): void {
-    console.log("Cleaning up call resources");
-
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => {
-        console.log("Stopping local track:", track.kind);
-        track.stop();
-      });
-      this.localStream = null;
-    }
-
-    if (this.peerConnection) {
-      this.peerConnection.close();
-      this.peerConnection = null;
-    }
-
-    if (this.signalingChannel) {
-      supabase.removeChannel(this.signalingChannel);
-      this.signalingChannel = null;
-    }
-
-    this.callId = null;
-    this.remoteStream = null;
-    this.startTime = null;
     this.pendingCandidates = [];
   }
 
-  // Public getters
-  getLocalStream(): MediaStream | null {
-    return this.localStream;
-  }
-
-  getRemoteStream(): MediaStream | null {
-    return this.remoteStream;
-  }
-
-  getCallType(): CallType {
-    return this.callType;
-  }
-
-  // Set callbacks
-  onRemoteStream(callback: (stream: MediaStream) => void): void {
-    this.onRemoteStreamCallback = callback;
-  }
-
-  onCallEnd(callback: () => void): void {
-    this.onCallEndCallback = callback;
-  }
-
-  onCallActive(callback: () => void): void {
-    this.onCallActiveCallback = callback;
-  }
-
-  // Toggle audio
-  toggleAudio(enabled: boolean): void {
-    if (this.localStream) {
-      this.localStream.getAudioTracks().forEach((track) => {
-        track.enabled = enabled;
-      });
+  private async send(msg: SignalMsg) {
+    if (!this.channel) return;
+    try {
+      await this.channel.send({ type: "broadcast", event: "signal", payload: msg });
+    } catch (e) {
+      console.error("[CallManager] Send failed:", e);
     }
   }
 
-  // Toggle video
-  toggleVideo(enabled: boolean): void {
-    if (this.localStream) {
-      this.localStream.getVideoTracks().forEach((track) => {
-        track.enabled = enabled;
-      });
+  cleanup() {
+    this.localStream?.getTracks().forEach(t => t.stop());
+    this.localStream = null;
+    this.pc?.close();
+    this.pc = null;
+    if (this.channel) {
+      supabase.removeChannel(this.channel);
+      this.channel = null;
     }
+    this.callId = null;
+    this.startTime = null;
+    this.pendingCandidates = [];
+    this.isInitiator = false;
   }
 }
 
