@@ -1,54 +1,71 @@
-// ─── Browser Push Notification helper ────────────────────────────────────────
+// ─── Cross-browser Push Notification helper ───────────────────────────────────
 
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
   if (Notification.permission === "denied") return false;
-  const result = await Notification.requestPermission();
-  return result === "granted";
+  try {
+    const result = await Notification.requestPermission();
+    return result === "granted";
+  } catch {
+    return false;
+  }
 }
 
 export function canNotify(): boolean {
   return "Notification" in window && Notification.permission === "granted";
 }
 
-export function sendPushNotification(title: string, body: string, options?: { icon?: string; tag?: string; onClick?: () => void }) {
+export function sendPushNotification(
+  title: string,
+  body: string,
+  options?: { icon?: string; tag?: string; onClick?: () => void }
+) {
   if (!canNotify()) return;
 
-  // Use service worker registration if available — works in background on mobile
-  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.ready.then((reg) => {
-      reg.showNotification(title, {
-        body,
-        icon: options?.icon ?? "/me.webp",
-        badge: "/me.webp",
-        tag: options?.tag,
-        requireInteraction: false,
-        silent: false,
-        data: { url: "/dashboard/chat" },
-      } as NotificationOptions);
-    }).catch(() => {
-      // Fallback to regular Notification
-      _showBasicNotification(title, body, options);
-    });
-  } else {
-    _showBasicNotification(title, body, options);
+  // Try service worker first (works in background on all browsers that support it)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.ready
+      .then((reg) => {
+        // showNotification is supported in all modern browsers with SW
+        return reg.showNotification(title, {
+          body,
+          icon: options?.icon ?? "/me.webp",
+          tag: options?.tag,
+          data: { url: "/dashboard/chat" },
+        });
+      })
+      .catch(() => {
+        // SW not ready or not supported — fall back to basic Notification
+        _showBasicNotification(title, body, options);
+      });
+    return;
   }
+
+  // No service worker support — use basic Notification API
+  _showBasicNotification(title, body, options);
 }
 
-function _showBasicNotification(title: string, body: string, options?: { icon?: string; tag?: string; onClick?: () => void }) {
-  const n = new Notification(title, {
-    body,
-    icon: options?.icon ?? "/me.webp",
-    badge: "/me.webp",
-    tag: options?.tag,
-    requireInteraction: false,
-    silent: false,
-  });
-  if (options?.onClick) {
-    n.onclick = () => { window.focus(); options.onClick!(); n.close(); };
+function _showBasicNotification(
+  title: string,
+  body: string,
+  options?: { icon?: string; tag?: string; onClick?: () => void }
+) {
+  try {
+    const n = new Notification(title, {
+      body,
+      icon: options?.icon ?? "/me.webp",
+      tag: options?.tag,
+    });
+    n.onclick = () => {
+      window.focus();
+      options?.onClick?.();
+      n.close();
+    };
+    setTimeout(() => n.close(), 6000);
+  } catch {
+    // Notification API not available (e.g. iOS Safari)
   }
-  setTimeout(() => n.close(), 6000);
 }
 
 // ─── 15-minute unread reminder ────────────────────────────────────────────────
@@ -63,12 +80,12 @@ export function startUnreadReminder(getUnreadCount: () => number, isAdmin: boole
       sendPushNotification(
         isAdmin ? "📬 Unread messages" : "💬 You have a reply",
         isAdmin
-          ? `You have ${count} unread message${count > 1 ? "s" : ""} from client${count > 1 ? "s" : ""}. Don't leave them waiting!`
-          : `You have ${count} unread message${count > 1 ? "s" : ""} from Ajibola. Tap to read.`,
+          ? `You have ${count} unread message${count > 1 ? "s" : ""} from client${count > 1 ? "s" : ""}.`
+          : `You have ${count} unread message${count > 1 ? "s" : ""} from Ajibola.`,
         { tag: "unread-reminder" }
       );
     }
-  }, 15 * 60 * 1000); // every 15 minutes
+  }, 15 * 60 * 1000);
 }
 
 export function stopUnreadReminder() {

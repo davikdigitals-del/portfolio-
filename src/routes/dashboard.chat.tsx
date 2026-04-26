@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
-  Play, Pause, FileText, Bell, BellOff,
+  Play, Pause, FileText, Bell, BellOff, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,7 @@ interface Message {
   file_size: number | null;
   created_at: string;
   pinned: boolean;
+  deleted_at: string | null;
 }
 
 interface FilePreview {
@@ -462,9 +463,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const [waveformBars, setWaveformBars] = useState<number[]>(Array(24).fill(10));
   // Playback
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
@@ -520,6 +523,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 
     return () => { void supabase.removeChannel(statusChannel); };
   }, [conversation.id, isAdmin, adminProfile?.user_id]);
+
+  // Sync counterpart status when adminProfile prop updates (for client side)
+  useEffect(() => {
+    if (!isAdmin && adminProfile) {
+      setCounterpartStatus(adminProfile.status);
+      setLastSeen(adminProfile.last_seen ?? null);
+    }
+  }, [isAdmin, adminProfile?.status, adminProfile?.last_seen]);
 
   // Realtime messages
   useEffect(() => {
@@ -689,6 +700,27 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
+      // Set up analyser for real waveform
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      
+      // Animate waveform bars from real audio data
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      function animate() {
+        analyser.getByteFrequencyData(dataArray);
+        const bars = Array.from({ length: 24 }, (_, i) => {
+          const idx = Math.floor((i / 24) * dataArray.length);
+          return Math.max(8, (dataArray[idx] / 255) * 100);
+        });
+        setWaveformBars(bars);
+        animFrameRef.current = requestAnimationFrame(animate);
+      }
+      animate();
+      
       // Pick the best supported format
       const mimeType = [
         "audio/webm;codecs=opus",
@@ -700,7 +732,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       audioChunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mr.onstop = () => { stream.getTracks().forEach((t) => t.stop()); void sendVoiceNote(mimeType); };
+      mr.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        audioCtx.close();
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        setWaveformBars(Array(24).fill(10));
+        void sendVoiceNote(mimeType);
+      };
       mr.start(100); // collect data every 100ms for reliability
       mediaRecorderRef.current = mr;
       setRecording(true);
@@ -770,35 +808,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     setUploading(false);
   }
 
-  // ---- Playback ----
-  function togglePlay(msgId: string, url: string) {
-    let audio = audioRefs.current.get(msgId);
-    if (!audio) {
-      audio = new Audio();
-      audio.crossOrigin = "anonymous";
-      audio.preload = "auto";
-      audio.src = url;
-      audio.onended = () => setPlayingId(null);
-      audio.onerror = () => {
-        toast.error("Could not play voice note");
-        setPlayingId(null);
-      };
-      audioRefs.current.set(msgId, audio);
-    }
-    if (playingId === msgId) {
-      audio.pause();
-      setPlayingId(null);
-    } else {
-      // Pause any other playing audio
-      audioRefs.current.forEach((a, id) => {
-        if (id !== msgId) { a.pause(); a.currentTime = 0; }
-      });
-      audio.play().catch(() => {
-        toast.error("Could not play voice note");
-        setPlayingId(null);
-      });
-      setPlayingId(msgId);
-    }
+  // ---- Delete message ----
+  async function deleteMessage(msgId: string) {
+    const { error } = await supabase
+      .from("messages")
+      .update({ deleted_at: new Date().toISOString(), content: "This message was deleted" })
+      .eq("id", msgId);
+    if (error) toast.error("Failed to delete message");
   }
 
   // ---- Send text ----
@@ -906,27 +922,44 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
           const showAvatar = !mine && (!messages[i + 1] || messages[i + 1].sender_id !== m.sender_id);
           
           return (
-            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start items-end gap-2"} ${showGap ? "mt-3" : ""} animate-message-in`}>
-              {/* Show admin avatar for their messages */}
+            <div key={m.id} className={`group flex ${mine ? "justify-end" : "justify-start items-end gap-2"} ${showGap ? "mt-3" : ""} animate-message-in`}>
+              {/* Show correct avatar for received messages */}
               {!mine && showAvatar && (
                 <div className="shrink-0 mb-1">
-                  {adminProfile?.avatar_url ? (
-                    <img 
-                      src={adminProfile.avatar_url} 
-                      alt={adminProfile.display_name || "Admin"} 
-                      className="h-7 w-7 rounded-full object-cover"
-                    />
+                  {/* Admin view: show client avatar. Client view: show admin avatar */}
+                  {isAdmin ? (
+                    conversation.profile?.avatar_url ? (
+                      <img src={conversation.profile.avatar_url} alt="client" className="h-7 w-7 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">
+                        {counterpartInitial}
+                      </div>
+                    )
                   ) : (
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">
-                      {counterpartInitial}
-                    </div>
+                    adminProfile?.avatar_url ? (
+                      <img src={adminProfile.avatar_url} alt={adminProfile.display_name || "Admin"} className="h-7 w-7 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">
+                        {counterpartInitial}
+                      </div>
+                    )
                   )}
                 </div>
               )}
               {!mine && !showAvatar && <div className="w-7 shrink-0" />}
               
-              <div className="max-w-[75%]">
-                <MessageBubble message={m} mine={mine} playingId={playingId} onTogglePlay={togglePlay} />
+              <div className="max-w-[75%] relative">
+                <MessageBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} onDelete={deleteMessage} />
+                {/* Delete button - show on hover */}
+                {(mine || isAdmin) && (
+                  <button
+                    onClick={() => deleteMessage(m.id)}
+                    className={`absolute ${mine ? "-left-7" : "-right-7"} top-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full bg-muted hover:bg-destructive hover:text-destructive-foreground text-muted-foreground`}
+                    title="Delete message"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
                 <div className={`flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ${mine ? "justify-end mr-2" : "ml-2"}`}>
                   <span>{formatTime(m.created_at)}</span>
                   {mine && (m.status === "seen" ? <CheckCheck className="h-3 w-3 text-primary" /> : <Check className="h-3 w-3" />)}
@@ -979,11 +1012,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
               type="button"
               onClick={() => {
                 if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+                if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
                 mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop());
                 mediaRecorderRef.current = null;
                 audioChunksRef.current = [];
                 setRecording(false);
                 setRecordingSeconds(0);
+                setWaveformBars(Array(24).fill(10));
               }}
               className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
               title="Cancel recording"
@@ -995,15 +1030,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
             <div className="flex-1 flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
               <div className="flex items-end gap-[2px] h-6 flex-1">
-                {Array.from({ length: 24 }).map((_, i) => (
+                {waveformBars.map((h, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-full bg-red-400/70 animate-pulse"
-                    style={{
-                      height: `${25 + Math.abs(Math.sin((Date.now() / 200 + i) * 0.8)) * 75}%`,
-                      animationDelay: `${i * 40}ms`,
-                      animationDuration: `${400 + (i % 5) * 80}ms`,
-                    }}
+                    className="flex-1 rounded-full bg-red-400 transition-all duration-75"
+                    style={{ height: `${h}%` }}
                   />
                 ))}
               </div>
@@ -1067,11 +1098,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
 
 // ---- MessageBubble -----------------------------------------------------------
 
-function VoiceBubble({ message: m, mine, playingId, onTogglePlay }: {
+function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
   message: Message;
   mine: boolean;
   playingId: string | null;
-  onTogglePlay: (id: string, url: string) => void;
+  setPlayingId: (id: string | null) => void;
 }) {
   const isPlaying = playingId === m.id;
   const [progress, setProgress] = useState(0);
@@ -1082,6 +1113,7 @@ function VoiceBubble({ message: m, mine, playingId, onTogglePlay }: {
   useEffect(() => {
     if (!m.file_url) return;
     const audio = new Audio(m.file_url);
+    audio.preload = "metadata";
     audioRef.current = audio;
     audio.onloadedmetadata = () => {
       if (isFinite(audio.duration)) setDuration(audio.duration);
@@ -1095,50 +1127,64 @@ function VoiceBubble({ message: m, mine, playingId, onTogglePlay }: {
     audio.onended = () => {
       setProgress(0);
       setCurrentTime(0);
+      setPlayingId(null);
     };
-    return () => { audio.pause(); audio.src = ""; };
+    audio.onerror = () => {
+      toast.error("Could not play voice note");
+      setPlayingId(null);
+    };
+    return () => {
+      audio.pause();
+      audio.src = "";
+      audioRef.current = null;
+    };
   }, [m.file_url]);
 
+  // Pause when another message starts playing
+  useEffect(() => {
+    if (!isPlaying && audioRef.current) {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
+
   function handleToggle() {
-    if (!audioRef.current || !m.file_url) return;
-    onTogglePlay(m.id, m.file_url);
+    if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
+      setPlayingId(null);
     } else {
-      audioRef.current.play().catch(() => {});
+      setPlayingId(m.id);
+      audioRef.current.play().catch(() => {
+        toast.error("Could not play voice note");
+        setPlayingId(null);
+      });
     }
   }
 
   function handleSeek(e: React.MouseEvent<HTMLDivElement>) {
     if (!audioRef.current || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pct = x / rect.width;
+    const pct = (e.clientX - rect.left) / rect.width;
     audioRef.current.currentTime = pct * duration;
     setProgress(pct * 100);
   }
 
   function fmtTime(s: number) {
-    if (!isFinite(s)) return "0:00";
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+    if (!isFinite(s) || s === 0) return "0:00";
+    const mins = Math.floor(s / 60);
+    const secs = Math.floor(s % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   }
 
-  // 30 bars for waveform
-  const bars = Array.from({ length: 30 }, (_, i) => {
-    const h = 20 + Math.abs(Math.sin(i * 0.9 + 1) * 60 + Math.cos(i * 0.4) * 20);
-    const filled = (i / 30) * 100 <= progress;
-    return { h, filled };
-  });
+  const bars = Array.from({ length: 30 }, (_, i) => ({
+    h: 20 + Math.abs(Math.sin(i * 0.9 + 1) * 60 + Math.cos(i * 0.4) * 20),
+    filled: (i / 30) * 100 <= progress,
+  }));
 
   return (
     <div className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl min-w-[220px] max-w-[280px] ${
-      mine
-        ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
-        : "bg-surface-elevated text-foreground rounded-bl-sm"
+      mine ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow" : "bg-surface-elevated text-foreground rounded-bl-sm"
     }`}>
-      {/* Play/Pause button */}
       <button
         onClick={handleToggle}
         className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-all active:scale-95 ${
@@ -1150,32 +1196,18 @@ function VoiceBubble({ message: m, mine, playingId, onTogglePlay }: {
           : <Play className={`h-4 w-4 ml-0.5 ${mine ? "text-white" : "text-primary-foreground"}`} />
         }
       </button>
-
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-        {/* Waveform + seekbar */}
-        <div
-          className="flex items-end gap-[2px] h-8 cursor-pointer"
-          onClick={handleSeek}
-        >
+        <div className="flex items-end gap-[2px] h-8 cursor-pointer" onClick={handleSeek}>
           {bars.map((b, i) => (
-            <div
-              key={i}
-              className={`flex-1 rounded-full transition-colors ${
-                b.filled
-                  ? mine ? "bg-white" : "bg-primary"
-                  : mine ? "bg-white/35" : "bg-muted-foreground/30"
-              }`}
-              style={{ height: `${b.h}%` }}
-            />
+            <div key={i} className={`flex-1 rounded-full transition-colors ${
+              b.filled ? (mine ? "bg-white" : "bg-primary") : (mine ? "bg-white/35" : "bg-muted-foreground/30")
+            }`} style={{ height: `${b.h}%` }} />
           ))}
         </div>
-
-        {/* Time */}
         <div className={`flex items-center justify-between text-[10px] ${mine ? "text-white/70" : "text-muted-foreground"}`}>
           <span>{isPlaying || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration)}</span>
           <span className={`flex items-center gap-1 ${mine ? "text-white/50" : "text-muted-foreground/60"}`}>
-            <Mic className="h-2.5 w-2.5" />
-            Voice note
+            <Mic className="h-2.5 w-2.5" /> Voice note
           </span>
         </div>
       </div>
@@ -1183,18 +1215,19 @@ function VoiceBubble({ message: m, mine, playingId, onTogglePlay }: {
   );
 }
 
-function MessageBubble({ message: m, mine, playingId, onTogglePlay }: {
+function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete }: {
   message: Message;
   mine: boolean;
   playingId: string | null;
-  onTogglePlay: (id: string, url: string) => void;
+  setPlayingId: (id: string | null) => void;
+  onDelete: (id: string) => void;
 }) {
   const base = mine
     ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
     : "bg-surface-elevated text-foreground rounded-bl-sm";
 
   if (m.type === "voice" && m.file_url) {
-    return <VoiceBubble message={m} mine={mine} playingId={playingId} onTogglePlay={onTogglePlay} />;
+    return <VoiceBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} />;
   }
 
   if (m.type === "image" && m.file_url) {
@@ -1229,6 +1262,14 @@ function MessageBubble({ message: m, mine, playingId, onTogglePlay }: {
   }
 
   // text
+  if (m.deleted_at) {
+    return (
+      <div className={`px-4 py-2.5 rounded-2xl text-sm italic text-muted-foreground bg-muted/30 rounded-${mine ? "br" : "bl"}-sm`}>
+        This message was deleted
+      </div>
+    );
+  }
+
   return (
     <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words ${base}`}>
       {m.pinned && <Pin className="inline h-3 w-3 mr-1 opacity-70" />}
