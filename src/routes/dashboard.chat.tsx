@@ -1350,22 +1350,47 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   async function initiateCall(callType: CallType) {
     if (!user) return;
     
-    console.log("[Call] Initiating call:", {
-      type: callType,
-      conversationId: conversation.id,
-      receiverId: isAdmin ? conversation.user_id : (adminProfile?.user_id ?? ""),
-      initiatorId: user.id,
-    });
+    const receiverId = isAdmin ? conversation.user_id : (adminProfile?.user_id ?? "");
+    
+    console.log("[Call] ===== INITIATING CALL =====");
+    console.log("[Call] Call type:", callType);
+    console.log("[Call] Conversation ID:", conversation.id);
+    console.log("[Call] Receiver ID:", receiverId);
+    console.log("[Call] Initiator ID (me):", user.id);
+    console.log("[Call] Is admin:", isAdmin);
+    
+    if (!receiverId) {
+      console.error("[Call] ❌ No receiver ID found!");
+      toast.error("Cannot find receiver for call");
+      return;
+    }
     
     try {
       const call = await callManager.initiateCall(
         conversation.id,
-        isAdmin ? conversation.user_id : (adminProfile?.user_id ?? ""),
+        receiverId,
         callType,
         user.id
       );
       
-      console.log("[Call] Call created successfully:", call);
+      console.log("[Call] ✅ Call created successfully in database:");
+      console.log("[Call] Call ID:", call.id);
+      console.log("[Call] Status:", call.status);
+      console.log("[Call] Created at:", call.created_at);
+      
+      // Verify the call was inserted by querying it back
+      const { data: verifyCall, error: verifyError } = await supabase
+        .from("calls")
+        .select("*")
+        .eq("id", call.id)
+        .single();
+      
+      if (verifyError) {
+        console.error("[Call] ❌ Error verifying call in DB:", verifyError);
+      } else {
+        console.log("[Call] ✅ Verified call exists in DB:", verifyCall);
+      }
+      
       setActiveCall(call as Call);
 
       // Send call notification

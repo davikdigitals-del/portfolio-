@@ -118,18 +118,37 @@ function DashboardLayout() {
 
     console.log(`[CallListener] Setting up global call listener for ${isAdmin ? 'admin' : 'client'}, user ID:`, user.id);
     
-    const ch = supabase.channel(`global-calls-${user.id}`)
+    const ch = supabase.channel(`global-calls-${user.id}`, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: user.id },
+      },
+    })
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
         table: "calls",
       }, (payload) => {
-        console.log("[CallListener] Received call event:", payload);
+        console.log("[CallListener] ===== CALL EVENT RECEIVED =====");
+        console.log("[CallListener] Full payload:", JSON.stringify(payload, null, 2));
+        console.log("[CallListener] Event type:", payload.eventType);
+        console.log("[CallListener] Table:", payload.table);
+        
         const call = payload.new as Call;
+        console.log("[CallListener] Call details:", {
+          id: call.id,
+          receiver_id: call.receiver_id,
+          initiator_id: call.initiator_id,
+          status: call.status,
+          call_type: call.call_type,
+        });
+        console.log("[CallListener] My user ID:", user.id);
+        console.log("[CallListener] Am I the receiver?", call.receiver_id === user.id);
+        console.log("[CallListener] Is status ringing?", call.status === "ringing");
         
         // Show incoming call if we're the receiver and it's ringing
         if (call.receiver_id === user.id && call.status === "ringing") {
-          console.log("[CallListener] Incoming call for me:", call.id, "Type:", call.call_type);
+          console.log("[CallListener] ✅ SHOWING INCOMING CALL MODAL");
           setIncomingCall(call);
           
           // Set missed call timer - 30 seconds
@@ -159,11 +178,30 @@ function DashboardLayout() {
             { tag: `call-${call.id}` }
           );
         } else {
-          console.log("[CallListener] Call not for me. Receiver:", call.receiver_id, "My ID:", user.id, "Status:", call.status);
+          console.log("[CallListener] ❌ NOT showing call. Reason:");
+          if (call.receiver_id !== user.id) {
+            console.log("  - Not the receiver (receiver:", call.receiver_id, "me:", user.id, ")");
+          }
+          if (call.status !== "ringing") {
+            console.log("  - Status is not ringing (status:", call.status, ")");
+          }
         }
       })
-      .subscribe((status) => {
-        console.log("[CallListener] Subscription status:", status);
+      .subscribe((status, err) => {
+        console.log("[CallListener] ===== SUBSCRIPTION STATUS =====");
+        console.log("[CallListener] Status:", status);
+        if (err) {
+          console.error("[CallListener] Subscription error:", err);
+        }
+        if (status === "SUBSCRIBED") {
+          console.log("[CallListener] ✅ Successfully subscribed to calls table");
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("[CallListener] ❌ Channel error - realtime may not be enabled");
+        } else if (status === "TIMED_OUT") {
+          console.error("[CallListener] ❌ Subscription timed out");
+        } else if (status === "CLOSED") {
+          console.log("[CallListener] Channel closed");
+        }
       });
 
     return () => { 
