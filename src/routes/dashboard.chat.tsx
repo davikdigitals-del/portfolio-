@@ -210,7 +210,7 @@ function ChatPage() {
     })();
   }, [isAdmin]);
 
-  // Real-time admin profile updates (so client sees live online/offline)
+  // Real-time admin profile updates (so client sees live online/offline in sidebar too)
   useEffect(() => {
     if (isAdmin || !adminProfile?.user_id) return;
     const ch = supabase.channel(`admin-presence:${adminProfile.user_id}`)
@@ -221,7 +221,10 @@ function ChatPage() {
         filter: `user_id=eq.${adminProfile.user_id}`,
       }, (payload) => {
         const p = payload.new as AdminProfile;
-        setAdminProfile((prev) => prev ? { ...prev, status: p.status, last_seen: p.last_seen } : prev);
+        setAdminProfile((prev) => prev
+          ? { ...prev, status: p.status, last_seen: p.last_seen ?? prev.last_seen }
+          : prev
+        );
       })
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
@@ -461,7 +464,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load messages + existing summary
+  // Load messages + existing summary + counterpart status
   useEffect(() => {
     if (!conversation || !user) return;
     void (async () => {
@@ -469,43 +472,47 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       setMessages((data as Message[]) ?? []);
       const updates = isAdmin ? { unread_admin: 0 } : { unread_user: 0 };
       await supabase.from("conversations").update(updates).eq("id", conversation.id);
-      // Load existing summary
       const { data: sumData } = await supabase.from("ai_summaries").select("summary").eq("conversation_id", conversation.id).maybeSingle();
       if (sumData) setSummary(sumData.summary);
-      
-      // Load counterpart's profile for status and last_seen
-      const counterpartId = isAdmin ? conversation.user_id : (adminProfile ? null : conversation.user_id);
+
+      // For admin: watch the client's profile
+      // For client: watch the admin's profile (use adminProfile.user_id)
+      const counterpartId = isAdmin ? conversation.user_id : adminProfile?.user_id ?? null;
       if (counterpartId) {
-        const { data: profile } = await supabase.from("profiles").select("status, last_seen").eq("user_id", counterpartId).maybeSingle();
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("status, last_seen")
+          .eq("user_id", counterpartId)
+          .maybeSingle();
         if (profile) {
           setCounterpartStatus(profile.status);
-          setLastSeen(profile.last_seen);
+          setLastSeen(profile.last_seen ?? null);
         }
       }
     })();
-  }, [conversation.id, user, isAdmin, adminProfile]);
+  }, [conversation.id, user, isAdmin, adminProfile?.user_id]);
 
-  // Real-time status updates
+  // Real-time status updates for counterpart
   useEffect(() => {
     if (!conversation) return;
-    const counterpartId = isAdmin ? conversation.user_id : null;
+    const counterpartId = isAdmin ? conversation.user_id : adminProfile?.user_id ?? null;
     if (!counterpartId) return;
-    
-    const statusChannel = supabase.channel(`profile:${counterpartId}`)
-      .on("postgres_changes", { 
-        event: "UPDATE", 
-        schema: "public", 
-        table: "profiles", 
-        filter: `user_id=eq.${counterpartId}` 
+
+    const statusChannel = supabase.channel(`presence-watch:${counterpartId}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "profiles",
+        filter: `user_id=eq.${counterpartId}`,
       }, (payload) => {
         const updated = payload.new as { status: string; last_seen: string };
         setCounterpartStatus(updated.status);
-        setLastSeen(updated.last_seen);
+        setLastSeen(updated.last_seen ?? null);
       })
       .subscribe();
-    
+
     return () => { void supabase.removeChannel(statusChannel); };
-  }, [conversation, isAdmin]);
+  }, [conversation.id, isAdmin, adminProfile?.user_id]);
 
   // Realtime messages
   useEffect(() => {
