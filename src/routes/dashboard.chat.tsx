@@ -14,6 +14,8 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   requestNotificationPermission,
   sendPushNotification,
+  subscribeToWebPush,
+  sendWebPush,
   startUnreadReminder,
   stopUnreadReminder,
 } from "@/lib/notifications";
@@ -186,9 +188,20 @@ function ChatPage() {
     const t = setTimeout(async () => {
       const granted = await requestNotificationPermission();
       setNotifPermission(granted ? "granted" : "denied");
+      // Subscribe to real Web Push so notifications wake the phone
+      if (granted && user) {
+        void subscribeToWebPush(user.id);
+      }
     }, 2000);
     return () => clearTimeout(t);
-  }, []);
+  }, [user]);
+
+  // If already granted, subscribe on mount
+  useEffect(() => {
+    if (notifPermission === "granted" && user) {
+      void subscribeToWebPush(user.id);
+    }
+  }, [notifPermission, user?.id]);
 
   // Total unread across all conversations for the reminder
   const totalUnread = useMemo(
@@ -350,12 +363,21 @@ function ChatPage() {
           const nid = crypto.randomUUID();
           setAlerts((prev) => [{ id: nid, text: label, convId: updated.id }, ...prev.slice(0, 3)]);
           if (soundOn) playBeep();
-          // Always send push notification — SW handles showing it even in background
+          // In-app / background tab notification
           void sendPushNotification(
             isAdmin ? "📩 New message" : "💬 New message",
             label,
             { tag: `msg-${updated.id}` }
           );
+          // Real Web Push — wakes phone even when browser is closed
+          if (user) {
+            void sendWebPush(
+              user.id,
+              isAdmin ? "📩 New message" : "💬 New message",
+              label,
+              "/dashboard/chat"
+            );
+          }
           setTimeout(() => setAlerts((prev) => prev.filter((a) => a.id !== nid)), 5000);
         }
       }).subscribe();
@@ -418,7 +440,10 @@ function ChatPage() {
               onClick={async () => {
                 const granted = await requestNotificationPermission();
                 setNotifPermission(granted ? "granted" : "denied");
-                if (granted) toast.success("Notifications enabled!");
+                if (granted && user) {
+                  void subscribeToWebPush(user.id);
+                  toast.success("Notifications enabled!");
+                }
               }}
               className="text-xs font-semibold text-primary hover:underline shrink-0"
             >

@@ -1,32 +1,37 @@
-// Service Worker — handles background push notifications
+// Service Worker — Web Push + background notification relay
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
-// ── Handle push events from server (Web Push API) ────────────────────────────
+// ── Real Web Push (wakes phone even when browser is closed) ──────────────────
 self.addEventListener("push", (e) => {
-  const data = e.data?.json() ?? {};
+  let data = { title: "New message", body: "", url: "/dashboard/chat" };
+  try {
+    if (e.data) data = { ...data, ...e.data.json() };
+  } catch { /* use defaults */ }
+
   e.waitUntil(
-    self.registration.showNotification(data.title ?? "New message", {
-      body: data.body ?? "",
+    self.registration.showNotification(data.title, {
+      body: data.body,
       icon: "/me.webp",
-      tag: data.tag ?? "msg",
-      data: { url: data.url ?? "/dashboard/chat" },
-      vibrate: [200, 100, 200],
+      badge: "/me.webp",
+      tag: "msg-push",
+      data: { url: data.url },
+      vibrate: [200, 100, 200, 100, 200],
+      requireInteraction: false,
     })
   );
 });
 
-// ── Handle messages from the app ─────────────────────────────────────────────
-// App posts here when it wants to show a notification (background/locked screen)
+// ── Background relay (app is open but tab is hidden) ─────────────────────────
 self.addEventListener("message", (e) => {
   if (e.data?.type !== "SHOW_NOTIFICATION") return;
   const { title, body, tag } = e.data;
-  // Always show — the app already decided it needs a notification
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon: "/me.webp",
+      badge: "/me.webp",
       tag: tag ?? "msg",
       data: { url: "/dashboard/chat" },
       vibrate: [200, 100, 200],
@@ -34,7 +39,7 @@ self.addEventListener("message", (e) => {
   );
 });
 
-// ── Notification click — focus or open the app ───────────────────────────────
+// ── Notification click ────────────────────────────────────────────────────────
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const target = e.notification.data?.url ?? "/dashboard/chat";
