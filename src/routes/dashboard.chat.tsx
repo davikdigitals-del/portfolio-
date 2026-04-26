@@ -1534,65 +1534,117 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!m.file_url) return;
-    const audio = new Audio(m.file_url);
+    
+    setLoading(true);
+    setError(null);
+    
+    const audio = new Audio();
+    audio.crossOrigin = "anonymous";
     audio.preload = "metadata";
     audioRef.current = audio;
-    audio.onloadedmetadata = () => {
-      if (isFinite(audio.duration)) setDuration(audio.duration);
+    
+    // Set source with error handling
+    audio.src = m.file_url;
+    
+    const handleLoadedMetadata = () => {
+      if (isFinite(audio.duration)) {
+        setDuration(audio.duration);
+        setLoading(false);
+      }
     };
-    audio.ontimeupdate = () => {
+    
+    const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
       if (audio.duration && isFinite(audio.duration)) {
         setProgress((audio.currentTime / audio.duration) * 100);
       }
     };
-    audio.onended = () => {
+    
+    const handleEnded = () => {
       setProgress(0);
       setCurrentTime(0);
       setPlayingId(null);
     };
-    audio.onerror = () => {
-      toast.error("Could not play voice note");
+    
+    const handleError = (e: Event) => {
+      console.error("Audio playback error:", e, audio.error);
+      const errorMsg = audio.error?.message || "Could not play voice note";
+      setError(errorMsg);
+      setLoading(false);
+      toast.error(errorMsg);
       setPlayingId(null);
     };
+    
+    const handleCanPlay = () => {
+      setLoading(false);
+    };
+
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+    audio.addEventListener("canplay", handleCanPlay);
+    
+    // Attempt to load
+    audio.load();
+    
     return () => {
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+      audio.removeEventListener("canplay", handleCanPlay);
       audio.pause();
       audio.src = "";
       audioRef.current = null;
     };
-  }, [m.file_url]);
+  }, [m.file_url, setPlayingId]);
 
   // Pause when another message starts playing
   useEffect(() => {
     if (!isPlaying && audioRef.current) {
       audioRef.current.pause();
+      setCurrentTime(0);
+      setProgress(0);
     }
   }, [isPlaying]);
 
+  // Auto-play when selected
+  useEffect(() => {
+    if (isPlaying && audioRef.current && !loading) {
+      audioRef.current.play().catch((err) => {
+        console.error("Play error:", err);
+        setError("Could not play voice note");
+        toast.error("Could not play voice note");
+        setPlayingId(null);
+      });
+    }
+  }, [isPlaying, loading, setPlayingId]);
+
   function handleToggle() {
-    if (!audioRef.current) return;
+    if (!audioRef.current || loading) return;
     if (isPlaying) {
       audioRef.current.pause();
       setPlayingId(null);
     } else {
       setPlayingId(m.id);
-      audioRef.current.play().catch(() => {
-        toast.error("Could not play voice note");
-        setPlayingId(null);
-      });
     }
   }
 
   function handleSeek(e: React.MouseEvent<HTMLDivElement>) {
-    if (!audioRef.current || !duration) return;
+    if (!audioRef.current || !duration || loading) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
-    audioRef.current.currentTime = pct * duration;
+    const newTime = pct * duration;
+    audioRef.current.currentTime = newTime;
     setProgress(pct * 100);
+    setCurrentTime(newTime);
   }
 
   function fmtTime(s: number) {
@@ -1613,11 +1665,15 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
     }`}>
       <button
         onClick={handleToggle}
-        className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-all active:scale-95 ${
+        disabled={loading || error !== null}
+        className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-all active:scale-95 disabled:opacity-50 ${
           mine ? "bg-white/25 hover:bg-white/35" : "bg-primary hover:bg-primary/90"
         }`}
+        title={error ? error : isPlaying ? "Pause" : "Play"}
       >
-        {isPlaying
+        {loading
+          ? <Loader2 className={`h-4 w-4 animate-spin ${mine ? "text-white" : "text-primary-foreground"}`} />
+          : isPlaying
           ? <Pause className={`h-4 w-4 ${mine ? "text-white" : "text-primary-foreground"}`} />
           : <Play className={`h-4 w-4 ml-0.5 ${mine ? "text-white" : "text-primary-foreground"}`} />
         }
