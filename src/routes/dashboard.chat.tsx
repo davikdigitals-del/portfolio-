@@ -16,8 +16,8 @@ import {
   sendPushNotification,
   subscribeToWebPush,
   sendWebPush,
-  startUnreadReminder,
-  stopUnreadReminder,
+  startPersistentNotifications,
+  stopPersistentNotifications,
   startBackgroundRefresh,
   stopBackgroundRefresh,
 } from "@/lib/notifications";
@@ -218,11 +218,11 @@ function ChatPage() {
     [conversations, isAdmin]
   );
 
-  // Start/stop 15-min reminder based on unread count
+  // Start/stop persistent notifications based on unread count
   useEffect(() => {
-    if (!notifsOn) { stopUnreadReminder(); return; }
-    startUnreadReminder(() => totalUnread, isAdmin);
-    return () => stopUnreadReminder();
+    if (!notifsOn) { stopPersistentNotifications(); return; }
+    startPersistentNotifications(() => totalUnread, isAdmin);
+    return () => stopPersistentNotifications();
   }, [totalUnread, isAdmin, notifsOn]);
 
   const [alerts, setAlerts] = useState<{ id: string; text: string; convId: string }[]>([]);
@@ -363,7 +363,14 @@ function ChatPage() {
             .update({ status: "delivered" })
             .eq("conversation_id", updated.id)
             .neq("sender_id", user.id)  // messages sent by the OTHER person
-            .eq("status", "sent");       // only sent → delivered, never downgrade seen
+            .eq("status", "sent")       // only sent → delivered, never downgrade seen
+            .then(({ data, error }) => {
+              if (error) console.error("Delivered update error:", error);
+              if (data?.length) {
+                const ids = new Set(data.map((m: { id: string }) => m.id));
+                setMessages((prev) => prev.map((m) => ids.has(m.id) ? { ...m, status: "delivered" } : m));
+              }
+            });
         }
 
         if (unread > 0 && updated.id !== activeId && notifsOn) {
@@ -701,6 +708,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
           void supabase.from("conversations").update(updates).eq("id", conversation.id);
           void supabase.from("messages").update({ status: "seen" }).eq("id", msg.id).then(() => {
             setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "seen" } : m));
+          });
+        } else {
+          // I sent a message — mark it as delivered immediately since I'm connected
+          void supabase.from("messages").update({ status: "delivered" }).eq("id", msg.id).then(() => {
+            setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "delivered" } : m));
           });
         }
         // Note: sender's own messages start as "sent" from the DB insert
@@ -1703,6 +1715,8 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [startDrag, setStartDrag] = useState({ x: 0, y: 0 });
   const [downloading, setDownloading] = useState(false);
+  const [imgDimensions, setImgDimensions] = useState({ width: 0, height: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
 
   async function handleDownload() {
     setDownloading(true);
@@ -1738,9 +1752,34 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
     return () => { document.body.style.overflow = ""; };
   }, []);
 
+  function constrainPosition(x: number, y: number) {
+    if (!containerRef.current || scale <= 1) return { x: 0, y: 0 };
+    
+    const container = containerRef.current;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight - 60; // Account for top bar
+    
+    const scaledWidth = imgDimensions.width * scale;
+    const scaledHeight = imgDimensions.height * scale;
+    
+    // Calculate max pan distance
+    const maxX = Math.max(0, (scaledWidth - containerWidth) / 2);
+    const maxY = Math.max(0, (scaledHeight - containerHeight) / 2);
+    
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  }
+
   function handleWheel(e: React.WheelEvent) {
     e.preventDefault();
-    setScale(s => Math.min(5, Math.max(0.5, s - e.deltaY * 0.001)));
+    const newScale = Math.min(5, Math.max(0.5, scale - e.deltaY * 0.001));
+    setScale(newScale);
+    // Reset position when zooming out to fit
+    if (newScale <= 1) {
+      setPos({ x: 0, y: 0 });
+    }
   }
 
   function handleMouseDown(e: React.MouseEvent) {
@@ -1751,7 +1790,12 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
 
   function handleMouseMove(e: React.MouseEvent) {
     if (!dragging) return;
-    setPos({ x: e.clientX - startDrag.x, y: e.clientY - startDrag.y });
+    const newPos = {
+      x: e.clientX - startDrag.x,
+      y: e.clientY - startDrag.y,
+    };
+    const constrained = constrainPosition(newPos.x, newPos.y);
+    setPos(constrained);
   }
 
   function handleMouseUp() { setDragging(false); }
@@ -1760,6 +1804,11 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
   function handleDoubleClick() {
     if (scale > 1) { setScale(1); setPos({ x: 0, y: 0 }); }
     else setScale(2.5);
+  }
+
+  function handleImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    const img = e.currentTarget;
+    setImgDimensions({ width: img.naturalWidth, height: img.naturalHeight });
   }
 
   return (
@@ -1772,7 +1821,10 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
         <span className="text-white/80 text-sm truncate max-w-[60vw]">{name}</span>
         <div className="flex items-center gap-3">
           {/* Zoom controls */}
-          <button onClick={() => setScale(s => Math.min(5, s + 0.5))}
+          <button onClick={() => {
+            const newScale = Math.min(5, scale + 0.5);
+            setScale(newScale);
+          }}
             className="text-white/70 hover:text-white transition-colors text-lg font-bold w-8 h-8 flex items-center justify-center">
             +
           </button>
@@ -1802,6 +1854,7 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
 
       {/* Image area */}
       <div
+        ref={containerRef}
         className="flex-1 overflow-hidden flex items-center justify-center"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
@@ -1814,6 +1867,7 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
           src={src}
           alt={name}
           onDoubleClick={handleDoubleClick}
+          onLoad={handleImageLoad}
           draggable={false}
           className="max-w-full max-h-full object-contain select-none transition-transform duration-150"
           style={{
