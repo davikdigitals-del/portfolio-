@@ -1374,10 +1374,29 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   async function initiateCall(callType: CallType) {
     if (!user) return;
 
-    const receiverId = isAdmin ? conversation.user_id : (adminProfile?.user_id ?? "");
+    // For client: get receiverId from adminProfile state, or fetch it fresh if not loaded yet
+    let receiverId = isAdmin ? conversation.user_id : (adminProfile?.user_id ?? "");
 
-    if (!receiverId || receiverId === user.id) {
-      toast.error(receiverId === user.id ? "You cannot call yourself." : "Cannot find receiver. Please wait and try again.");
+    if (!isAdmin && !receiverId) {
+      // adminProfile hasn't loaded yet — fetch admin user_id directly
+      try {
+        const { data: adminRole } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", "admin")
+          .limit(1)
+          .maybeSingle();
+        receiverId = adminRole?.user_id ?? "";
+      } catch { /* ignore */ }
+    }
+
+    if (!receiverId) {
+      toast.error("Cannot find receiver. Please try again.");
+      return;
+    }
+
+    if (receiverId === user.id) {
+      toast.error("You cannot call yourself.");
       return;
     }
 
