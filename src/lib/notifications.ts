@@ -70,7 +70,9 @@ export async function sendWebPush(
     await supabase.functions.invoke("send-push", {
       body: { user_id: userId, title, body, url },
     });
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.error("Web push error:", err);
+  }
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -97,7 +99,7 @@ export async function sendPushNotification(
     return;
   }
 
-  // App is in background — use SW
+  // App is in background — use SW with aggressive wake-up
   if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
     try {
       navigator.serviceWorker.controller.postMessage({
@@ -105,16 +107,19 @@ export async function sendPushNotification(
         title,
         body,
         tag: options?.tag ?? "msg",
+        vibrate: [300, 100, 300, 100, 300], // Strong vibration pattern
       });
       return;
-    } catch { /* fall through */ }
+    } catch (err) {
+      console.error("SW notification error:", err);
+    }
   }
 
   if ("serviceWorker" in navigator) {
     try {
       const reg = await Promise.race([
         navigator.serviceWorker.ready,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 800)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
       ]);
       if (reg && "showNotification" in reg) {
         await (reg as ServiceWorkerRegistration).showNotification(title, {
@@ -122,11 +127,15 @@ export async function sendPushNotification(
           icon: options?.icon ?? "/me.webp",
           tag: options?.tag ?? "msg",
           data: { url: "/dashboard/chat" },
-          vibrate: [200, 100, 200],
+          vibrate: [300, 100, 300, 100, 300], // Strong vibration
+          badge: "/me.webp",
+          requireInteraction: true, // Keep notification until user interacts
         } as NotificationOptions);
         return;
       }
-    } catch { /* fall through */ }
+    } catch (err) {
+      console.error("SW ready error:", err);
+    }
   }
 
   _showBasicNotification(title, body, options);
@@ -142,10 +151,14 @@ function _showBasicNotification(
       body,
       icon: options?.icon ?? "/me.webp",
       tag: options?.tag,
+      vibrate: [300, 100, 300, 100, 300], // Strong vibration
+      requireInteraction: true, // Keep notification until user interacts
     });
     n.onclick = () => { window.focus(); options?.onClick?.(); n.close(); };
-    setTimeout(() => n.close(), 6000);
-  } catch { /* unavailable */ }
+    // Don't auto-close — let user dismiss it
+  } catch (err) {
+    console.error("Notification error:", err);
+  }
 }
 
 // ─── 15-minute unread reminder ────────────────────────────────────────────────
@@ -170,4 +183,39 @@ export function startUnreadReminder(getUnreadCount: () => number, isAdmin: boole
 
 export function stopUnreadReminder() {
   if (reminderTimer) { clearInterval(reminderTimer); reminderTimer = null; }
+}
+
+// ─── Background refresh when app is hidden ────────────────────────────────────
+
+let bgRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startBackgroundRefresh(onRefresh: () => void) {
+  stopBackgroundRefresh();
+  
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      // App went to background — start aggressive refresh
+      bgRefreshTimer = setInterval(() => {
+        onRefresh();
+      }, 5000); // Refresh every 5 seconds in background
+    } else {
+      // App came to foreground — stop background refresh
+      stopBackgroundRefresh();
+    }
+  };
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  
+  // Return cleanup function
+  return () => {
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    stopBackgroundRefresh();
+  };
+}
+
+export function stopBackgroundRefresh() {
+  if (bgRefreshTimer) {
+    clearInterval(bgRefreshTimer);
+    bgRefreshTimer = null;
+  }
 }

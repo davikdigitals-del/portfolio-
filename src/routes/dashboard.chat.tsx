@@ -18,6 +18,8 @@ import {
   sendWebPush,
   startUnreadReminder,
   stopUnreadReminder,
+  startBackgroundRefresh,
+  stopBackgroundRefresh,
 } from "@/lib/notifications";
 
 export const Route = createFileRoute("/dashboard/chat")({
@@ -181,6 +183,13 @@ function ChatPage() {
 
   // ── Stale presence cleanup (admin only) ──
   useStalePresenceCleanup(isAdmin);
+
+  // ── Background refresh: reload conversations every 5s when app is hidden ──
+  useEffect(() => {
+    return startBackgroundRefresh(() => {
+      void loadConversations();
+    });
+  }, [loadConversations]);
 
   // Request browser push permission on mount — auto-prompt after 2s
   useEffect(() => {
@@ -705,16 +714,15 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         if (payload.payload?.userId !== user.id) {
           setTheyTyping(true);
           setTimeout(() => setTheyTyping(false), 2500);
-          if (document.hidden) {
-            const typingName = isAdmin
-              ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "A client")
-              : (adminProfile?.display_name ?? "Ajibola");
-            void sendPushNotification(
-              `✍️ ${typingName} is typing...`,
-              "Open the chat to reply.",
-              { tag: "typing-indicator" }
-            );
-          }
+          // Always notify when typing, even if app is visible
+          const typingName = isAdmin
+            ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "A client")
+            : (adminProfile?.display_name ?? "Ajibola");
+          void sendPushNotification(
+            `✍️ ${typingName} is typing...`,
+            "Open the chat to reply.",
+            { tag: "typing-indicator" }
+          );
         }
       })
       .subscribe();
@@ -745,13 +753,16 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       // Mark MY sent messages as delivered — the counterpart is online/connected
       // (they have a realtime subscription active, so they received the message)
       if (counterpartId) {
-        const { data: deliveredMsgs } = await supabase
+        const { data: deliveredMsgs, error: deliverErr } = await supabase
           .from("messages")
           .update({ status: "delivered" })
           .eq("conversation_id", conversation.id)
           .eq("sender_id", user.id)
           .eq("status", "sent")
           .select("id");
+        if (deliverErr) {
+          console.error("Delivered status update error:", deliverErr);
+        }
         if (deliveredMsgs?.length) {
           const ids = new Set(deliveredMsgs.map((m: { id: string }) => m.id));
           setMessages((prev) => prev.map((m) => ids.has(m.id) ? { ...m, status: "delivered" } : m));
