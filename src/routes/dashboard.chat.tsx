@@ -325,15 +325,16 @@ function ChatPage() {
         const updated = payload.new as Conversation;
         const unread = isAdmin ? updated.unread_admin : updated.unread_user;
 
-        // When a conversation updates, mark the sender's messages as delivered
-        // (recipient is connected = their realtime subscription fired)
+        // I received a conversation update — I'm connected.
+        // Mark messages sent TO me (not by me) as delivered.
+        // This tells the sender their message reached my device.
         if (updated.id && user) {
           void supabase
             .from("messages")
             .update({ status: "delivered" })
             .eq("conversation_id", updated.id)
-            .eq("sender_id", user.id)
-            .eq("status", "sent");
+            .neq("sender_id", user.id)  // messages sent by the OTHER person
+            .eq("status", "sent");       // only sent → delivered, never downgrade seen
         }
 
         if (unread > 0 && updated.id !== activeId && notifsOn) {
@@ -543,6 +544,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     isAdmin ? (conversation.profile?.status ?? "offline") : (adminProfile?.status ?? "offline")
   );
   const [lastSeen, setLastSeen] = useState<string | null>(null);
+
+  // Keep counterpartStatus in sync with conversation.profile.status (admin side)
+  // This fires whenever ChatPage's client-profiles-presence subscription updates conversations
+  useEffect(() => {
+    if (isAdmin && conversation.profile?.status) {
+      setCounterpartStatus(conversation.profile.status);
+    }
+  }, [isAdmin, conversation.profile?.status]);
   // Voice recording
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -636,29 +645,24 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
     const ch = supabase.channel(`conv:${conversation.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversation.id}` }, (payload) => {
         const msg = payload.new as Message;
-        // Skip if it's one of our optimistic messages (already in state)
         setMessages((prev) => {
           const exists = prev.some((m) => m.id === msg.id);
           if (exists) return prev;
-          // Replace any matching optimistic temp message
           const hasTemp = prev.some((m) => m.id.startsWith("temp-") && m.sender_id === msg.sender_id && m.content === msg.content);
           if (hasTemp) return prev.map((m) => (m.id.startsWith("temp-") && m.sender_id === msg.sender_id && m.content === msg.content) ? msg : m);
           return [...prev, msg];
         });
 
         if (msg.sender_id !== user.id) {
-          // Message from counterpart — I'm reading it right now, mark as seen
+          // I received a message while the chat is open → mark as SEEN immediately
           const updates = isAdmin ? { unread_admin: 0 } : { unread_user: 0 };
           void supabase.from("conversations").update(updates).eq("id", conversation.id);
           void supabase.from("messages").update({ status: "seen" }).eq("id", msg.id).then(() => {
             setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "seen" } : m));
           });
-        } else {
-          // My own message just arrived on server — it's "sent"
-          // It becomes "delivered" automatically via the UPDATE subscription
-          // when the other person's realtime connection processes it
-          setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "sent" } : m));
         }
+        // Note: sender's own messages start as "sent" from the DB insert
+        // They become "delivered" when the recipient's device receives them (see below)
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversation.id}` }, (payload) => {
         const msg = payload.new as Message;
@@ -668,7 +672,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         if (payload.payload?.userId !== user.id) {
           setTheyTyping(true);
           setTimeout(() => setTheyTyping(false), 2500);
-          // Show push notification when app is in background
           if (document.hidden) {
             const typingName = isAdmin
               ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "A client")
@@ -684,39 +687,45 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       .subscribe();
     typingChannelRef.current = ch;
 
-    // When chat opens: mark counterpart's messages as seen, mark my unread as delivered
+    // When I open the chat:
+    // 1. Mark all messages FROM the counterpart as SEEN (I'm reading them)
+    // 2. Mark all messages FROM me that are still "sent" as DELIVERED
+    //    (because the counterpart is connected — they have a realtime subscription)
     void (async () => {
       const counterpartId = isAdmin ? conversation.user_id : adminProfile?.user_id ?? null;
 
+      // Mark counterpart's messages as seen
       if (counterpartId) {
-        // Mark all counterpart messages as seen (I'm reading them now)
-        const { data: updated } = await supabase
+        const { data: seenMsgs } = await supabase
           .from("messages")
           .update({ status: "seen" })
           .eq("conversation_id", conversation.id)
           .eq("sender_id", counterpartId)
           .neq("status", "seen")
           .select("id");
-        if (updated?.length) {
-          const seenIds = new Set(updated.map((m: { id: string }) => m.id));
-          setMessages((prev) => prev.map((m) => seenIds.has(m.id) ? { ...m, status: "seen" } : m));
+        if (seenMsgs?.length) {
+          const ids = new Set(seenMsgs.map((m: { id: string }) => m.id));
+          setMessages((prev) => prev.map((m) => ids.has(m.id) ? { ...m, status: "seen" } : m));
         }
       }
 
-      // Mark my own sent messages as delivered (recipient is connected = chat is open)
-      const { data: myDelivered } = await supabase
-        .from("messages")
-        .update({ status: "delivered" })
-        .eq("conversation_id", conversation.id)
-        .eq("sender_id", user.id)
-        .eq("status", "sent")
-        .select("id");
-      if (myDelivered?.length) {
-        const deliveredIds = new Set(myDelivered.map((m: { id: string }) => m.id));
-        setMessages((prev) => prev.map((m) => deliveredIds.has(m.id) ? { ...m, status: "delivered" } : m));
+      // Mark MY sent messages as delivered — the counterpart is online/connected
+      // (they have a realtime subscription active, so they received the message)
+      if (counterpartId) {
+        const { data: deliveredMsgs } = await supabase
+          .from("messages")
+          .update({ status: "delivered" })
+          .eq("conversation_id", conversation.id)
+          .eq("sender_id", user.id)
+          .eq("status", "sent")
+          .select("id");
+        if (deliveredMsgs?.length) {
+          const ids = new Set(deliveredMsgs.map((m: { id: string }) => m.id));
+          setMessages((prev) => prev.map((m) => ids.has(m.id) ? { ...m, status: "delivered" } : m));
+        }
       }
     })();
-    
+
     return () => { void supabase.removeChannel(ch); typingChannelRef.current = null; };
   }, [conversation.id, user, isAdmin, adminProfile]);
 
