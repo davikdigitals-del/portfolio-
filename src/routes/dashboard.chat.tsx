@@ -1702,11 +1702,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
                   </div>
                 ) : (
                   <div
-                    onContextMenu={(e) => (canEdit || canDelete) ? openCtxMenu(e, m, mine) : undefined}
-                    onTouchStart={(e) => (canEdit || canDelete) ? startLongPress(e, m, mine) : undefined}
+                    onContextMenu={(e) => openCtxMenu(e, m, mine)}
+                    onTouchStart={(e) => startLongPress(e, m, mine)}
                     onTouchEnd={cancelLongPress}
                     onTouchMove={cancelLongPress}
-                    className="select-none"
+                    className="select-none cursor-context-menu"
                   >
                     <MessageBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} onDelete={deleteMessage} messages={messages} />
                   </div>
@@ -1818,10 +1818,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       >
         {/* Reply preview */}
         {replyingTo && (
-          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border border-primary/30 bg-primary/5">
-            <Reply className="h-4 w-4 text-primary shrink-0" />
+          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border-l-4 border-primary bg-primary/5">
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-primary">Replying to message</div>
+              <div className="text-xs font-semibold text-primary">Replying to</div>
               <div className="text-xs text-muted-foreground truncate mt-0.5">
                 {replyingTo.type === "voice"
                   ? "🎙️ Voice note"
@@ -1949,13 +1948,12 @@ function QuotedMessage({ message, messages }: { message: Message; messages: Mess
     : quotedMsg.content ?? "";
 
   return (
-    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border-l-2 border-primary/40 bg-muted/30 mb-2 text-xs">
-      <Reply className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+    <div className="flex gap-2 mb-2 pl-2 border-l-4 border-primary/60">
       <div className="flex-1 min-w-0">
         <div className="font-semibold text-primary text-[11px]">
           {quotedMsg.sender_id === message.sender_id ? "You" : "Them"}
         </div>
-        <div className="text-muted-foreground truncate mt-0.5">{quotedContent}</div>
+        <div className="text-muted-foreground text-xs truncate mt-0.5">{quotedContent}</div>
       </div>
     </div>
   );
