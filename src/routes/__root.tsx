@@ -30,7 +30,7 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
       { title: "Pulse — Premium real-time chat for clients" },
       { name: "description", content: "Premium real-time chat platform connecting you with your clients. Smart tagging, AI summaries, and lightning-fast messaging." },
       { name: "author", content: "Pulse" },

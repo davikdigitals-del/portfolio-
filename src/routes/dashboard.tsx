@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Loader2, MessageCircle, Home, Users, Settings,
@@ -13,9 +13,7 @@ export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
 });
 
-const MOBILE_BAR_H = 56;
-
-// ── Presence lives here so it runs on ALL dashboard pages ────────────────────
+// ── Presence: runs on every dashboard page ───────────────────────────────────
 function usePresence(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return;
@@ -28,13 +26,12 @@ function usePresence(userId: string | undefined) {
     }
 
     async function setOffline() {
-      // sendBeacon fires even when tab is being destroyed (mobile close, sleep)
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
-      const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      const body = JSON.stringify({ status: "offline", last_seen: new Date().toISOString() });
       if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: "application/json" });
-        // sendBeacon doesn't support custom headers, so also do a normal fetch
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
+        const blob = new Blob(
+          [JSON.stringify({ status: "offline", last_seen: new Date().toISOString() })],
+          { type: "application/json" }
+        );
         navigator.sendBeacon(url, blob);
       }
       try {
@@ -42,44 +39,49 @@ function usePresence(userId: string | undefined) {
           .from("profiles")
           .update({ status: "offline", last_seen: new Date().toISOString() })
           .eq("user_id", userId);
-      } catch { /* ignore — tab may be closing */ }
+      } catch { /* ignore */ }
     }
 
-    // Set online immediately when dashboard loads
     void setOnline();
-
-    // Heartbeat every 20s — if it stops, stale cleanup marks them offline
     const heartbeat = setInterval(() => void setOnline(), 20_000);
 
-    // visibilitychange: hidden = user switched app/tab = offline
-    //                   visible = user came back = online
-    const handleVisibility = () => {
-      if (document.visibilityState === "hidden") {
-        void setOffline();
-      } else {
-        void setOnline();
-      }
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") void setOffline();
+      else void setOnline();
     };
+    const onPageHide = (e: PageTransitionEvent) => { if (!e.persisted) void setOffline(); };
+    const onUnload = () => void setOffline();
 
-    // pagehide fires on mobile when browser is closed/backgrounded
-    const handlePageHide = (e: PageTransitionEvent) => {
-      if (!e.persisted) void setOffline();
-    };
-
-    const handleUnload = () => void setOffline();
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("pagehide", handlePageHide);
-    window.addEventListener("beforeunload", handleUnload);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onUnload);
 
     return () => {
       clearInterval(heartbeat);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("pagehide", handlePageHide);
-      window.removeEventListener("beforeunload", handleUnload);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onUnload);
       void setOffline();
     };
   }, [userId]);
+}
+
+// ── Real viewport height — accounts for mobile browser chrome & keyboard ─────
+function useViewportHeight() {
+  useEffect(() => {
+    function update() {
+      // visualViewport is the visible area excluding keyboard
+      const h = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--vh", `${h * 0.01}px`);
+    }
+    update();
+    window.visualViewport?.addEventListener("resize", update);
+    window.addEventListener("resize", update);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
 }
 
 function DashboardLayout() {
@@ -92,17 +94,15 @@ function DashboardLayout() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const routerState = useRouterState();
 
-  // ── Presence runs on every dashboard page ──
   usePresence(user?.id);
+  useViewportHeight();
 
-  // Close mobile nav on route change
   useEffect(() => { setMobileOpen(false); }, [routerState.location.pathname]);
 
   useEffect(() => {
     if (!loading && !user) void navigate({ to: "/auth" });
   }, [loading, user, navigate]);
 
-  // Load profile
   useEffect(() => {
     if (!user) return;
     void supabase
@@ -116,7 +116,6 @@ function DashboardLayout() {
       });
   }, [user]);
 
-  // Unread badge
   useEffect(() => {
     if (!user) return;
     async function fetchUnread() {
@@ -214,18 +213,17 @@ function DashboardLayout() {
   );
 
   return (
-    // Use 100dvh so mobile browser chrome is accounted for
-    <div className="flex bg-background overflow-hidden" style={{ height: "100dvh" }}>
+    // calc(var(--vh, 1vh) * 100) = real visible height, shrinks when keyboard opens
+    <div className="flex bg-background overflow-hidden" style={{ height: "calc(var(--vh, 1vh) * 100)" }}>
 
-      {/* ── Desktop sidebar ── */}
+      {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 flex-col border-r border-border bg-sidebar shrink-0">
         <SidebarContent />
       </aside>
 
-      {/* ── Mobile top bar ── */}
-      <div
-        className="md:hidden fixed top-0 left-0 right-0 z-40 bg-sidebar border-b border-border flex items-center justify-between px-4"
-        style={{ height: MOBILE_BAR_H }}
+      {/* Mobile top bar — fixed, uses safe-area-inset-top */}
+      <div className="md:hidden fixed left-0 right-0 top-0 z-40 bg-sidebar border-b border-border flex items-center justify-between px-4 h-14"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg overflow-hidden border border-border/60">
@@ -248,30 +246,23 @@ function DashboardLayout() {
         </div>
       </div>
 
-      {/* ── Mobile drawer overlay ── */}
+      {/* Mobile drawer overlay */}
       {mobileOpen && (
-        <div
-          className="md:hidden fixed inset-0 z-30 bg-black/50"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="md:hidden fixed inset-0 z-30 bg-black/60" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* ── Mobile drawer ── */}
+      {/* Mobile drawer */}
       <aside
-        className={`md:hidden fixed top-0 left-0 bottom-0 z-40 w-72 flex flex-col bg-sidebar border-r border-border transform transition-transform duration-300 ${
+        className={`md:hidden fixed top-0 left-0 bottom-0 z-40 w-72 flex flex-col bg-sidebar border-r border-border transform transition-transform duration-300 ease-in-out ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <SidebarContent />
       </aside>
 
-      {/* ── Main content — offset by mobile top bar ── */}
-      <main
-        className="flex-1 overflow-hidden flex flex-col min-w-0"
-        style={{ paddingTop: `${MOBILE_BAR_H}px` }}
-      >
-        {/* Remove top padding on desktop */}
-        <style>{`@media (min-width: 768px) { main { padding-top: 0 !important; } }`}</style>
+      {/* Main content — offset by mobile top bar height */}
+      <main className="flex-1 overflow-hidden flex flex-col min-w-0 md:pt-0 pt-14">
         <Outlet />
       </main>
     </div>

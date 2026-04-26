@@ -260,24 +260,31 @@
   }
 }
 
-/* ── Mobile safe-area & viewport fixes ─────────────────────────────────────── */
+/* ── Mobile viewport & safe-area fixes ─────────────────────────────────────── */
+
+/* --vh is set by JS (visualViewport) so layout shrinks when keyboard opens */
+:root {
+  --vh: 1vh;
+}
+
 @layer utilities {
-  /* Pad bottom for iPhone home indicator */
-  .safe-area-bottom {
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-  }
   /* Prevent overscroll bounce on iOS inside scrollable containers */
   .overscroll-contain {
     overscroll-behavior: contain;
   }
 }
 
-/* Prevent body scroll on mobile when dashboard is open */
+/* Prevent body bounce-scroll on mobile */
 body {
   overscroll-behavior: none;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Make sure 100dvh works — fallback to 100vh for older browsers */
-@supports not (height: 100dvh) {
-  .h-dvh { height: 100vh; }
+/* Chat textarea — prevent iOS zoom on focus (font-size must be >= 16px) */
+.chat-textarea {
+  font-size: 16px !important;
+}
+@media (min-width: 768px) {
+  .chat-textarea { font-size: 0.875rem !important; }
 }

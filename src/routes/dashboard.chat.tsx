@@ -307,8 +307,7 @@ function ChatPage() {
       {/* Notification alerts */}
       <div className="fixed top-16 right-2 z-50 flex flex-col gap-2 pointer-events-none w-[calc(100vw-1rem)] md:w-auto md:right-4 md:top-4 md:max-w-xs">
         {alerts.map((a) => (
-          <div key={a.id} className="pointer-events-auto flex items-center gap-3 bg-card border border-border rounded-xl px-3 py-2.5 shadow-lg animate-fade-up text-sm">
-            <Bell className="h-4 w-4 text-primary shrink-0" />
+          <div key={a.id} className="pointer-events-auto flex items-center gap-3 bg-card border border-border rounded-xl px-3 py-2.5 shadow-lg animate-fade-up text-sm">            <Bell className="h-4 w-4 text-primary shrink-0" />
             <span className="flex-1 truncate text-xs">{a.text}</span>
             <button onClick={() => { setActiveId(a.convId); setAlerts((p) => p.filter((x) => x.id !== a.id)); }} className="text-primary text-xs font-medium hover:underline shrink-0">View</button>
             <button onClick={() => setAlerts((p) => p.filter((x) => x.id !== a.id))} className="text-muted-foreground hover:text-foreground ml-1"><X className="h-3 w-3" /></button>
@@ -318,7 +317,7 @@ function ChatPage() {
 
       {/* Sidebar — full screen on mobile when no chat open */}
       <aside className={`flex flex-col border-r border-border bg-surface/50 shrink-0 ${active ? "hidden md:flex md:w-80" : "flex w-full md:w-80"}`}>
-        <div className="h-16 border-b border-border px-5 flex items-center justify-between">
+        <div className="h-14 md:h-16 border-b border-border px-4 md:px-5 flex items-center justify-between shrink-0">
           <h2 className="font-semibold">{isAdmin ? "Inbox" : "Your conversation"}</h2>
           <div className="flex items-center gap-1">
             <button onClick={() => setSoundOn((v) => !v)} title={soundOn ? "Mute sound" : "Enable sound"} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -636,6 +635,19 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, theyTyping]);
+
+  // Scroll to bottom when mobile keyboard opens (visualViewport shrinks)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+      }, 100);
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
 
   function broadcastTyping() {
     if (!typingChannelRef.current || !user) return;
@@ -1024,7 +1036,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
   const isOnline = counterpartStatus === "online";
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <header className="h-14 md:h-16 border-b border-border px-3 md:px-5 flex items-center gap-2 md:gap-3 bg-surface/40 shrink-0">
         {/* Back button — mobile only */}
@@ -1096,7 +1108,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       )}
 
       {/* Messages — flex-1 so it fills remaining space, overflow scrolls */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 overscroll-contain" onClick={() => setCtxMenu(null)}>
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 overscroll-contain"
+        style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+        onClick={() => setCtxMenu(null)}
+      >
         {messages.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-12">
             <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-40" />
@@ -1245,8 +1262,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
         </div>
       )}
 
-      {/* Composer */}
-      <form onSubmit={send} className="p-2 md:p-4 border-t border-border bg-surface/40 shrink-0 safe-area-bottom">
+      {/* Composer — shrink-0 keeps it at bottom, safe-area for iPhone home bar */}
+      <form
+        onSubmit={send}
+        className="shrink-0 border-t border-border bg-surface/40 px-2 pt-2 md:px-4 md:pt-4"
+        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}
+      >
         {recording ? (
           <div className="flex items-center gap-3 rounded-2xl border border-red-500/40 bg-red-500/5 px-4 py-3">
             {/* Cancel */}
@@ -1308,7 +1329,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
               rows={1}
               placeholder={filePreviews.length > 0 ? `${filePreviews.length} file(s) ready to send...` : "Type a message..."}
               disabled={filePreviews.length > 0}
-              className="flex-1 resize-none bg-transparent outline-none px-2 py-2 text-sm max-h-32 placeholder:text-muted-foreground disabled:opacity-50"
+              className="chat-textarea flex-1 resize-none bg-transparent outline-none px-2 py-2 max-h-32 placeholder:text-muted-foreground disabled:opacity-50"
             />
             {/* Show mic when no text, send when text */}
             {!text.trim() && filePreviews.length === 0 ? (
