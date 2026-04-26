@@ -354,25 +354,6 @@ function ChatPage() {
         const updated = payload.new as Conversation;
         const unread = isAdmin ? updated.unread_admin : updated.unread_user;
 
-        // I received a conversation update — I'm connected.
-        // Mark messages sent TO me (not by me) as delivered.
-        // This tells the sender their message reached my device.
-        if (updated.id && user) {
-          void supabase
-            .from("messages")
-            .update({ status: "delivered" })
-            .eq("conversation_id", updated.id)
-            .neq("sender_id", user.id)  // messages sent by the OTHER person
-            .eq("status", "sent")       // only sent → delivered, never downgrade seen
-            .then(({ data, error }) => {
-              if (error) console.error("Delivered update error:", error);
-              if (data?.length) {
-                const ids = new Set(data.map((m: { id: string }) => m.id));
-                setMessages((prev) => prev.map((m) => ids.has(m.id) ? { ...m, status: "delivered" } : m));
-              }
-            });
-        }
-
         if (unread > 0 && updated.id !== activeId && notifsOn) {
           const label = isAdmin
             ? "A client sent you a message"
