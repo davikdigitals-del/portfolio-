@@ -1840,10 +1840,10 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
       >
         {/* Reply preview */}
         {replyingTo && (
-          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border-l-4 border-primary bg-primary/5">
+          <div className="mb-2 flex items-center gap-2 px-3 py-2.5 rounded-lg border-l-4 border-primary bg-primary/10 backdrop-blur-sm">
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-primary">Replying to</div>
-              <div className="text-xs text-muted-foreground truncate mt-0.5">
+              <div className="text-xs font-bold text-primary">Replying to</div>
+              <div className="text-xs text-foreground/80 truncate mt-1 font-medium">
                 {replyingTo.type === "voice"
                   ? "🎙️ Voice note"
                   : replyingTo.type === "image"
@@ -1856,7 +1856,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack }: { conversat
             <button
               type="button"
               onClick={() => setReplyingTo(null)}
-              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              className="text-muted-foreground hover:text-foreground transition-colors shrink-0 p-1"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1970,12 +1970,12 @@ function QuotedMessage({ message, messages }: { message: Message; messages: Mess
     : quotedMsg.content ?? "";
 
   return (
-    <div className="flex gap-2 mb-2 pl-2 border-l-4 border-primary/60">
+    <div className="flex gap-2 mb-2 pb-2 border-l-4 border-white/40 pl-2">
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-primary text-[11px]">
+        <div className="font-bold text-white/90 text-[12px] leading-tight">
           {quotedMsg.sender_id === message.sender_id ? "You" : "Them"}
         </div>
-        <div className="text-muted-foreground text-xs truncate mt-0.5">{quotedContent}</div>
+        <div className="text-white/70 text-[13px] truncate mt-1 leading-tight">{quotedContent}</div>
       </div>
     </div>
   );
