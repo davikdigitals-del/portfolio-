@@ -1479,17 +1479,15 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         {/* Call buttons */}
         <button
           onClick={() => initiateCall("voice")}
-          disabled={activeCall !== null}
           title="Start voice call"
-          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors disabled:opacity-40 shrink-0"
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
         >
           <Phone className="h-4 w-4" />
         </button>
         <button
           onClick={() => initiateCall("video")}
-          disabled={activeCall !== null}
           title="Start video call"
-          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors disabled:opacity-40 shrink-0"
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
         >
           <Video className="h-4 w-4" />
         </button>
