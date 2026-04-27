@@ -119,6 +119,7 @@ function DashboardLayout() {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(true);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callMinimized, setCallMinimized] = useState(false);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -350,6 +351,7 @@ function DashboardLayout() {
     setIsSpeaker(true);
     setFacingMode("user");
     if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
+    setIsScreenSharing(false);
   }, []);
   const flipCamera = useCallback(async () => {
     const newFacing = facingMode === "user" ? "environment" : "user";
@@ -855,6 +857,58 @@ function DashboardLayout() {
                 </button>
                 <span className="text-white/60 text-[11px]">End</span>
               </div>
+
+              {/* Screen share (video only, desktop) */}
+              {activeCall.call_type === "video" && (
+                <div className="flex flex-col items-center gap-1.5">
+                  <button
+                    onClick={async () => {
+                      try {
+                        if (isScreenSharing) {
+                          // Stop screen share — switch back to camera
+                          const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                          const cameraTrack = cameraStream.getVideoTracks()[0];
+                          const pc = callManager.getPeerConnection();
+                          if (pc && cameraTrack) {
+                            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                            if (sender) await sender.replaceTrack(cameraTrack);
+                          }
+                          if (localVideoRef.current) {
+                            localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
+                            localVideoRef.current.play().catch(() => {});
+                          }
+                          setIsScreenSharing(false);
+                        } else {
+                          // Start screen share
+                          const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true, audio: false });
+                          const screenTrack = screenStream.getVideoTracks()[0];
+                          const pc = callManager.getPeerConnection();
+                          if (pc && screenTrack) {
+                            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                            if (sender) await sender.replaceTrack(screenTrack);
+                          }
+                          if (localVideoRef.current) {
+                            localVideoRef.current.srcObject = new MediaStream([screenTrack]);
+                            localVideoRef.current.play().catch(() => {});
+                          }
+                          // Auto-stop when user ends screen share via browser UI
+                          screenTrack.onended = () => setIsScreenSharing(false);
+                          setIsScreenSharing(true);
+                        }
+                      } catch (err) {
+                        console.error("[Dashboard] Screen share failed:", err);
+                      }
+                    }}
+                    className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isScreenSharing ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                      {isScreenSharing && <path d="M9 9l3-3 3 3"/>}
+                    </svg>
+                  </button>
+                  <span className="text-white/60 text-[11px]">{isScreenSharing ? "Stop share" : "Share"}</span>
+                </div>
+              )}
 
               {/* Flip camera (video only) */}
               {activeCall.call_type === "video" && (
