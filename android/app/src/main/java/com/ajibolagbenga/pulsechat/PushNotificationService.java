@@ -108,10 +108,20 @@ public class PushNotificationService extends FirebaseMessagingService {
 
     /**
      * Display notification with proper channel and priority
+     * WAKES THE PHONE even when screen is off
      */
     private void showNotification(String title, String body, String channelId, Map<String, String> data) {
+        // WAKE THE PHONE - acquire wake lock to turn screen on
+        android.os.PowerManager powerManager = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        android.os.PowerManager.WakeLock wakeLock = powerManager.newWakeLock(
+            android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK | 
+            android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "PulseChat::NotificationWakeLock"
+        );
+        wakeLock.acquire(5000); // Keep screen on for 5 seconds
+        
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         
         // Add data to intent for deep linking
         if (data != null) {
@@ -137,20 +147,24 @@ public class PushNotificationService extends FirebaseMessagingService {
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
-            .setContentBody(body)
+            .setContentText(body)
             .setAutoCancel(true)
             .setSound(defaultSoundUri)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE);
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // Show on lock screen
+            .setDefaults(NotificationCompat.DEFAULT_ALL); // Sound, vibrate, lights
 
-        // For calls, make it full screen and high priority
+        // For calls, make it full screen and MAXIMUM priority to wake phone
         if (CHANNEL_CALLS.equals(channelId)) {
             notificationBuilder
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setFullScreenIntent(pendingIntent, true)
-                .setVibrate(new long[]{0, 1000, 500, 1000});
+                .setVibrate(new long[]{0, 1000, 500, 1000, 500, 1000}) // Longer vibration
+                .setOngoing(true) // Can't be dismissed by swiping
+                .setTimeoutAfter(30000); // Auto-dismiss after 30 seconds
         }
 
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -159,7 +173,15 @@ public class PushNotificationService extends FirebaseMessagingService {
         int notificationId = (int) System.currentTimeMillis();
         notificationManager.notify(notificationId, notificationBuilder.build());
         
-        Log.d(TAG, "Notification displayed: " + title);
+        Log.d(TAG, "Notification displayed with wake lock: " + title);
+        
+        // Release wake lock after a delay
+        new android.os.Handler().postDelayed(() -> {
+            if (wakeLock.isHeld()) {
+                wakeLock.release();
+                Log.d(TAG, "Wake lock released");
+            }
+        }, 5000);
     }
 
     /**
