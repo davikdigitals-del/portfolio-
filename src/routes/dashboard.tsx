@@ -376,18 +376,55 @@ function DashboardLayout() {
     }
   }, []);
 
-  // ── Handle push notification tap: ?conv=...&call=... ──────────────────────
+  // ── Handle push notification tap: ?conv=...&call=...&action=... ──────────────────────
   useEffect(() => {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
     const callId = params.get("call");
     const convId = params.get("conv");
+    const action = params.get("action"); // "answer" or "decline"
+    
     if (!callId || !convId) return;
+    
+    // Clean URL immediately
     window.history.replaceState({}, "", window.location.pathname);
-    // Store as pending — the expose useEffect will pick it up after handlers are set
+    
+    // Fetch the call
     supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(({ data: call }) => {
-      if (!call) return;
-      (window as any).__pendingCall = call;
+      if (!call) {
+        console.log("[NotificationAction] Call not found:", callId);
+        return;
+      }
+      
+      // Handle action from notification button
+      if (action === "decline") {
+        console.log("[NotificationAction] Declining call from notification");
+        // Decline the call immediately
+        const declineFn = (window as any).__declineCall;
+        if (declineFn) {
+          void declineFn(call);
+        } else {
+          // Dashboard not ready yet, update DB directly
+          void supabase
+            .from("calls")
+            .update({ status: "declined", ended_at: new Date().toISOString() })
+            .eq("id", callId);
+        }
+      } else if (action === "answer") {
+        console.log("[NotificationAction] Answering call from notification");
+        // Answer the call immediately
+        const answerFn = (window as any).__answerCall;
+        if (answerFn) {
+          void answerFn(call);
+        } else {
+          // Store as pending for when dashboard is ready
+          (window as any).__pendingCall = call;
+          (window as any).__pendingCallAction = "answer";
+        }
+      } else {
+        // Regular notification tap - just show the call
+        (window as any).__pendingCall = call;
+      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -765,6 +802,7 @@ function DashboardLayout() {
   useEffect(() => {
     (window as any).__answerCall = answerCall;
     (window as any).__endActiveCall = endActiveCall;
+    (window as any).__declineCall = declineCall;
     (window as any).__startRingtone = startRingtone;
     (window as any).__stopRingtone = stopRingtone;
     (window as any).__setIncomingCall = async (call: Call) => {
@@ -846,10 +884,18 @@ function DashboardLayout() {
     // Handle pending call from root listener (user was on non-dashboard page)
     // Use a small delay to ensure all handlers are registered
     const pending = (window as any).__pendingCall;
+    const pendingAction = (window as any).__pendingCallAction;
+    
     if (pending) {
       delete (window as any).__pendingCall;
+      delete (window as any).__pendingCallAction;
+      
       setTimeout(() => {
-        if (pending.status === "ringing") {
+        if (pendingAction === "answer" && pending.status === "ringing") {
+          // Auto-answer from notification action
+          console.log("[Dashboard] Auto-answering call from notification");
+          void answerCall(pending);
+        } else if (pending.status === "ringing") {
           // Show incoming call screen (don't auto-answer)
           const setIncoming = (window as any).__setIncomingCall;
           if (setIncoming) void setIncoming(pending);
@@ -861,12 +907,13 @@ function DashboardLayout() {
     return () => {
       delete (window as any).__answerCall;
       delete (window as any).__endActiveCall;
+      delete (window as any).__declineCall;
       delete (window as any).__startRingtone;
       delete (window as any).__stopRingtone;
       delete (window as any).__setIncomingCall;
       delete (window as any).__setActiveCall;
     };
-  }, [answerCall, endActiveCall, startRingtone, stopRingtone]);
+  }, [answerCall, endActiveCall, declineCall, startRingtone, stopRingtone]);
 
   useEffect(() => { setMobileOpen(false); }, [routerState.location.pathname]);
 

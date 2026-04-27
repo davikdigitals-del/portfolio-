@@ -43,6 +43,16 @@
             </intent-filter>
         </service>
 
+        <!-- Broadcast receiver for call notification actions (Answer/Decline) -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ANSWER_CALL" />
+                <action android:name="DECLINE_CALL" />
+            </intent-filter>
+        </receiver>
+
         <!-- Default notification icon and color -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

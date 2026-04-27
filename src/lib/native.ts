@@ -226,10 +226,22 @@ async function savePushToken(token: string) {
 
 function handlePushNotificationTap(notification: any) {
   const data = notification.notification.data;
+  const actionId = notification.actionId; // "ANSWER_CALL" or "DECLINE_CALL"
   
-  // Navigate based on notification data
-  if (data.type === 'call') {
-    window.location.href = `/dashboard/chat?conv=${data.conversationId}&call=${data.callId}`;
+  console.log('[Native] Notification tap - Action:', actionId, 'Data:', data);
+  
+  // Handle call actions from notification buttons
+  if (actionId === 'ANSWER_CALL' || data.action === 'answer_call') {
+    console.log('[Native] User answered call from notification');
+    // Navigate to chat with call answer intent
+    window.location.href = `/dashboard/chat?conv=${data.conversation_id || data.conversationId}&call=${data.call_id || data.callId}&action=answer`;
+  } else if (actionId === 'DECLINE_CALL' || data.action === 'decline_call') {
+    console.log('[Native] User declined call from notification');
+    // Navigate to chat with decline intent
+    window.location.href = `/dashboard/chat?conv=${data.conversation_id || data.conversationId}&call=${data.call_id || data.callId}&action=decline`;
+  } else if (data.type === 'call' || data.call_id) {
+    // Regular tap on call notification (not action button)
+    window.location.href = `/dashboard/chat?conv=${data.conversation_id || data.conversationId}&call=${data.call_id || data.callId}`;
   } else if (data.type === 'message') {
     window.location.href = `/dashboard/chat?conv=${data.conversationId}`;
   } else {

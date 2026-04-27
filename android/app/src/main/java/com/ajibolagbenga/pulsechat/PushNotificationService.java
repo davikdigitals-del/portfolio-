@@ -3,6 +3,8 @@ package com.ajibolagbenga.pulsechat;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -109,6 +111,7 @@ public class PushNotificationService extends FirebaseMessagingService {
     /**
      * Display notification with proper channel and priority
      * WAKES THE PHONE even when screen is off
+     * For incoming calls, shows full-screen notification with Answer/Decline buttons
      */
     private void showNotification(String title, String body, String channelId, Map<String, String> data) {
         // WAKE THE PHONE - acquire wake lock to turn screen on
@@ -118,10 +121,11 @@ public class PushNotificationService extends FirebaseMessagingService {
             android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "PulseChat::NotificationWakeLock"
         );
-        wakeLock.acquire(5000); // Keep screen on for 5 seconds
+        wakeLock.acquire(30000); // Keep screen on for 30 seconds for calls
         
+        // Main intent - opens the app
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         
         // Add data to intent for deep linking
         if (data != null) {
@@ -134,7 +138,7 @@ public class PushNotificationService extends FirebaseMessagingService {
             this, 
             0, 
             intent,
-            PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
         // Use different sound for calls
@@ -156,32 +160,70 @@ public class PushNotificationService extends FirebaseMessagingService {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // Show on lock screen
             .setDefaults(NotificationCompat.DEFAULT_ALL); // Sound, vibrate, lights
 
-        // For calls, make it full screen and MAXIMUM priority to wake phone
+        // For calls, make it full screen with Answer/Decline buttons
         if (CHANNEL_CALLS.equals(channelId)) {
+            // Answer action
+            Intent answerIntent = new Intent(this, CallActionReceiver.class);
+            answerIntent.setAction("ANSWER_CALL");
+            if (data != null) {
+                for (Map.Entry<String, String> entry : data.entrySet()) {
+                    answerIntent.putExtra(entry.getKey(), entry.getValue());
+                }
+            }
+            PendingIntent answerPendingIntent = PendingIntent.getBroadcast(
+                this, 
+                1, 
+                answerIntent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            // Decline action
+            Intent declineIntent = new Intent(this, CallActionReceiver.class);
+            declineIntent.setAction("DECLINE_CALL");
+            if (data != null) {
+                for (Map.Entry<String, String> entry : data.entrySet()) {
+                    declineIntent.putExtra(entry.getKey(), entry.getValue());
+                }
+            }
+            PendingIntent declinePendingIntent = PendingIntent.getBroadcast(
+                this, 
+                2, 
+                declineIntent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
             notificationBuilder
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setFullScreenIntent(pendingIntent, true)
+                .setFullScreenIntent(pendingIntent, true) // Full screen on lock screen
                 .setVibrate(new long[]{0, 1000, 500, 1000, 500, 1000}) // Longer vibration
                 .setOngoing(true) // Can't be dismissed by swiping
-                .setTimeoutAfter(30000); // Auto-dismiss after 30 seconds
+                .setTimeoutAfter(30000) // Auto-dismiss after 30 seconds
+                // Add action buttons
+                .addAction(R.mipmap.ic_launcher, "Decline", declinePendingIntent)
+                .addAction(R.mipmap.ic_launcher, "Answer", answerPendingIntent)
+                // Style for incoming call
+                .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
+                .setColorized(true)
+                .setColor(0x00a884); // Green color
         }
 
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         
-        // Use unique ID for each notification
-        int notificationId = (int) System.currentTimeMillis();
+        // Use unique ID for each notification (or fixed ID for calls to replace previous)
+        int notificationId = CHANNEL_CALLS.equals(channelId) ? 999 : (int) System.currentTimeMillis();
         notificationManager.notify(notificationId, notificationBuilder.build());
         
         Log.d(TAG, "Notification displayed with wake lock: " + title);
         
-        // Release wake lock after a delay
+        // Release wake lock after a delay (30 seconds for calls, 5 for messages)
+        int wakeTime = CHANNEL_CALLS.equals(channelId) ? 30000 : 5000;
         new android.os.Handler().postDelayed(() -> {
             if (wakeLock.isHeld()) {
                 wakeLock.release();
                 Log.d(TAG, "Wake lock released");
             }
-        }, 5000);
+        }, wakeTime);
     }
 
     /**
