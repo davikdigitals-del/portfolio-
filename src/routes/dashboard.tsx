@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import {
   Loader2, MessageCircle, Home, Users, Settings,
   FileText, LogOut, CheckSquare, ShieldCheck, Menu, X, Phone, Video, PhoneOff,
-  MicOff, Mic, VideoOff, Minimize2, Maximize2, SpeakerIcon,
+  MicOff, Mic, VideoOff, Minimize2, Maximize2, SpeakerIcon, Pause,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -121,6 +121,7 @@ function DashboardLayout() {
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callMinimized, setCallMinimized] = useState(false);
+  const [isAppHidden, setIsAppHidden] = useState(false);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -130,6 +131,15 @@ function DashboardLayout() {
 
   usePresence(user?.id);
   useViewportHeight();
+
+  // ── Track app visibility for video blur effect ─────────────────────────────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsAppHidden(document.hidden);
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   // ── Ringtone helpers (defined first so useEffects below can use them) ──────
   const startRingtone = useCallback(() => {
@@ -801,12 +811,46 @@ function DashboardLayout() {
           )}
 
           {/* Local video preview — draggable corner (video call) */}
-          {activeCall.call_type === "video" && !isVideoOff && (
-            <video
-              ref={localVideoRef}
-              autoPlay playsInline muted
-              className="absolute bottom-32 right-4 w-28 h-40 rounded-2xl object-cover border-2 border-white/40 shadow-xl z-10"
-            />
+          {activeCall.call_type === "video" && (
+            <div className="absolute bottom-32 right-4 w-28 h-40 rounded-2xl border-2 border-white/40 shadow-xl z-10 overflow-hidden">
+              {isVideoOff ? (
+                // Camera OFF: show same gradient background as incoming call
+                <div className="relative w-full h-full" style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                    {user && avatarUrl ? (
+                      <img src={avatarUrl} alt="You" className="h-16 w-16 rounded-full object-cover ring-2 ring-white/40" />
+                    ) : (
+                      <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center text-white text-xl font-bold ring-2 ring-white/40">
+                        {(displayName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-white/60 text-[10px]">Camera off</span>
+                  </div>
+                </div>
+              ) : isAppHidden ? (
+                // App MINIMIZED/HIDDEN: show blurred video with pause indicator
+                <div className="relative w-full h-full">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay playsInline muted
+                    className="w-full h-full object-cover blur-lg scale-110"
+                  />
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <Pause className="h-6 w-6 text-white" />
+                      <span className="text-white/80 text-[10px]">Paused</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // Camera ON & App ACTIVE: show normal video
+                <video
+                  ref={localVideoRef}
+                  autoPlay playsInline muted
+                  className="w-full h-full object-cover"
+                />
+              )}
+            </div>
           )}
 
           {/* Controls — floating island at bottom */}
