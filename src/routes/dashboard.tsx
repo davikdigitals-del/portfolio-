@@ -995,39 +995,82 @@ function DashboardLayout() {
                   <button
                     onClick={async () => {
                       try {
+                        console.log("[ScreenShare] Current state:", isScreenSharing);
+                        
                         if (isScreenSharing) {
+                          console.log("[ScreenShare] Stopping screen share, switching to camera");
                           // Stop screen share — switch back to camera
-                          const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                          const cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                            video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } 
+                          });
                           const cameraTrack = cameraStream.getVideoTracks()[0];
+                          
+                          if (!cameraTrack) {
+                            throw new Error("Could not get camera track");
+                          }
+                          
                           const pc = callManager.getPeerConnection();
                           if (pc && cameraTrack) {
                             const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                            if (sender) await sender.replaceTrack(cameraTrack);
+                            if (sender) {
+                              await sender.replaceTrack(cameraTrack);
+                              console.log("[ScreenShare] Replaced screen track with camera track");
+                            }
                           }
+                          
                           if (localVideoRef.current) {
                             localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
                             localVideoRef.current.play().catch(() => {});
                           }
+                          
                           setIsScreenSharing(false);
+                          toast.success("Screen sharing stopped");
                         } else {
+                          console.log("[ScreenShare] Starting screen share");
                           // Start screen share
-                          const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true, audio: false });
+                          const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ 
+                            video: { cursor: "always" }, 
+                            audio: false 
+                          });
                           const screenTrack = screenStream.getVideoTracks()[0];
+                          
+                          if (!screenTrack) {
+                            throw new Error("Could not get screen track");
+                          }
+                          
                           const pc = callManager.getPeerConnection();
                           if (pc && screenTrack) {
                             const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                            if (sender) await sender.replaceTrack(screenTrack);
+                            if (sender) {
+                              await sender.replaceTrack(screenTrack);
+                              console.log("[ScreenShare] Replaced camera track with screen track");
+                            }
                           }
+                          
                           if (localVideoRef.current) {
                             localVideoRef.current.srcObject = new MediaStream([screenTrack]);
                             localVideoRef.current.play().catch(() => {});
                           }
+                          
                           // Auto-stop when user ends screen share via browser UI
-                          screenTrack.onended = () => setIsScreenSharing(false);
+                          screenTrack.onended = () => {
+                            console.log("[ScreenShare] Screen share ended by user");
+                            setIsScreenSharing(false);
+                            toast.info("Screen sharing stopped");
+                          };
+                          
                           setIsScreenSharing(true);
+                          toast.success("Screen sharing started");
                         }
-                      } catch (err) {
-                        console.error("[Dashboard] Screen share failed:", err);
+                      } catch (err: any) {
+                        console.error("[ScreenShare] Error:", err);
+                        if (err.name === "NotAllowedError") {
+                          toast.error("Screen sharing permission denied");
+                        } else if (err.name === "NotFoundError") {
+                          toast.error("No screen available to share");
+                        } else {
+                          toast.error("Failed to share screen: " + (err.message || "Unknown error"));
+                        }
                       }
                     }}
                     className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isScreenSharing ? "bg-white text-black" : "bg-white/20 text-white"}`}

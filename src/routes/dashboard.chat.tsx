@@ -1213,18 +1213,30 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const [editText, setEditText] = useState("");
 
   async function saveEdit(msgId: string) {
-    if (!editText.trim()) return;
-    const { error } = await supabase
-      .from("messages")
-      .update({ content: editText.trim() })
-      .eq("id", msgId);
-    if (error) {
-      console.error("Edit message error:", error);
-      toast.error(`Failed to edit message: ${error.message}`);
-    } else {
-      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, content: editText.trim() } : m));
-      setEditingId(null);
-      toast.success("Message edited");
+    if (!editText.trim()) {
+      console.log("[Edit] Empty text, canceling");
+      return;
+    }
+    
+    try {
+      console.log("[Edit] Saving edit for message:", msgId);
+      const { error } = await supabase
+        .from("messages")
+        .update({ content: editText.trim() })
+        .eq("id", msgId);
+      
+      if (error) {
+        console.error("[Edit] Error:", error);
+        toast.error(`Failed to edit message: ${error.message}`);
+      } else {
+        console.log("[Edit] Message edited successfully");
+        setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, content: editText.trim() } : m));
+        setEditingId(null);
+        toast.success("Message edited");
+      }
+    } catch (err) {
+      console.error("[Edit] Exception:", err);
+      toast.error("Failed to edit message");
     }
   }
 
@@ -1285,18 +1297,27 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
   // ---- Delete message ----
   async function deleteMessage(msgId: string) {
-    const { error } = await supabase
-      .from("messages")
-      .update({ deleted_at: new Date().toISOString(), content: "This message was deleted" })
-      .eq("id", msgId);
-    if (error) {
-      console.error("Delete message error:", error);
-      toast.error(`Failed to delete message: ${error.message}`);
-    } else {
-      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted_at: new Date().toISOString(), content: "This message was deleted" } : m));
-      toast.success("Message deleted");
+    try {
+      console.log("[Delete] Deleting message:", msgId);
+      const { error } = await supabase
+        .from("messages")
+        .update({ deleted_at: new Date().toISOString(), content: "This message was deleted" })
+        .eq("id", msgId);
+      
+      if (error) {
+        console.error("[Delete] Error:", error);
+        toast.error(`Failed to delete message: ${error.message}`);
+      } else {
+        console.log("[Delete] Message deleted successfully");
+        setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted_at: new Date().toISOString(), content: "This message was deleted" } : m));
+        toast.success("Message deleted");
+      }
+    } catch (err) {
+      console.error("[Delete] Exception:", err);
+      toast.error("Failed to delete message");
+    } finally {
+      setCtxMenu(null);
     }
-    setCtxMenu(null);
   }
 
   // ---- Send text ----
