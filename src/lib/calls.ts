@@ -187,7 +187,11 @@ export class CallManager {
   // ── Private ────────────────────────────────────────────────────────────────
 
   private async acquireMedia(callType: CallType) {
+    // Detect if mobile device
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     try {
+      // Try high quality first (desktop/high-end mobile)
       this.localStream = await navigator.mediaDevices.getUserMedia(
         callType === "video"
           ? { 
@@ -195,12 +199,12 @@ export class CallManager {
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
-                sampleRate: 48000
+                sampleRate: isMobile ? 44100 : 48000
               }, 
               video: { 
-                width: { ideal: 3840, max: 3840 }, 
-                height: { ideal: 2160, max: 2160 }, 
-                frameRate: { ideal: 60, max: 60 },
+                width: { ideal: isMobile ? 1280 : 3840, max: isMobile ? 1920 : 3840 }, 
+                height: { ideal: isMobile ? 720 : 2160, max: isMobile ? 1080 : 2160 }, 
+                frameRate: { ideal: 30, max: isMobile ? 30 : 60 },
                 facingMode: "user"
               } 
             }
@@ -209,15 +213,15 @@ export class CallManager {
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
-                sampleRate: 48000
+                sampleRate: isMobile ? 44100 : 48000
               }, 
               video: false 
             }
       );
       console.log("[CM] Media acquired:", this.localStream.getTracks().map(t => `${t.kind} - ${t.label}`));
     } catch (err) {
-      console.error("[CM] High quality failed, trying fallback:", err);
-      // Fallback to lower quality if 4K not supported
+      console.error("[CM] High quality failed, trying mobile-friendly fallback:", err);
+      // Fallback to mobile-friendly quality
       try {
         this.localStream = await navigator.mediaDevices.getUserMedia(
           callType === "video"
@@ -228,9 +232,9 @@ export class CallManager {
                   autoGainControl: true
                 }, 
                 video: { 
-                  width: { ideal: 1920, max: 1920 }, 
-                  height: { ideal: 1080, max: 1080 }, 
-                  frameRate: { ideal: 30, max: 30 },
+                  width: { ideal: 640, max: 1280 }, 
+                  height: { ideal: 480, max: 720 }, 
+                  frameRate: { ideal: 24, max: 30 },
                   facingMode: "user" 
                 } 
               }
@@ -243,7 +247,7 @@ export class CallManager {
                 video: false 
               }
         );
-        console.log("[CM] Fallback media acquired:", this.localStream.getTracks().map(t => `${t.kind} - ${t.label}`));
+        console.log("[CM] Mobile fallback media acquired:", this.localStream.getTracks().map(t => `${t.kind} - ${t.label}`));
       } catch (fallbackErr) {
         console.error("[CM] Media error:", fallbackErr);
         throw new Error("Could not access camera/microphone. Please allow permissions.");

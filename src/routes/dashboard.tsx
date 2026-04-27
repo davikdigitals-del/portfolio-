@@ -937,7 +937,7 @@ function DashboardLayout() {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="md:hidden fixed left-0 right-0 top-0 z-40 bg-sidebar border-b border-border flex items-center justify-between px-4 h-14"
+      <div className="md:hidden fixed left-0 right-0 top-0 z-30 bg-sidebar border-b border-border flex items-center justify-between px-4 h-14"
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <Link to="/" className="flex items-center gap-2">
@@ -959,11 +959,11 @@ function DashboardLayout() {
       </div>
 
       {/* Mobile drawer overlay */}
-      {mobileOpen && <div className="md:hidden fixed inset-0 z-30 bg-black/60" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && <div className="md:hidden fixed inset-0 z-20 bg-black/60" onClick={() => setMobileOpen(false)} />}
 
       {/* Mobile drawer */}
       <aside
-        className={`md:hidden fixed top-0 left-0 bottom-0 z-40 w-72 flex flex-col bg-sidebar border-r border-border transform transition-transform duration-300 ease-in-out ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`md:hidden fixed top-0 left-0 bottom-0 z-30 w-72 flex flex-col bg-sidebar border-r border-border transform transition-transform duration-300 ease-in-out ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
         style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <SidebarContent />
