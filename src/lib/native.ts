@@ -204,20 +204,33 @@ export async function showLocalNotification(
 }
 
 async function savePushToken(token: string) {
-  // Save token to your backend/Supabase
+  // Save FCM token to Supabase for native push notifications
   try {
     // Dynamic import to avoid circular dependency
     const { supabase } = await import('@/integrations/supabase/client');
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user) {
-      // Save to push_subscriptions table with platform info
-      await supabase.from('push_subscriptions').upsert({
+      console.log('[Native] Saving FCM token for user:', user.id);
+      
+      // Save to push_subscriptions table with FCM token
+      const { error } = await supabase.from('push_subscriptions').upsert({
         user_id: user.id,
-        subscription: { token, platform },
+        fcm_token: token, // FCM token for native notifications
+        platform: platform, // 'android' or 'ios'
+        endpoint: `fcm:${token}`, // Unique identifier
+        p256dh: 'native', // Placeholder for native apps
+        auth: 'native', // Placeholder for native apps
         created_at: new Date().toISOString()
+      }, { 
+        onConflict: 'user_id,endpoint' 
       });
-      console.log('[Native] Push token saved to database');
+      
+      if (error) {
+        console.error('[Native] Error saving FCM token:', error);
+      } else {
+        console.log('[Native] FCM token saved successfully');
+      }
     }
   } catch (err) {
     console.error('[Native] Failed to save push token:', err);

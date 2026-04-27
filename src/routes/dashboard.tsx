@@ -134,32 +134,77 @@ function DashboardLayout() {
   usePresence(user?.id);
   useViewportHeight();
 
-  // ── Clear corrupted localStorage on mount ──────────────────────────────────
+  // ── Restore calls from localStorage on mount ──────────────────────────────
   useEffect(() => {
     try {
-      // Check if localStorage has valid data
-      const activeCall = localStorage.getItem("activeCall");
-      const incomingCall = localStorage.getItem("incomingCall");
-      
-      if (activeCall) {
+      // Restore active call
+      const activeCallData = localStorage.getItem("activeCall");
+      if (activeCallData) {
         try {
-          JSON.parse(activeCall);
-        } catch {
+          const parsed = JSON.parse(activeCallData);
+          const { call, profile, timestamp } = parsed;
+          
+          // Only restore if less than 5 minutes old
+          if (timestamp && Date.now() - timestamp < 5 * 60 * 1000) {
+            console.log("[Storage] Restoring active call from localStorage");
+            setActiveCall(call);
+            setActiveProfile(profile);
+            
+            // Rejoin the call
+            setTimeout(() => {
+              const setActive = (window as any).__setActiveCall;
+              if (setActive) {
+                void setActive(call, profile);
+              }
+            }, 500);
+          } else {
+            console.log("[Storage] Active call too old, clearing");
+            localStorage.removeItem("activeCall");
+          }
+        } catch (err) {
           console.warn("[Storage] Clearing corrupted activeCall data");
           localStorage.removeItem("activeCall");
         }
       }
       
-      if (incomingCall) {
+      // Restore incoming call
+      const incomingCallData = localStorage.getItem("incomingCall");
+      if (incomingCallData) {
         try {
-          JSON.parse(incomingCall);
-        } catch {
+          const parsed = JSON.parse(incomingCallData);
+          const { call, profile, timestamp } = parsed;
+          
+          // Only restore if less than 30 seconds old (call timeout)
+          if (timestamp && Date.now() - timestamp < 30 * 1000) {
+            console.log("[Storage] Restoring incoming call from localStorage");
+            
+            // Check if call is still ringing
+            supabase.from("calls").select("*").eq("id", call.id).maybeSingle().then(({ data }) => {
+              if (data && data.status === "ringing") {
+                setIncomingCall(data);
+                setIncomingProfile(profile);
+                
+                // Start ringtone
+                setTimeout(() => {
+                  const startRing = (window as any).__startRingtone;
+                  if (startRing) startRing();
+                }, 200);
+              } else {
+                console.log("[Storage] Call no longer ringing, clearing");
+                localStorage.removeItem("incomingCall");
+              }
+            });
+          } else {
+            console.log("[Storage] Incoming call too old, clearing");
+            localStorage.removeItem("incomingCall");
+          }
+        } catch (err) {
           console.warn("[Storage] Clearing corrupted incomingCall data");
           localStorage.removeItem("incomingCall");
         }
       }
     } catch (err) {
-      console.error("[Storage] Error checking localStorage:", err);
+      console.error("[Storage] Error restoring calls:", err);
     }
   }, []);
 

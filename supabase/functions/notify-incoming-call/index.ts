@@ -152,10 +152,10 @@ Deno.serve(async (req) => {
       caller_name: callerName,
     });
 
-    // Get all push subscriptions for the receiver
+    // Get all push subscriptions for the receiver (both web and native)
     const { data: subs } = await supabase
       .from("push_subscriptions")
-      .select("endpoint, p256dh, auth")
+      .select("endpoint, p256dh, auth, fcm_token, platform")
       .eq("user_id", receiver_id);
 
     if (!subs?.length) {
@@ -163,16 +163,75 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ sent: 0, reason: "no_subscriptions" }), { status: 200 });
     }
 
+    const FCM_SERVER_KEY = Deno.env.get("FCM_SERVER_KEY");
     let sent = 0;
+    
     for (const sub of subs) {
       try {
-        const res = await sendOnePush(sub, pushPayload);
-        if (res.status === 410 || res.status === 404) {
-          await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
-        } else if (res.ok || res.status === 201) {
-          sent++;
-        } else {
-          console.error("Push failed:", res.status, await res.text());
+        // Native app with FCM token - use Firebase Cloud Messaging
+        if (sub.fcm_token && FCM_SERVER_KEY) {
+          console.log("Sending FCM notification to:", sub.platform);
+          
+          const fcmPayload = {
+            to: sub.fcm_token,
+            priority: "high",
+            notification: {
+              title: isVideo ? "📹 Incoming Video Call" : "☎️ Incoming Voice Call",
+              body: `${callerName} is calling you...`,
+              sound: "default",
+              badge: 1,
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+            },
+            data: {
+              call_id,
+              call_type,
+              conversation_id,
+              caller_name: callerName,
+              type: "call",
+            },
+            android: {
+              priority: "high",
+              notification: {
+                channel_id: "calls",
+                sound: "default",
+                priority: "max",
+              },
+            },
+          };
+          
+          const fcmRes = await fetch("https://fcm.googleapis.com/fcm/send", {
+            method: "POST",
+            headers: {
+              "Authorization": `key=${FCM_SERVER_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(fcmPayload),
+          });
+          
+          if (fcmRes.ok) {
+            sent++;
+            console.log("FCM notification sent successfully");
+          } else {
+            const errorText = await fcmRes.text();
+            console.error("FCM failed:", fcmRes.status, errorText);
+            
+            // Remove invalid token
+            if (fcmRes.status === 404 || errorText.includes("NotRegistered")) {
+              await supabase.from("push_subscriptions").delete().eq("fcm_token", sub.fcm_token);
+            }
+          }
+        } 
+        // Web app - use Web Push
+        else if (sub.endpoint && sub.p256dh && sub.auth) {
+          console.log("Sending Web Push notification");
+          const res = await sendOnePush(sub, pushPayload);
+          if (res.status === 410 || res.status === 404) {
+            await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+          } else if (res.ok || res.status === 201) {
+            sent++;
+          } else {
+            console.error("Push failed:", res.status, await res.text());
+          }
         }
       } catch (e) {
         console.error("Push error:", e);
