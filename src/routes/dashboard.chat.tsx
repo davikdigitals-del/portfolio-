@@ -1360,7 +1360,15 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   });
 
   async function initiateCall(callType: CallType) {
-    if (!user) return;
+    if (!user) {
+      toast.error("You must be logged in to make calls");
+      return;
+    }
+
+    if (!conversation || !conversation.id) {
+      toast.error("No active conversation");
+      return;
+    }
 
     // For client: get receiverId from adminProfile state, or fetch it fresh if not loaded yet
     let receiverId = isAdmin ? conversation.user_id : (adminProfile?.user_id ?? "");
@@ -1369,9 +1377,20 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       // adminProfile hasn't loaded yet — fetch admin user_id via secure RPC
       // (direct user_roles query is blocked by RLS for non-admin users)
       try {
-        const { data } = await supabase.rpc("get_admin_user_id");
+        console.log("[Call] Fetching admin user_id via RPC");
+        const { data, error } = await supabase.rpc("get_admin_user_id");
+        if (error) {
+          console.error("[Call] RPC error:", error);
+          toast.error("Could not find admin user. Please try again.");
+          return;
+        }
         receiverId = data ?? "";
-      } catch { /* ignore */ }
+        console.log("[Call] Admin user_id:", receiverId);
+      } catch (err) {
+        console.error("[Call] Exception fetching admin:", err);
+        toast.error("Could not find admin user. Please try again.");
+        return;
+      }
     }
 
     if (!receiverId) {
@@ -1384,6 +1403,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       return;
     }
 
+    console.log("[Call] Initiating", callType, "call to", receiverId);
+
     try {
       toast.loading(`Starting ${callType} call...`, { id: "call-toast" });
 
@@ -1394,14 +1415,21 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         .eq("user_id", receiverId)
         .maybeSingle();
 
+      console.log("[Call] Receiver profile:", profile);
+
       // Initiate the call — this acquires media and opens signaling
       const call = await callManager.initiateCall(conversation.id, receiverId, callType, user.id);
+      console.log("[Call] Call initiated:", call);
+      
       toast.dismiss("call-toast");
 
       // NOW set up the active call screen (after callManager is ready)
       const setActiveCallGlobal = (window as any).__setActiveCall;
       if (setActiveCallGlobal) {
         setActiveCallGlobal(call, profile);
+        console.log("[Call] Active call screen set");
+      } else {
+        console.warn("[Call] __setActiveCall not found on window");
       }
 
       // Fire push notification to receiver
@@ -1419,7 +1447,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     } catch (err: any) {
       toast.dismiss("call-toast");
       console.error("[Call] Failed to initiate:", err);
-      toast.error(err?.message ?? "Failed to start call");
+      toast.error(err?.message ?? "Failed to start call. Please check camera/microphone permissions.");
     }
   }
 
@@ -1583,14 +1611,22 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         )}
         {/* Call buttons */}
         <button
-          onClick={() => initiateCall("voice")}
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log("[Call Button] Voice call clicked");
+            initiateCall("voice");
+          }}
           title="Start voice call"
           className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
         >
           <Phone className="h-4 w-4" />
         </button>
         <button
-          onClick={() => initiateCall("video")}
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log("[Call Button] Video call clicked");
+            initiateCall("video");
+          }}
           title="Start video call"
           className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
         >
