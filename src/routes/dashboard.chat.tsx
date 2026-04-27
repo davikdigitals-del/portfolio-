@@ -1232,59 +1232,54 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const [ctxMenu, setCtxMenu] = useState<{ msgId: string; x: number; y: number; mine: boolean; type: string } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressDataRef = useRef<{ msg: Message; mine: boolean; x: number; y: number } | null>(null);
+  const ctxMenuJustOpenedRef = useRef(false);
 
   function openCtxMenu(x: number, y: number, msg: Message, mine: boolean) {
-    // Clamp to viewport, accounting for keyboard on mobile
-    const menuW = 160, menuH = 140;
+    const menuW = 180, menuH = 160;
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
     const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-    
-    x = Math.min(x, viewportWidth - menuW - 8);
-    y = Math.min(y, viewportHeight - menuH - 8);
-    
-    // Ensure menu doesn't go above viewport
-    x = Math.max(x, 8);
-    y = Math.max(y, 8);
-    
+    x = Math.max(8, Math.min(x, viewportWidth - menuW - 8));
+    y = Math.max(8, Math.min(y, viewportHeight - menuH - 8));
+    ctxMenuJustOpenedRef.current = true;
     setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
+    // Clear the "just opened" flag after a short delay
+    setTimeout(() => { ctxMenuJustOpenedRef.current = false; }, 300);
   }
 
   function startLongPress(e: React.TouchEvent, msg: Message, mine: boolean) {
-    // Prevent default to avoid text selection and other touch behaviors
-    e.preventDefault();
-    
-    // Capture coordinates immediately
-    const x = e.touches[0].clientX;
-    const y = e.touches[0].clientY;
+    // Capture coordinates immediately before event is recycled
+    const touch = e.touches[0];
+    const x = touch.clientX;
+    const y = touch.clientY;
     longPressDataRef.current = { msg, mine, x, y };
-    
+
     longPressTimer.current = setTimeout(() => {
       if (longPressDataRef.current) {
         const { msg, mine, x, y } = longPressDataRef.current;
         openCtxMenu(x, y, msg, mine);
-        
-        // Haptic feedback on mobile
-        if ('vibrate' in navigator) {
-          navigator.vibrate(50);
-        }
+        if ("vibrate" in navigator) navigator.vibrate(50);
       }
     }, 500);
   }
 
   function cancelLongPress() {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     longPressDataRef.current = null;
   }
 
-  // Close context menu on outside click
+  // Close context menu on outside tap/click — but NOT on the same touch that opened it
   useEffect(() => {
     if (!ctxMenu) return;
-    const close = () => setCtxMenu(null);
+    const close = (e: Event) => {
+      if (ctxMenuJustOpenedRef.current) return; // ignore the opening touch
+      setCtxMenu(null);
+    };
+    // Use touchend (not touchstart) so it doesn't fire on the long-press release
     document.addEventListener("click", close);
-    document.addEventListener("touchstart", close);
+    document.addEventListener("touchend", close);
     return () => {
       document.removeEventListener("click", close);
-      document.removeEventListener("touchstart", close);
+      document.removeEventListener("touchend", close);
     };
   }, [ctxMenu]);
 
@@ -1768,6 +1763,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                     onTouchStart={(e) => startLongPress(e, m, mine)}
                     onTouchEnd={cancelLongPress}
                     onTouchMove={cancelLongPress}
+                    onTouchCancel={cancelLongPress}
                     className="select-none cursor-context-menu"
                   >
                     <MessageBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} onDelete={deleteMessage} messages={messages} />
@@ -1803,29 +1799,32 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       {/* WhatsApp-style context menu */}
       {ctxMenu && (
         <div
-          className="fixed z-50 rounded-2xl border border-border bg-card shadow-xl overflow-hidden min-w-[160px] animate-fade-up"
+          className="fixed z-50 rounded-2xl border border-border bg-card shadow-xl overflow-hidden min-w-[180px] animate-fade-up"
           style={{ left: ctxMenu.x, top: ctxMenu.y }}
           onClick={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
         >
           <button
-            onClick={() => {
+            onPointerDown={(e) => {
+              e.stopPropagation();
               const msg = messages.find((m) => m.id === ctxMenu.msgId);
               if (msg) setReplyingTo(msg);
               setCtxMenu(null);
             }}
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent transition-colors text-left"
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent active:bg-accent transition-colors text-left"
           >
             <Reply className="h-4 w-4 text-primary shrink-0" />
             Reply
           </button>
           {ctxMenu.mine && ctxMenu.type === "text" && (
             <button
-              onClick={() => {
+              onPointerDown={(e) => {
+                e.stopPropagation();
                 const msg = messages.find((m) => m.id === ctxMenu.msgId);
                 if (msg) { setEditText(msg.content ?? ""); setEditingId(msg.id); }
                 setCtxMenu(null);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent transition-colors text-left"
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent active:bg-accent transition-colors text-left"
             >
               <Pencil className="h-4 w-4 text-primary shrink-0" />
               Edit message
@@ -1833,8 +1832,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
           )}
           {(ctxMenu.mine || isAdmin) && (
             <button
-              onClick={() => deleteMessage(ctxMenu.msgId)}
-              className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-destructive/10 text-destructive transition-colors text-left"
+              onPointerDown={(e) => { e.stopPropagation(); deleteMessage(ctxMenu.msgId); }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-destructive/10 active:bg-destructive/10 text-destructive transition-colors text-left"
             >
               <Trash2 className="h-4 w-4 shrink-0" />
               Delete message
