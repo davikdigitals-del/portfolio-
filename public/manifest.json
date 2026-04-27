@@ -47,7 +47,7 @@
       "url": "/dashboard/chat",
       "icons": [
         {
-          "src": "/icon-192.png",
+          "src": "/me.webp",
           "sizes": "192x192"
         }
       ]
@@ -59,7 +59,7 @@
       "url": "/dashboard/chat?action=call",
       "icons": [
         {
-          "src": "/icon-192.png",
+          "src": "/me.webp",
           "sizes": "192x192"
         }
       ]

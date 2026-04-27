@@ -285,10 +285,13 @@ function DashboardLayout() {
         // Show alert to user
         alert("Reconnecting to your call...");
         
-        // Try to rejoin the call
+        // Try to rejoin the call - use window global to avoid circular dependency
         try {
-          await answerCall(data as Call);
-          console.log("[CallRestore] ✅ Successfully rejoined call");
+          const answerFn = (window as any).__answerCall;
+          if (answerFn) {
+            await answerFn(data as Call);
+            console.log("[CallRestore] ✅ Successfully rejoined call");
+          }
         } catch (rejoinErr) {
           console.error("[CallRestore] Failed to rejoin call:", rejoinErr);
           // Clean up on failure
@@ -304,7 +307,8 @@ function DashboardLayout() {
     };
     
     void restoreCall();
-  }, [user, answerCall]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // ── Save call state to localStorage when call becomes active ───────────────
   useEffect(() => {
@@ -414,7 +418,10 @@ function DashboardLayout() {
 
         setIncomingCall(call);
         setIncomingProfile(profile ?? null);
-        startRingtone();
+        
+        // Use window global to avoid circular dependency
+        const startRing = (window as any).__startRingtone;
+        if (startRing) startRing();
 
         // Save incoming call to localStorage for recovery
         try {
@@ -470,7 +477,8 @@ function DashboardLayout() {
           }).catch(() => {});
           setIncomingCall(null);
           setIncomingProfile(null);
-          stopRingtone();
+          const stopRing = (window as any).__stopRingtone;
+          if (stopRing) stopRing();
           void sendPushNotification("📞 Missed Call", `Missed ${call.call_type} call from ${profile?.display_name ?? "someone"}`, { tag: `missed-${call.id}` });
         }, 30_000);
       })
@@ -489,7 +497,8 @@ function DashboardLayout() {
           if (currentIncoming && call.id === currentIncoming.id && (call.status === "ended" || call.status === "declined" || call.status === "missed")) {
             console.log("[CallListener] Incoming call cancelled by caller");
             setIncomingProfile(null);
-            stopRingtone();
+            const stopRing = (window as any).__stopRingtone;
+            if (stopRing) stopRing();
             if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
             return null; // Clear incoming call
           }
@@ -501,8 +510,9 @@ function DashboardLayout() {
           // If an active call was ended by the other party
           if (currentActive && call.id === currentActive.id && call.status === "ended") {
             console.log("[CallListener] Active call ended by other party - triggering cleanup");
-            // Trigger cleanup immediately
-            void endActiveCall();
+            // Trigger cleanup immediately using window global
+            const endFn = (window as any).__endActiveCall;
+            if (endFn) void endFn();
             return null; // Clear active call
           }
           return currentActive;
@@ -513,8 +523,8 @@ function DashboardLayout() {
       });
 
     return () => { void supabase.removeChannel(ch); };
-  // Include endActiveCall and stopRingtone in dependencies to avoid stale closures
-  }, [user?.id, endActiveCall, stopRingtone, startRingtone]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // ── Answer call ────────────────────────────────────────────────────────────
   const answerCall = useCallback(async (call: Call) => {
@@ -735,6 +745,9 @@ function DashboardLayout() {
   }, [isVideoOff, activeCall]);
   useEffect(() => {
     (window as any).__answerCall = answerCall;
+    (window as any).__endActiveCall = endActiveCall;
+    (window as any).__startRingtone = startRingtone;
+    (window as any).__stopRingtone = stopRingtone;
     (window as any).__setIncomingCall = async (call: Call) => {
       // Clear any existing missed timer before setting a new one
       if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
@@ -828,10 +841,13 @@ function DashboardLayout() {
 
     return () => {
       delete (window as any).__answerCall;
+      delete (window as any).__endActiveCall;
+      delete (window as any).__startRingtone;
+      delete (window as any).__stopRingtone;
       delete (window as any).__setIncomingCall;
       delete (window as any).__setActiveCall;
     };
-  }, [answerCall, startRingtone, stopRingtone]);
+  }, [answerCall, endActiveCall, startRingtone, stopRingtone]);
 
   useEffect(() => { setMobileOpen(false); }, [routerState.location.pathname]);
 

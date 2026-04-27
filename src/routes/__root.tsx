@@ -113,7 +113,7 @@ function RootComponent() {
         <Outlet />
       </div>
       <Toaster position="top-right" />
-      <InstallPrompt />
+      {/* <InstallPrompt /> */}
     </AuthProvider>
   );
 }
