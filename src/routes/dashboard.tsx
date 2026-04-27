@@ -216,9 +216,16 @@ function DashboardLayout() {
           { tag: `call-${call.id}`, requireInteraction: true }
         );
 
-        // Auto-miss after 30s
         missedTimerRef.current = setTimeout(async () => {
           await supabase.from("calls").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", call.id).eq("status", "ringing");
+          // Insert missed call message in chat
+          await supabase.from("messages").insert({
+            conversation_id: call.conversation_id,
+            sender_id: call.initiator_id,
+            content: call.call_type === "video" ? "📵 Missed video call" : "📵 Missed voice call",
+            type: "call",
+            call_data: { call_type: call.call_type, status: "missed", duration_seconds: 0 },
+          }).catch(() => {});
           setIncomingCall(null);
           setIncomingProfile(null);
           stopRingtone();

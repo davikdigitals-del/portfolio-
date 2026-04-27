@@ -1,3 +1,13 @@
+/**
+ * CallManager — WebRTC with MDN Perfect Negotiation Pattern
+ *
+ * Key insight: Both peers run IDENTICAL code. The "polite" peer
+ * (receiver/answerer) yields on collision; the "impolite" peer (initiator)
+ * wins. This eliminates ALL race conditions in offer/answer exchange.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Perfect_negotiation
+ */
+
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -18,58 +28,57 @@ export interface Call {
   updated_at: string;
 }
 
-// WebRTC ICE servers
-const rtcConfig: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    {
-      urls: "turn:openrelay.metered.ca:80",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443?transport=tcp",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-  ],
-  iceCandidatePoolSize: 10,
-};
+// ── ICE servers ───────────────────────────────────────────────────────────────
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  // Free TURN relay — handles symmetric NAT (mobile networks)
+  {
+    urls: [
+      "turn:openrelay.metered.ca:80",
+      "turn:openrelay.metered.ca:443",
+      "turn:openrelay.metered.ca:443?transport=tcp",
+    ],
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+];
 
-type SignalMsg =
-  | { type: "offer"; sdp: string }
-  | { type: "answer"; sdp: string }
-  | { type: "ice"; candidate: string; sdpMLineIndex: number | null; sdpMid: string | null }
+// ── Signal message types ──────────────────────────────────────────────────────
+type SigMsg =
+  | { type: "description"; description: RTCSessionDescriptionInit }
+  | { type: "candidate"; candidate: RTCIceCandidateInit | null }
   | { type: "end" }
   | { type: "declined" };
 
+// ── CallManager ───────────────────────────────────────────────────────────────
 export class CallManager {
   private pc: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
-  private callId: string | null = null;
   private channel: RealtimeChannel | null = null;
+  private callId: string | null = null;
   private callType: CallType = "voice";
   private startTime: number | null = null;
-  private pendingCandidates: RTCIceCandidateInit[] = [];
-  private isInitiator = false;
 
-  // ── Callbacks — set these BEFORE calling initiateCall/answerCall ───────────
+  // Perfect negotiation state
+  private polite = false;          // receiver is polite, initiator is impolite
+  private makingOffer = false;
+  private ignoreOffer = false;
+  private isSettingRemoteAnswerPending = false;
+  private conversationId: string | null = null;
+  private initiatorId: string | null = null;
+
+  // ── Public callbacks — set BEFORE calling initiateCall / answerCall ─────────
   onRemoteStreamCb: ((stream: MediaStream) => void) | null = null;
   onCallEndCb: (() => void) | null = null;
   onCallActiveCb: (() => void) | null = null;
 
-  // ── Public API ─────────────────────────────────────────────────────────────
+  // ── Public API ──────────────────────────────────────────────────────────────
 
   /**
-   * CALLER: create DB row, acquire media, open signaling, send offer.
-   * Set onRemoteStreamCb / onCallEndCb BEFORE calling this.
+   * CALLER (impolite peer): insert DB row, acquire media, open signaling.
+   * Negotiation starts automatically via onnegotiationneeded.
    */
   async initiateCall(
     conversationId: string,
@@ -77,13 +86,11 @@ export class CallManager {
     callType: CallType,
     userId: string
   ): Promise<Call> {
-    // Clean up any previous call first
     this.cleanup(false);
-
-    this.isInitiator = true;
+    this.polite = false; // initiator = impolite
     this.callType = callType;
 
-    // 1. Insert call row
+    // 1. Create call row in DB
     const { data: call, error } = await supabase
       .from("calls")
       .insert({
@@ -97,48 +104,41 @@ export class CallManager {
       .single();
     if (error || !call) throw error ?? new Error("Failed to create call");
     this.callId = call.id;
+    this.conversationId = conversationId;
+    this.initiatorId = userId;
 
-    // 2. Acquire local media
+    // 2. Acquire media
     await this.acquireMedia(callType);
 
-    // 3. Build peer connection BEFORE opening signaling so ontrack is ready
-    this.buildPC();
-
-    // 4. Open signaling channel and wait until SUBSCRIBED
+    // 3. Open signaling channel (wait for SUBSCRIBED)
     await this.openSignaling(call.id);
 
-    // 5. Create and send offer
-    const offer = await this.pc!.createOffer({
-      offerToReceiveAudio: true,
-      offerToReceiveVideo: callType === "video",
-    });
-    await this.pc!.setLocalDescription(offer);
-    await this.send({ type: "offer", sdp: offer.sdp! });
-    console.log("[CallManager] ✅ Offer sent for call:", call.id);
+    // 4. Build peer connection — onnegotiationneeded fires automatically
+    //    and sends the offer once tracks are added
+    this.buildPC();
 
+    console.log("[CallManager] ✅ Initiator ready, offer will be sent via onnegotiationneeded");
     return call as Call;
   }
 
   /**
-   * RECEIVER: acquire media, open signaling, build PC, wait for offer.
-   * Set onRemoteStreamCb / onCallEndCb BEFORE calling this.
+   * RECEIVER (polite peer): acquire media, open signaling, build PC.
+   * Will receive offer via signaling and auto-answer.
    */
   async answerCall(call: Call, userId: string): Promise<void> {
-    // Clean up any previous call first
     this.cleanup(false);
-
-    this.isInitiator = false;
+    this.polite = true; // receiver = polite
     this.callId = call.id;
     this.callType = call.call_type;
 
-    // 1. Acquire local media
+    // 1. Acquire media
     await this.acquireMedia(call.call_type);
 
-    // 2. Build peer connection BEFORE opening signaling so ontrack is ready
-    this.buildPC();
-
-    // 3. Open signaling channel — offer may already be in flight
+    // 2. Open signaling channel
     await this.openSignaling(call.id);
+
+    // 3. Build peer connection — will handle incoming offer automatically
+    this.buildPC();
 
     // 4. Update DB status
     await supabase
@@ -146,7 +146,7 @@ export class CallManager {
       .update({ status: "active", started_at: new Date().toISOString() })
       .eq("id", call.id);
 
-    console.log("[CallManager] ✅ Receiver ready, waiting for offer:", call.id);
+    console.log("[CallManager] ✅ Receiver ready, waiting for offer");
   }
 
   async declineCall(callId: string): Promise<void> {
@@ -154,12 +154,12 @@ export class CallManager {
       .from("calls")
       .update({ status: "declined", ended_at: new Date().toISOString() })
       .eq("id", callId);
-    await this.send({ type: "declined" });
-    this.cleanup(true);
+    await this.sendSignal({ type: "declined" });
+    this.cleanup(false);
   }
 
   async endCall(): Promise<void> {
-    const endCb = this.onCallEndCb; // capture before cleanup clears it
+    const endCb = this.onCallEndCb; // capture before cleanup
     if (this.callId) {
       const duration = this.startTime
         ? Math.floor((Date.now() - this.startTime) / 1000)
@@ -172,19 +172,20 @@ export class CallManager {
           duration_seconds: duration,
         })
         .eq("id", this.callId);
+
+      // Insert call message into conversation (like WhatsApp)
+      await this.insertCallMessage("ended", duration);
     }
-    await this.send({ type: "end" });
-    this.cleanup(true);
-    endCb?.(); // fire AFTER cleanup
+    await this.sendSignal({ type: "end" });
+    this.cleanup(false);
+    endCb?.();
   }
 
   toggleAudio(muted: boolean) {
-    // muted=true means user wants to mute → disable tracks
     this.localStream?.getAudioTracks().forEach(t => { t.enabled = !muted; });
   }
 
   toggleVideo(off: boolean) {
-    // off=true means camera off → disable tracks
     this.localStream?.getVideoTracks().forEach(t => { t.enabled = !off; });
   }
 
@@ -192,7 +193,41 @@ export class CallManager {
   getCallType() { return this.callType; }
   getCallId() { return this.callId; }
 
-  // ── Private helpers ────────────────────────────────────────────────────────
+  // ── Private: insert call event as chat message (like WhatsApp) ─────────────
+
+  async insertCallMessage(status: "ended" | "missed" | "declined", durationSeconds = 0) {
+    if (!this.conversationId || !this.initiatorId) return;
+    try {
+      await supabase.from("messages").insert({
+        conversation_id: this.conversationId,
+        sender_id: this.initiatorId,
+        content: this.formatCallContent(status, durationSeconds),
+        type: "call",
+        call_data: {
+          call_type: this.callType,
+          status,
+          duration_seconds: durationSeconds,
+        },
+      });
+    } catch (e) {
+      console.error("[CallManager] Failed to insert call message:", e);
+    }
+  }
+
+  private formatCallContent(status: "ended" | "missed" | "declined", duration: number): string {
+    const typeLabel = this.callType === "video" ? "Video call" : "Voice call";
+    if (status === "missed") return `📵 Missed ${typeLabel.toLowerCase()}`;
+    if (status === "declined") return `❌ ${typeLabel} declined`;
+    if (duration > 0) {
+      const m = Math.floor(duration / 60);
+      const s = duration % 60;
+      const dur = m > 0 ? `${m}m ${s}s` : `${s}s`;
+      return `${this.callType === "video" ? "📹" : "📞"} ${typeLabel} · ${dur}`;
+    }
+    return `${this.callType === "video" ? "📹" : "📞"} ${typeLabel}`;
+  }
+
+  // ── Private: media ──────────────────────────────────────────────────────────
 
   private async acquireMedia(callType: CallType) {
     try {
@@ -201,14 +236,15 @@ export class CallManager {
           ? { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" } }
           : { audio: true, video: false }
       );
-      console.log("[CallManager] Local media:", this.localStream.getTracks().map(t => `${t.kind}(${t.label})`));
+      console.log("[CallManager] Media acquired:", this.localStream.getTracks().map(t => t.kind));
     } catch (err) {
       console.error("[CallManager] Media error:", err);
       throw new Error("Could not access camera/microphone. Please allow permissions and try again.");
     }
   }
 
-  /** Open broadcast channel, wait until SUBSCRIBED */
+  // ── Private: signaling ──────────────────────────────────────────────────────
+
   private openSignaling(callId: string): Promise<void> {
     return new Promise((resolve) => {
       const ch = supabase.channel(`call-signal:${callId}`, {
@@ -216,9 +252,8 @@ export class CallManager {
       });
       this.channel = ch;
 
-      ch.on("broadcast", { event: "signal" }, ({ payload }) => {
-        console.log("[CallManager] Signal received:", payload.type);
-        void this.handleSignal(payload as SignalMsg);
+      ch.on("broadcast", { event: "sig" }, ({ payload }) => {
+        void this.handleSignal(payload as SigMsg);
       });
 
       ch.subscribe((status) => {
@@ -228,114 +263,134 @@ export class CallManager {
     });
   }
 
+  private async sendSignal(msg: SigMsg): Promise<void> {
+    if (!this.channel) return;
+    try {
+      await this.channel.send({ type: "broadcast", event: "sig", payload: msg });
+    } catch (e) {
+      console.error("[CallManager] Send failed:", e);
+    }
+  }
+
+  // ── Private: peer connection with Perfect Negotiation ──────────────────────
+
   private buildPC() {
-    const pc = new RTCPeerConnection(rtcConfig);
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 10 });
     this.pc = pc;
 
-    // Add local tracks to the connection
+    // Add local tracks
     this.localStream?.getTracks().forEach(track => {
       pc.addTrack(track, this.localStream!);
-      console.log("[CallManager] Added local track:", track.kind);
     });
 
-    // Remote stream — fires when the other side's tracks arrive
-    pc.ontrack = (e) => {
-      console.log("[CallManager] Remote track received:", e.track.kind, "streams:", e.streams.length);
-      const stream = e.streams[0];
-      if (stream) {
-        console.log("[CallManager] Firing onRemoteStreamCb");
-        this.onRemoteStreamCb?.(stream);
+    // Remote stream — use track.onunmute like MDN recommends
+    pc.ontrack = ({ track, streams }) => {
+      console.log("[CallManager] Remote track:", track.kind);
+      track.onunmute = () => {
+        const stream = streams[0];
+        if (stream) {
+          console.log("[CallManager] Remote stream unmuted, firing callback");
+          this.onRemoteStreamCb?.(stream);
+        }
+      };
+      // Also fire immediately in case already unmuted
+      if (streams[0]) {
+        this.onRemoteStreamCb?.(streams[0]);
       }
     };
 
-    // ICE candidates — send to peer
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        console.log("[CallManager] ICE candidate:", e.candidate.type);
-        void this.send({
-          type: "ice",
-          candidate: e.candidate.candidate,
-          sdpMLineIndex: e.candidate.sdpMLineIndex,
-          sdpMid: e.candidate.sdpMid,
-        });
-      } else {
-        console.log("[CallManager] ICE gathering complete");
+    // ── Perfect Negotiation: onnegotiationneeded ──────────────────────────────
+    pc.onnegotiationneeded = async () => {
+      try {
+        this.makingOffer = true;
+        await pc.setLocalDescription(); // auto-creates offer
+        await this.sendSignal({ type: "description", description: pc.localDescription! });
+        console.log("[CallManager] Offer sent via onnegotiationneeded");
+      } catch (err) {
+        console.error("[CallManager] onnegotiationneeded error:", err);
+      } finally {
+        this.makingOffer = false;
       }
     };
 
+    // ICE candidates
+    pc.onicecandidate = ({ candidate }) => {
+      void this.sendSignal({ type: "candidate", candidate: candidate?.toJSON() ?? null });
+    };
+
+    // Connection state
     pc.onconnectionstatechange = () => {
-      console.log("[CallManager] Connection state:", pc.connectionState);
+      console.log("[CallManager] Connection:", pc.connectionState);
       if (pc.connectionState === "connected") {
         if (!this.startTime) this.startTime = Date.now();
         this.onCallActiveCb?.();
-      } else if (
-        pc.connectionState === "failed" ||
-        pc.connectionState === "disconnected"
-      ) {
-        console.warn("[CallManager] Connection lost");
+      } else if (pc.connectionState === "failed") {
+        console.warn("[CallManager] Connection failed, ending call");
         void this.endCall();
       }
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log("[CallManager] ICE connection state:", pc.iceConnectionState);
-    };
-
-    pc.onsignalingstatechange = () => {
-      console.log("[CallManager] Signaling state:", pc.signalingState);
+      console.log("[CallManager] ICE:", pc.iceConnectionState);
+      if (pc.iceConnectionState === "disconnected") {
+        // Give it 5s to recover before ending
+        setTimeout(() => {
+          if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+            void this.endCall();
+          }
+        }, 5000);
+      }
     };
   }
 
-  private async handleSignal(msg: SignalMsg) {
+  // ── Perfect Negotiation: handle incoming signals ──────────────────────────
+
+  private async handleSignal(msg: SigMsg): Promise<void> {
     const pc = this.pc;
-    if (!pc) {
-      console.warn("[CallManager] handleSignal: no peer connection");
-      return;
-    }
+    if (!pc) return;
 
     try {
-      if (msg.type === "offer") {
-        console.log("[CallManager] Handling offer, signalingState:", pc.signalingState);
-        await pc.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp: msg.sdp }));
-        await this.flushPendingCandidates();
+      if (msg.type === "description") {
+        const description = msg.description;
+        const readyForOffer =
+          !this.makingOffer &&
+          (pc.signalingState === "stable" || this.isSettingRemoteAnswerPending);
+        const offerCollision = description.type === "offer" && !readyForOffer;
 
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await this.send({ type: "answer", sdp: answer.sdp! });
-        console.log("[CallManager] ✅ Answer sent");
-
-      } else if (msg.type === "answer") {
-        console.log("[CallManager] Handling answer, signalingState:", pc.signalingState);
-        if (pc.signalingState === "have-local-offer") {
-          await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: msg.sdp }));
-          await this.flushPendingCandidates();
-          if (!this.startTime) this.startTime = Date.now();
-          console.log("[CallManager] ✅ Remote description set from answer");
-        } else {
-          console.warn("[CallManager] Ignoring answer in state:", pc.signalingState);
+        this.ignoreOffer = !this.polite && offerCollision;
+        if (this.ignoreOffer) {
+          console.log("[CallManager] Impolite peer ignoring colliding offer");
+          return;
         }
 
-      } else if (msg.type === "ice") {
-        const init: RTCIceCandidateInit = {
-          candidate: msg.candidate,
-          sdpMLineIndex: msg.sdpMLineIndex,
-          sdpMid: msg.sdpMid,
-        };
-        if (pc.remoteDescription) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(init));
-          } catch (e) {
-            console.warn("[CallManager] ICE add failed:", e);
-          }
+        this.isSettingRemoteAnswerPending = description.type === "answer";
+        await pc.setRemoteDescription(description);
+        this.isSettingRemoteAnswerPending = false;
+
+        if (description.type === "offer") {
+          await pc.setLocalDescription(); // auto-creates answer
+          await this.sendSignal({ type: "description", description: pc.localDescription! });
+          console.log("[CallManager] Answer sent");
         } else {
-          console.log("[CallManager] Queuing ICE candidate");
-          this.pendingCandidates.push(init);
+          console.log("[CallManager] Answer received, connection establishing");
+          if (!this.startTime) this.startTime = Date.now();
+        }
+
+      } else if (msg.type === "candidate") {
+        if (msg.candidate) {
+          try {
+            await pc.addIceCandidate(msg.candidate);
+          } catch (err) {
+            if (!this.ignoreOffer) {
+              console.warn("[CallManager] ICE candidate error:", err);
+            }
+          }
         }
 
       } else if (msg.type === "end" || msg.type === "declined") {
         console.log("[CallManager] Peer ended/declined call");
         const endCb = this.onCallEndCb;
-        this.cleanup(true);
+        this.cleanup(false);
         endCb?.();
       }
     } catch (err) {
@@ -343,46 +398,18 @@ export class CallManager {
     }
   }
 
-  private async flushPendingCandidates() {
-    console.log("[CallManager] Flushing", this.pendingCandidates.length, "pending ICE candidates");
-    for (const c of this.pendingCandidates) {
-      try {
-        await this.pc?.addIceCandidate(new RTCIceCandidate(c));
-      } catch (e) {
-        console.warn("[CallManager] Pending ICE add failed:", e);
-      }
-    }
-    this.pendingCandidates = [];
-  }
+  // ── Cleanup ─────────────────────────────────────────────────────────────────
 
-  private async send(msg: SignalMsg) {
-    if (!this.channel) {
-      console.warn("[CallManager] send: no channel");
-      return;
-    }
-    try {
-      await this.channel.send({ type: "broadcast", event: "signal", payload: msg });
-      console.log("[CallManager] Sent:", msg.type);
-    } catch (e) {
-      console.error("[CallManager] Send failed:", e);
-    }
-  }
-
-  /** cleanup — pass fireCallback=false when you want to fire it yourself */
-  cleanup(fireCallback = false) {
-    console.log("[CallManager] Cleanup");
-    const endCb = fireCallback ? null : undefined; // don't fire here if caller handles it
-
-    this.localStream?.getTracks().forEach(t => {
-      t.stop();
-      console.log("[CallManager] Stopped track:", t.kind);
-    });
+  cleanup(clearCallbacks = false) {
+    this.localStream?.getTracks().forEach(t => t.stop());
     this.localStream = null;
 
     if (this.pc) {
       this.pc.ontrack = null;
       this.pc.onicecandidate = null;
+      this.pc.onnegotiationneeded = null;
       this.pc.onconnectionstatechange = null;
+      this.pc.oniceconnectionstatechange = null;
       this.pc.close();
       this.pc = null;
     }
@@ -394,9 +421,17 @@ export class CallManager {
 
     this.callId = null;
     this.startTime = null;
-    this.pendingCandidates = [];
-    this.isInitiator = false;
-    // Keep callbacks — they are managed by the UI layer
+    this.conversationId = null;
+    this.initiatorId = null;
+    this.makingOffer = false;
+    this.ignoreOffer = false;
+    this.isSettingRemoteAnswerPending = false;
+
+    if (clearCallbacks) {
+      this.onRemoteStreamCb = null;
+      this.onCallEndCb = null;
+      this.onCallActiveCb = null;
+    }
   }
 }
 

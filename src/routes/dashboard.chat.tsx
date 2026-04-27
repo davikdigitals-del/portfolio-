@@ -44,7 +44,7 @@ interface Message {
   conversation_id: string;
   sender_id: string;
   content: string | null;
-  type: "text" | "file" | "image" | "voice";
+  type: "text" | "file" | "image" | "voice" | "call";
   status: "sent" | "delivered" | "seen";
   file_url: string | null;
   file_name: string | null;
@@ -53,6 +53,11 @@ interface Message {
   pinned: boolean;
   deleted_at: string | null;
   replied_to_id: string | null;
+  call_data?: {
+    call_type: "voice" | "video";
+    status: "ended" | "missed" | "declined";
+    duration_seconds?: number | null;
+  } | null;
 }
 
 interface FilePreview {
@@ -2377,6 +2382,33 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
   const base = mine
     ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
     : "bg-surface-elevated text-foreground rounded-bl-sm";
+
+  // ── Call message (system event like WhatsApp) ────────────────────────────────
+  if (m.type === "call") {
+    const cd = m.call_data;
+    const isMissed = cd?.status === "missed" || cd?.status === "declined";
+    const icon = cd?.call_type === "video"
+      ? (isMissed ? "📵" : "📹")
+      : (isMissed ? "📵" : "📞");
+    const label = m.content ?? (cd?.call_type === "video" ? "Video call" : "Voice call");
+    return (
+      <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm max-w-[220px] ${
+        mine
+          ? "bg-gradient-primary text-primary-foreground rounded-br-sm"
+          : "bg-surface-elevated text-foreground rounded-bl-sm"
+      }`}>
+        <span className="text-lg shrink-0">{icon}</span>
+        <div className="flex-1 min-w-0">
+          <div className={`font-medium text-sm ${isMissed ? (mine ? "text-red-200" : "text-red-500") : ""}`}>{label}</div>
+          {cd?.duration_seconds && cd.duration_seconds > 0 && (
+            <div className={`text-[11px] mt-0.5 ${mine ? "text-white/60" : "text-muted-foreground"}`}>
+              {Math.floor(cd.duration_seconds / 60)}:{(cd.duration_seconds % 60).toString().padStart(2, "0")}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // ── Voice ───────────────────────────────────────────────────────────────────
   if (m.type === "voice" && m.file_url) {
