@@ -208,27 +208,18 @@ function DashboardLayout() {
     }
   }, []);
 
-  // ── Track app visibility for video blur effect and audio pause ────────────
+  // ── Track app visibility — DO NOT pause audio, just track state ─────────
+  // Audio must keep flowing in background so the other person can still hear you
   useEffect(() => {
     const handleVisibilityChange = () => {
-      const hidden = document.hidden;
-      setIsAppHidden(hidden);
-      
-      // Pause audio when app goes to background to prevent echo
-      // Resume when app comes back to foreground
-      if (activeCall) {
-        if (hidden) {
-          console.log("[Dashboard] App hidden, pausing audio to prevent echo");
-          callManager.pauseAudio();
-        } else {
-          console.log("[Dashboard] App visible, resuming audio");
-          callManager.resumeAudio(isMuted);
-        }
-      }
+      setIsAppHidden(document.hidden);
+      // NOTE: We intentionally do NOT pause/resume audio here.
+      // Pausing audio when backgrounded cuts the call for the other person.
+      // The Wake Lock + WebRTC keep the connection alive in background.
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [activeCall, isMuted]);
+  }, []);
 
   // ── Close call options menu when clicking outside ──────────────────────────
   useEffect(() => {

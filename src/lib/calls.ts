@@ -60,6 +60,7 @@ export class CallManager {
   private pendingCandidates: RTCIceCandidateInit[] = [];
   private conversationId: string | null = null;
   private initiatorId: string | null = null;
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
   onRemoteStreamCb: ((stream: MediaStream) => void) | null = null;
   onCallEndCb: (() => void) | null = null;
@@ -251,21 +252,57 @@ export class CallManager {
     return true;
   }
   
-  // Pause audio when app goes to background to prevent echo
+  // Keep audio flowing in background — do NOT disable tracks
+  // Disabling tracks cuts audio for the other person
   pauseAudio() {
-    this.localStream?.getAudioTracks().forEach(t => {
-      t.enabled = false;
-      console.log("[CM] Audio paused (app hidden)");
-    });
+    // Intentionally a no-op: audio must keep flowing when app is backgrounded
+    console.log("[CM] pauseAudio called — keeping audio active for background call");
   }
-  
-  // Resume audio when app comes back to foreground
-  resumeAudio(isMuted: boolean) {
-    if (!isMuted) {
-      this.localStream?.getAudioTracks().forEach(t => {
-        t.enabled = true;
-        console.log("[CM] Audio resumed (app visible)");
+
+  // No-op — audio was never paused
+  resumeAudio(_isMuted: boolean) {
+    console.log("[CM] resumeAudio called — audio was never paused");
+  }
+
+  // Start heartbeat to prevent browser from throttling WebRTC in background
+  startHeartbeat() {
+    if (this.heartbeatInterval) return;
+    console.log("[CM] Starting background heartbeat");
+
+    this.heartbeatInterval = setInterval(() => {
+      const pc = this.pc;
+      if (!pc) return;
+
+      // Keep ICE alive by checking stats — this prevents browser throttling
+      pc.getStats().then(stats => {
+        stats.forEach(report => {
+          if (report.type === "candidate-pair" && report.state === "succeeded") {
+            // Connection is alive
+          }
+        });
+      }).catch(() => {});
+
+      // Keep audio tracks enabled and flowing
+      this.localStream?.getAudioTracks().forEach(track => {
+        if (!track.enabled) {
+          track.enabled = true;
+          console.log("[CM] Heartbeat: re-enabled audio track");
+        }
       });
+
+      // If ICE disconnected, try to restart
+      if (pc.iceConnectionState === "disconnected") {
+        console.log("[CM] Heartbeat: ICE disconnected, restarting");
+        pc.restartIce();
+      }
+    }, 5000); // every 5 seconds
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+      console.log("[CM] Heartbeat stopped");
     }
   }
   
@@ -445,6 +482,8 @@ export class CallManager {
       if (pc.connectionState === "connected") {
         if (!this.startTime) this.startTime = Date.now();
         this.onCallActiveCb?.();
+        // Start heartbeat to keep call alive in background
+        this.startHeartbeat();
       } else if (pc.connectionState === "failed") {
         console.log("[CM] Connection failed, attempting ICE restart");
         // Try ICE restart before giving up
@@ -572,6 +611,7 @@ export class CallManager {
   }
 
   cleanup() {
+    this.stopHeartbeat();
     this.localStream?.getTracks().forEach(t => t.stop());
     this.localStream = null;
     if (this.pc) {
