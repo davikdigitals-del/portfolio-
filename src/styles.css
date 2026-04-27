@@ -99,6 +99,22 @@
   --input: oklch(0.24 0.025 265);
   --ring: oklch(0.62 0.20 260);
 
+  /* WhatsApp-style colors for chat */
+  --wa-bg: #0b141a;
+  --wa-header: #202c33;
+  --wa-bubble-sent: #005c4b;
+  --wa-bubble-received: #202c33;
+  --wa-text-primary: #e9edef;
+  --wa-text-secondary: #8696a0;
+  --wa-text-tertiary: #667781;
+  --wa-icon: #8696a0;
+  --wa-divider: #2a3942;
+  --wa-input-bg: #2a3942;
+  --wa-accent: #00a884;
+  --wa-blue: #53bdeb;
+  --wa-green-light: #25d366;
+  --wa-timestamp: #8696a0;
+
   --sidebar: oklch(0.18 0.022 265);
   --sidebar-foreground: oklch(0.92 0.01 250);
   --sidebar-primary: oklch(0.62 0.20 260);

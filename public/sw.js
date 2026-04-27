@@ -1,9 +1,93 @@
-// Service Worker — Web Push + background notification relay
+// Service Worker — Web Push + PWA Caching + Offline Support
 const SUPABASE_URL = "https://gcckwqkzjoxraikosash.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjY2t3cWt6am94cmFpa29zYXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzA4MzQsImV4cCI6MjA5Mjc0NjgzNH0.BCjatcjeUane_yN9IAyI3iNdyyesq85pevZSH9LO-6E";
 
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+const CACHE_NAME = 'pulse-chat-v1';
+const RUNTIME_CACHE = 'pulse-runtime-v1';
+
+// Assets to cache on install
+const PRECACHE_ASSETS = [
+  '/',
+  '/manifest.json',
+  '/me.webp',
+  '/ajibola.jpg'
+];
+
+// Install - cache essential assets
+self.addEventListener("install", (e) => {
+  console.log('[SW] Installing...');
+  e.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Activate - clean old caches
+self.addEventListener("activate", (e) => {
+  console.log('[SW] Activating...');
+  e.waitUntil(
+    caches.keys()
+      .then((names) => Promise.all(
+        names.filter((n) => n !== CACHE_NAME && n !== RUNTIME_CACHE)
+          .map((n) => caches.delete(n))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+// Fetch - network first with cache fallback
+self.addEventListener("fetch", (e) => {
+  const { request } = e;
+  const url = new URL(request.url);
+
+  // Skip non-GET
+  if (request.method !== 'GET') return;
+
+  // Skip non-http(s)
+  if (!url.protocol.startsWith('http')) return;
+
+  // Skip Supabase (always fresh)
+  if (url.hostname.includes('supabase')) return;
+
+  // Cache strategy for assets
+  if (
+    request.destination === 'image' ||
+    request.destination === 'style' ||
+    request.destination === 'script' ||
+    request.destination === 'font'
+  ) {
+    e.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Network first for pages
+  if (request.mode === 'navigate') {
+    e.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
+    );
+    return;
+  }
+});
 
 // ── Web Push received ─────────────────────────────────────────────────────────
 self.addEventListener("push", (e) => {

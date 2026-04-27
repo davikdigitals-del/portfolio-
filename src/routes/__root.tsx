@@ -3,8 +3,10 @@ import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
 import { Preloader } from "@/components/preloader";
+import { InstallPrompt } from "@/components/install-prompt";
 import { supabase } from "@/integrations/supabase/client";
 import { sendPushNotification } from "@/lib/notifications";
+import { initializeNativeApp, isNativeApp } from "@/lib/native";
 import type { Call } from "@/lib/calls";
 
 import appCss from "../styles.css?url";
@@ -37,6 +39,11 @@ export const Route = createRootRoute({
       { title: "Pulse — Premium real-time chat for clients" },
       { name: "description", content: "Premium real-time chat platform connecting you with your clients. Smart tagging, AI summaries, and lightning-fast messaging." },
       { name: "author", content: "Pulse" },
+      { name: "theme-color", content: "#000000" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "Pulse" },
       { property: "og:title", content: "Pulse — Premium real-time chat" },
       { property: "og:description", content: "Premium real-time chat platform connecting you with your clients." },
       { property: "og:type", content: "website" },
@@ -46,6 +53,7 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/webp", href: "/me.webp" },
       { rel: "apple-touch-icon", href: "/me.webp" },
+      { rel: "manifest", href: "/manifest.json" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" },
@@ -73,6 +81,16 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const [ready, setReady] = useState(false);
 
+  // Initialize native app features
+  useEffect(() => {
+    if (isNativeApp) {
+      console.log('[App] Running as native mobile app');
+      void initializeNativeApp();
+    } else {
+      console.log('[App] Running as web app');
+    }
+  }, []);
+
   // Register service worker
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -88,6 +106,7 @@ function RootComponent() {
         <Outlet />
       </div>
       <Toaster position="top-right" />
+      <InstallPrompt />
     </AuthProvider>
   );
 }
