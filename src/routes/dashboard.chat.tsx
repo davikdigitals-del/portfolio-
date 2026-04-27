@@ -1682,44 +1682,52 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const statusLabel = useLastSeenLabel(lastSeen, isOnline);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <header className="h-14 md:h-16 border-b border-border px-2 md:px-5 flex items-center gap-1.5 md:gap-3 bg-surface/40 shrink-0">
-        {/* Back button — mobile only */}
+    <div className="flex flex-col h-full overflow-hidden bg-background">
+      {/* Professional Header with better spacing */}
+      <header className="h-16 md:h-18 border-b border-border/50 px-4 md:px-6 flex items-center gap-3 md:gap-4 bg-surface/30 backdrop-blur-sm shrink-0 shadow-sm">
+        {/* Back button — mobile only, larger touch target */}
         <button
           onClick={onBack}
-          className="md:hidden flex items-center justify-center h-8 w-8 rounded-full hover:bg-accent transition-colors shrink-0 text-foreground"
+          className="md:hidden flex items-center justify-center h-10 w-10 rounded-xl hover:bg-accent/50 active:bg-accent transition-all duration-200 shrink-0 text-foreground active:scale-95"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
-        <div className="relative">
+        
+        {/* Avatar with online indicator */}
+        <div className="relative shrink-0">
           {!isAdmin && adminProfile?.avatar_url ? (
-            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-8 w-8 md:h-9 md:w-9 rounded-full object-cover ring-2 ring-border" />
+            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-11 w-11 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-border/50 shadow-sm" />
           ) : isAdmin && conversation.profile?.avatar_url ? (
-            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-8 w-8 md:h-9 md:w-9 rounded-full object-cover ring-2 ring-border" />
+            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-11 w-11 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-border/50 shadow-sm" />
           ) : (
-            <div className="flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs md:text-sm font-semibold">{counterpartInitial}</div>
+            <div className="flex h-11 w-11 md:h-12 md:w-12 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-base md:text-lg font-bold shadow-sm">{counterpartInitial}</div>
           )}
-          <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 md:h-3 md:w-3 rounded-full border-2 border-surface ${isOnline ? "bg-green-500" : "bg-gray-400"}`} />
+          <span className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-[3px] border-surface shadow-sm ${isOnline ? "bg-green-500" : "bg-gray-400"}`} />
         </div>
+        
+        {/* Name and status */}
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-xs md:text-sm truncate">{counterpartName}</div>
-          <div className={`text-[10px] md:text-xs font-medium ${isOnline ? "text-green-500" : "text-muted-foreground"}`}>
+          <div className="font-semibold text-sm md:text-base truncate text-foreground">{counterpartName}</div>
+          <div className={`text-xs md:text-sm font-medium flex items-center gap-1.5 ${isOnline ? "text-green-500" : "text-muted-foreground"}`}>
+            {isOnline && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />}
             {statusLabel}
           </div>
         </div>
+        
+        {/* Email (desktop only) */}
         {isAdmin && conversation.profile?.email && (
-          <div className="hidden lg:block text-xs text-muted-foreground mr-2">{conversation.profile.email}</div>
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 text-xs text-muted-foreground font-medium">
+            {conversation.profile.email}
+          </div>
         )}
-        {/* JOIN button — shown when there's an active call on this conversation */}
+        
+        {/* JOIN button — active call indicator */}
         {activeCallOnConv && activeCallOnConv.initiator_id !== user?.id && (
           <button
             onClick={async () => {
-              // Fetch the full call record and answer it
               const { data: call } = await supabase
                 .from("calls").select("*").eq("id", activeCallOnConv.id).single();
               if (!call) { toast.error("Call not found"); return; }
-              // For JOIN, we treat it like answering — use the global answerCall
               const answerFn = (window as any).__answerCall;
               if (answerFn) {
                 void answerFn(call);
@@ -1727,77 +1735,81 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                 toast.error("Please go to the dashboard to join the call");
               }
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500 text-white text-xs font-bold animate-pulse shrink-0 active:scale-95 transition-transform"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-bold shadow-lg shadow-green-500/30 animate-pulse shrink-0 active:scale-95 transition-all duration-200"
           >
-            {activeCallOnConv.call_type === "video" ? <Video className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
-            JOIN
+            {activeCallOnConv.call_type === "video" ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+            <span className="hidden sm:inline">JOIN CALL</span>
+            <span className="sm:hidden">JOIN</span>
           </button>
         )}
-        {/* Call buttons - compact on mobile */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            console.log("[Call Button] Voice call clicked");
-            initiateCall("voice");
-          }}
-          title="Start voice call"
-          className="p-1.5 md:p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
-        >
-          <Phone className="h-4 w-4" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            console.log("[Call Button] Video call clicked");
-            initiateCall("video");
-          }}
-          title="Start video call"
-          className="p-1.5 md:p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
-        >
-          <Video className="h-4 w-4" />
-        </button>
-        {/* Hide schedule button on small mobile */}
-        <button
-          onClick={() => setShowSchedule(true)}
-          title="Schedule a call"
-          className="hidden sm:flex p-1.5 md:p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
-        >
-          <Calendar className="h-4 w-4" />
-        </button>
-        {/* Hide AI Summary on mobile */}
-        {isAdmin && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setShowSummary((v) => !v); if (!summary) void generateSummary(); }}
-            className="hidden md:flex gap-1.5 text-xs h-8 shrink-0"
+        
+        {/* Action buttons - professional styling */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log("[Call Button] Voice call clicked");
+              initiateCall("voice");
+            }}
+            title="Start voice call"
+            className="p-2.5 md:p-3 text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all duration-200 shrink-0 active:scale-95"
           >
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="hidden lg:inline">AI Summary</span>
-          </Button>
-        )}
+            <Phone className="h-4.5 w-4.5 md:h-5 md:w-5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log("[Call Button] Video call clicked");
+              initiateCall("video");
+            }}
+            title="Start video call"
+            className="p-2.5 md:p-3 text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all duration-200 shrink-0 active:scale-95"
+          >
+            <Video className="h-4.5 w-4.5 md:h-5 md:w-5" />
+          </button>
+          <button
+            onClick={() => setShowSchedule(true)}
+            title="Schedule a call"
+            className="hidden sm:flex p-2.5 md:p-3 text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all duration-200 shrink-0 active:scale-95"
+          >
+            <Calendar className="h-4.5 w-4.5 md:h-5 md:w-5" />
+          </button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowSummary((v) => !v); if (!summary) void generateSummary(); }}
+              className="hidden md:flex gap-2 text-xs h-9 px-3 rounded-xl border-border/50 hover:bg-accent/50 transition-all duration-200"
+            >
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="hidden lg:inline font-medium">AI Summary</span>
+            </Button>
+          )}
+        </div>
       </header>
 
-      {/* AI Summary panel */}
+      {/* AI Summary panel - professional styling */}
       {isAdmin && showSummary && (
-        <div className="border-b border-border bg-primary/5 px-5 py-3 shrink-0">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-2 flex-1 min-w-0">
-              <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+        <div className="border-b border-border/50 bg-gradient-to-r from-primary/5 to-primary/10 px-6 py-4 shrink-0 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                <Sparkles className="h-4 w-4 text-primary" />
+              </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-primary mb-1">Thread Summary</div>
+                <div className="text-sm font-semibold text-primary mb-2">Conversation Summary</div>
                 {summaryLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Generating summary...
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Analyzing conversation...
                   </div>
                 ) : (
-                  <p className="text-xs text-foreground/80 leading-relaxed">{summary ?? "No summary yet."}</p>
+                  <p className="text-sm text-foreground/80 leading-relaxed">{summary ?? "No summary available yet."}</p>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button variant="ghost" size="sm" onClick={() => void generateSummary()} className="h-7 text-xs px-2" disabled={summaryLoading}>
-                Regenerate
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="ghost" size="sm" onClick={() => void generateSummary()} className="h-8 text-xs px-3 rounded-lg hover:bg-primary/10" disabled={summaryLoading}>
+                Refresh
               </Button>
               <button onClick={() => setShowSummary(false)} className="text-muted-foreground hover:text-foreground p-1">
                 <X className="h-3.5 w-3.5" />
