@@ -21,7 +21,7 @@ import {
   stopUnreadReminder,
   startBackgroundRefresh,
 } from "@/lib/notifications";
-import { callManager, type Call, type CallType } from "@/lib/calls";
+import { callManager, type Call, type CallType, testMediaAccess } from "@/lib/calls";
 
 export const Route = createFileRoute("/dashboard/chat")({
   head: () => ({ meta: [{ title: "Chat - Pulse" }] }),
@@ -1130,22 +1130,36 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       }
       animate();
       
-      // Pick the best supported format
+      // Pick the best supported format - prioritize MP4 for mobile compatibility
       const mimeType = [
+        "audio/mp4",                    // Best mobile support (AAC codec)
+        "audio/webm;codecs=opus",       // Good desktop support
+        "audio/webm",                   // Fallback webm
+        "audio/ogg;codecs=opus",        // Fallback ogg
+      ].find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+      
+      console.log("[VoiceNote] Selected MIME type:", mimeType || "default");
+      console.log("[VoiceNote] Supported formats:", [
+        "audio/mp4",
         "audio/webm;codecs=opus",
         "audio/webm",
         "audio/ogg;codecs=opus",
-        "audio/mp4",
-      ].find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+      ].map(m => `${m}: ${MediaRecorder.isTypeSupported(m)}`));
       
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       audioChunksRef.current = [];
-      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.ondataavailable = (e) => { 
+        if (e.data.size > 0) {
+          console.log("[VoiceNote] Data chunk:", e.data.size, "bytes, type:", e.data.type);
+          audioChunksRef.current.push(e.data); 
+        }
+      };
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         audioCtx.close();
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
         setWaveformBars(Array(24).fill(10));
+        console.log("[VoiceNote] Recording stopped, total chunks:", audioChunksRef.current.length);
         void sendVoiceNote(mimeType);
       };
       mr.start(100); // collect data every 100ms for reliability
@@ -1170,10 +1184,24 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     setUploading(true);
     
     try {
-      // Determine file extension from mime type
-      const ext = mimeType?.includes("ogg") ? "ogg" : mimeType?.includes("mp4") ? "mp4" : "webm";
-      const finalMime = mimeType || "audio/webm";
+      // Determine file extension and final MIME type from recorded format
+      let ext = "webm";
+      let finalMime = mimeType || "audio/webm";
+      
+      if (mimeType?.includes("mp4") || mimeType?.includes("m4a")) {
+        ext = "m4a";
+        finalMime = "audio/mp4";
+      } else if (mimeType?.includes("ogg")) {
+        ext = "ogg";
+        finalMime = "audio/ogg";
+      } else if (mimeType?.includes("webm")) {
+        ext = "webm";
+        finalMime = "audio/webm";
+      }
+      
+      console.log("[VoiceNote] Creating blob with MIME:", finalMime, "Extension:", ext);
       const blob = new Blob(audioChunksRef.current, { type: finalMime });
+      console.log("[VoiceNote] Blob size:", blob.size, "bytes, type:", blob.type);
       
       if (blob.size < 100) {
         toast.error("Recording too short, please try again");
@@ -1184,6 +1212,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       const fileName = `voice-${crypto.randomUUID()}.${ext}`;
       const path = `${conversation.id}/${fileName}`;
       
+      console.log("[VoiceNote] Uploading to:", path);
       const { error: upErr } = await supabase.storage
         .from("chat-files")
         .upload(path, blob, { contentType: finalMime, upsert: false });
@@ -1198,6 +1227,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       // Public URL — no expiry
       const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
       const fileUrl = urlData.publicUrl;
+      console.log("[VoiceNote] Public URL:", fileUrl);
 
       const { error: msgErr } = await supabase.from("messages").insert({
         conversation_id: conversation.id,
@@ -1216,6 +1246,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         return;
       }
 
+      console.log("[VoiceNote] ✅ Voice note sent successfully");
       toast.success("Voice note sent!");
       setUploading(false);
     } catch (err) {
@@ -1485,9 +1516,39 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     } catch (err: any) {
       toast.dismiss("call-toast");
       console.error("[Call] Failed to initiate:", err);
-      toast.error(err?.message ?? "Failed to start call. Please check camera/microphone permissions.");
+      console.error("[Call] Error details:", {
+        name: err?.name,
+        message: err?.message,
+        stack: err?.stack
+      });
+      
+      // Show the actual error message from CallManager
+      const errorMsg = err?.message || "Failed to start call. Please check camera/microphone permissions.";
+      toast.error(errorMsg, { duration: 5000 });
     }
   }
+
+  // Diagnostic test function for troubleshooting
+  async function testMedia() {
+    toast.loading("Testing camera and microphone...", { id: "media-test" });
+    const result = await testMediaAccess("video");
+    toast.dismiss("media-test");
+    
+    if (result.success) {
+      toast.success(result.message, { duration: 5000 });
+      console.log("[MediaTest] Success details:", result.details);
+    } else {
+      toast.error(result.message, { duration: 8000 });
+      console.error("[MediaTest] Error details:", result.details);
+    }
+  }
+
+  // Expose test function globally for debugging
+  useEffect(() => {
+    (window as any).__testMedia = testMedia;
+    return () => { delete (window as any).__testMedia; };
+  }, []);
+
 
   async function answerCall(call: Call) {
     if (!user) return;
@@ -1647,7 +1708,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             JOIN
           </button>
         )}
-        {/* Call buttons */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -1886,7 +1946,15 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                     onTouchCancel={cancelLongPress}
                     className="select-none cursor-context-menu"
                   >
-                    <MessageBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} onDelete={deleteMessage} messages={messages} />
+                    <MessageBubble 
+                      message={m} 
+                      mine={mine} 
+                      playingId={playingId} 
+                      setPlayingId={setPlayingId} 
+                      onDelete={deleteMessage} 
+                      messages={messages}
+                      senderProfile={mine ? null : (isAdmin ? conversation.profile : adminProfile)}
+                    />
                   </div>
                 )}
                 <div className={`flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ${mine ? "justify-end mr-2" : "ml-2"}`}>
@@ -2140,11 +2208,12 @@ function QuotedMessage({ message, messages }: { message: Message; messages: Mess
   );
 }
 
-function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
+function VoiceBubble({ message: m, mine, playingId, setPlayingId, senderProfile }: {
   message: Message;
   mine: boolean;
   playingId: string | null;
   setPlayingId: (id: string | null) => void;
+  senderProfile?: { display_name: string | null; avatar_url: string | null } | null;
 }) {
   const isPlaying = playingId === m.id;
   const [progress, setProgress] = useState(0);
@@ -2155,8 +2224,13 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (!m.file_url) return;
+    if (!m.file_url) {
+      console.error("[VoiceBubble] No file_url for message:", m.id);
+      setError("No audio file");
+      return;
+    }
     
+    console.log("[VoiceBubble] Loading audio:", m.file_url);
     setLoading(true);
     setError(null);
     
@@ -2169,8 +2243,14 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
     audio.src = m.file_url;
     
     const handleLoadedMetadata = () => {
+      console.log("[VoiceBubble] Metadata loaded, duration:", audio.duration);
       if (isFinite(audio.duration)) {
         setDuration(audio.duration);
+        setLoading(false);
+      } else {
+        console.warn("[VoiceBubble] Duration is not finite:", audio.duration);
+        // For some audio formats, duration might not be available until playing
+        setDuration(0);
         setLoading(false);
       }
     };
@@ -2179,18 +2259,46 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
       setCurrentTime(audio.currentTime);
       if (audio.duration && isFinite(audio.duration)) {
         setProgress((audio.currentTime / audio.duration) * 100);
+        // Update duration if it wasn't available before
+        if (duration === 0 && audio.duration > 0) {
+          setDuration(audio.duration);
+        }
       }
     };
     
     const handleEnded = () => {
+      console.log("[VoiceBubble] Playback ended");
       setProgress(0);
       setCurrentTime(0);
       setPlayingId(null);
     };
     
     const handleError = (e: Event) => {
-      console.error("Audio playback error:", e, audio.error);
-      const errorMsg = audio.error?.message || "Could not play voice note";
+      console.error("[VoiceBubble] Audio error:", e, audio.error);
+      console.error("[VoiceBubble] Error code:", audio.error?.code);
+      console.error("[VoiceBubble] Error message:", audio.error?.message);
+      console.error("[VoiceBubble] Audio src:", audio.src);
+      console.error("[VoiceBubble] Network state:", audio.networkState);
+      console.error("[VoiceBubble] Ready state:", audio.readyState);
+      
+      let errorMsg = "Could not play voice note";
+      if (audio.error) {
+        switch (audio.error.code) {
+          case MediaError.MEDIA_ERR_ABORTED:
+            errorMsg = "Playback aborted";
+            break;
+          case MediaError.MEDIA_ERR_NETWORK:
+            errorMsg = "Network error loading audio";
+            break;
+          case MediaError.MEDIA_ERR_DECODE:
+            errorMsg = "Audio format not supported";
+            break;
+          case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            errorMsg = "Audio file not found or format not supported";
+            break;
+        }
+      }
+      
       setError(errorMsg);
       setLoading(false);
       toast.error(errorMsg);
@@ -2198,7 +2306,12 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
     };
     
     const handleCanPlay = () => {
+      console.log("[VoiceBubble] Can play, duration:", audio.duration);
       setLoading(false);
+      // Update duration if it wasn't available before
+      if (audio.duration && isFinite(audio.duration) && duration === 0) {
+        setDuration(audio.duration);
+      }
     };
 
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -2206,6 +2319,8 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("error", handleError);
     audio.addEventListener("canplay", handleCanPlay);
+    audio.addEventListener("loadeddata", () => console.log("[VoiceBubble] Data loaded"));
+    audio.addEventListener("canplaythrough", () => console.log("[VoiceBubble] Can play through"));
     
     // Attempt to load
     audio.load();
@@ -2234,21 +2349,27 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
   // Auto-play when selected
   useEffect(() => {
     if (isPlaying && audioRef.current && !loading) {
+      console.log("[VoiceBubble] Starting playback");
       audioRef.current.play().catch((err) => {
-        console.error("Play error:", err);
+        console.error("[VoiceBubble] Play error:", err);
         setError("Could not play voice note");
-        toast.error("Could not play voice note");
+        toast.error("Could not play voice note: " + err.message);
         setPlayingId(null);
       });
     }
   }, [isPlaying, loading, setPlayingId]);
 
   function handleToggle() {
-    if (!audioRef.current || loading) return;
+    if (!audioRef.current || loading) {
+      console.log("[VoiceBubble] Cannot toggle - loading or no audio ref");
+      return;
+    }
     if (isPlaying) {
+      console.log("[VoiceBubble] Pausing");
       audioRef.current.pause();
       setPlayingId(null);
     } else {
+      console.log("[VoiceBubble] Playing");
       setPlayingId(m.id);
     }
   }
@@ -2258,6 +2379,7 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
     const newTime = pct * duration;
+    console.log("[VoiceBubble] Seeking to:", newTime);
     audioRef.current.currentTime = newTime;
     setProgress(pct * 100);
     setCurrentTime(newTime);
@@ -2270,43 +2392,76 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId }: {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   }
 
-  const bars = Array.from({ length: 30 }, (_, i) => ({
-    h: 20 + Math.abs(Math.sin(i * 0.9 + 1) * 60 + Math.cos(i * 0.4) * 20),
-    filled: (i / 30) * 100 <= progress,
+  const bars = Array.from({ length: 40 }, (_, i) => ({
+    h: 15 + Math.abs(Math.sin(i * 0.5 + progress * 0.1) * 70 + Math.cos(i * 0.3) * 15),
+    filled: (i / 40) * 100 <= progress,
   }));
 
+  // Get sender initial for avatar
+  const senderName = senderProfile?.display_name || "User";
+  const senderInitial = senderName[0].toUpperCase();
+
   return (
-    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl min-w-[220px] max-w-[280px] ${
-      mine ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow" : "bg-surface-elevated text-foreground rounded-bl-sm"
-    }`}>
-      <button
-        onClick={handleToggle}
-        disabled={loading || error !== null}
-        className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-all active:scale-95 disabled:opacity-50 ${
-          mine ? "bg-white/25 hover:bg-white/35" : "bg-primary hover:bg-primary/90"
-        }`}
-        title={error ? error : isPlaying ? "Pause" : "Play"}
-      >
-        {loading
-          ? <Loader2 className={`h-4 w-4 animate-spin ${mine ? "text-white" : "text-primary-foreground"}`} />
-          : isPlaying
-          ? <Pause className={`h-4 w-4 ${mine ? "text-white" : "text-primary-foreground"}`} />
-          : <Play className={`h-4 w-4 ml-0.5 ${mine ? "text-white" : "text-primary-foreground"}`} />
-        }
-      </button>
-      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-        <div className="flex items-end gap-[2px] h-8 cursor-pointer" onClick={handleSeek}>
-          {bars.map((b, i) => (
-            <div key={i} className={`flex-1 rounded-full transition-colors ${
-              b.filled ? (mine ? "bg-white" : "bg-primary") : (mine ? "bg-white/35" : "bg-muted-foreground/30")
-            }`} style={{ height: `${b.h}%` }} />
-          ))}
+    <div className={`flex items-start gap-2 max-w-[380px] ${mine ? "flex-row-reverse" : "flex-row"}`}>
+      {/* Avatar - only show for received messages */}
+      {!mine && (
+        <div className="shrink-0 mt-1">
+          {senderProfile?.avatar_url ? (
+            <img 
+              src={senderProfile.avatar_url} 
+              alt={senderName}
+              className="h-8 w-8 rounded-full object-cover ring-2 ring-border"
+            />
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold ring-2 ring-border">
+              {senderInitial}
+            </div>
+          )}
         </div>
-        <div className={`flex items-center justify-between text-[10px] ${mine ? "text-white/70" : "text-muted-foreground"}`}>
-          <span>{isPlaying || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration)}</span>
-          <span className={`flex items-center gap-1 ${mine ? "text-white/50" : "text-muted-foreground/60"}`}>
-            <Mic className="h-2.5 w-2.5" /> Voice note
-          </span>
+      )}
+      
+      {/* Voice message bubble */}
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-2xl min-w-[260px] max-w-[320px] ${
+        mine ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow" : "bg-surface-elevated text-foreground rounded-bl-sm"
+      }`}>
+        {/* Play/Pause button */}
+        <button
+          onClick={handleToggle}
+          disabled={loading || error !== null}
+          className={`flex h-9 w-9 items-center justify-center rounded-full shrink-0 transition-all active:scale-95 disabled:opacity-50 ${
+            mine ? "bg-white/25 hover:bg-white/35" : "bg-primary hover:bg-primary/90"
+          }`}
+          title={error ? error : isPlaying ? "Pause" : "Play"}
+        >
+          {loading
+            ? <Loader2 className={`h-4 w-4 animate-spin ${mine ? "text-white" : "text-primary-foreground"}`} />
+            : isPlaying
+            ? <Pause className={`h-4 w-4 ${mine ? "text-white" : "text-primary-foreground"}`} />
+            : <Play className={`h-4 w-4 ml-0.5 ${mine ? "text-white" : "text-primary-foreground"}`} />
+          }
+        </button>
+        
+        {/* Waveform and duration */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          {/* Waveform */}
+          <div className="flex items-center gap-[1px] h-7 cursor-pointer" onClick={handleSeek}>
+            {bars.map((b, i) => (
+              <div 
+                key={i} 
+                className={`flex-1 rounded-full transition-all duration-150 ${
+                  b.filled 
+                    ? (mine ? "bg-white" : "bg-primary") 
+                    : (mine ? "bg-white/30" : (error ? "bg-red-500/30" : "bg-muted-foreground/25"))
+                }`} 
+                style={{ height: `${b.h}%`, minWidth: '2px' }} 
+              />
+            ))}
+          </div>
+          
+          {/* Duration */}
+          <div className={`text-[11px] font-medium ${mine ? "text-white/80" : "text-muted-foreground"}`}>
+            {error ? "⚠️ Error" : (isPlaying || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration))}
+          </div>
         </div>
       </div>
     </div>
@@ -2495,13 +2650,14 @@ function formatDur(s: number): string {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, messages }: {
+function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, messages, senderProfile }: {
   message: Message;
   mine: boolean;
   playingId: string | null;
   setPlayingId: (id: string | null) => void;
   onDelete: (id: string) => void;
   messages: Message[];
+  senderProfile?: { display_name: string | null; avatar_url: string | null } | null;
 }) {
   const base = mine
     ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
@@ -2646,7 +2802,7 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
 
   // ── Voice ───────────────────────────────────────────────────────────────────
   if (m.type === "voice" && m.file_url) {
-    return <VoiceBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} />;
+    return <VoiceBubble message={m} mine={mine} playingId={playingId} setPlayingId={setPlayingId} senderProfile={senderProfile} />;
   }
 
   // ── Image ───────────────────────────────────────────────────────────────────

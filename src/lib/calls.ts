@@ -189,9 +189,54 @@ export class CallManager {
   private async acquireMedia(callType: CallType) {
     // Detect if mobile device
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    console.log("[CM] Device type:", isMobile ? "Mobile" : "Desktop", "Call type:", callType);
+    console.log("[CM] User agent:", navigator.userAgent);
+    console.log("[CM] Protocol:", window.location.protocol);
     
+    // Check if getUserMedia is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Your browser doesn't support video/audio calls. Please use a modern browser.");
+    }
+    
+    // Start with very basic constraints for mobile
+    if (isMobile) {
+      // Try simplest possible constraints first
+      try {
+        console.log("[CM] Trying absolute minimum mobile settings (no constraints)...");
+        const constraints = callType === "video" 
+          ? { audio: true, video: true } 
+          : { audio: true, video: false };
+        console.log("[CM] Constraints:", JSON.stringify(constraints));
+        
+        this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log("[CM] ✅ Mobile media acquired successfully!");
+        console.log("[CM] Tracks:", this.localStream.getTracks().map(t => `${t.kind} - enabled:${t.enabled} - readyState:${t.readyState}`));
+        return;
+      } catch (minErr: any) {
+        console.error("[CM] ❌ Minimum mobile failed:", minErr);
+        console.error("[CM] Error name:", minErr.name);
+        console.error("[CM] Error message:", minErr.message);
+        
+        // Provide specific error messages based on error type
+        if (minErr.name === "NotAllowedError" || minErr.name === "PermissionDeniedError") {
+          throw new Error("Camera/microphone permission denied. Please allow access in your browser settings.");
+        } else if (minErr.name === "NotFoundError" || minErr.name === "DevicesNotFoundError") {
+          throw new Error("No camera or microphone found on your device.");
+        } else if (minErr.name === "NotReadableError" || minErr.name === "TrackStartError") {
+          throw new Error("Camera/microphone is already in use by another app. Please close other apps and try again.");
+        } else if (minErr.name === "OverconstrainedError") {
+          throw new Error("Your device doesn't support the required video/audio settings.");
+        } else if (minErr.name === "SecurityError") {
+          throw new Error("Camera/microphone access blocked. Please use HTTPS or check your browser settings.");
+        } else {
+          throw new Error(`Failed to access camera/microphone: ${minErr.message}`);
+        }
+      }
+    }
+    
+    // Desktop - try high quality
     try {
-      // Try high quality first (desktop/high-end mobile)
+      console.log("[CM] Trying desktop high quality...");
       this.localStream = await navigator.mediaDevices.getUserMedia(
         callType === "video"
           ? { 
@@ -199,12 +244,12 @@ export class CallManager {
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
-                sampleRate: isMobile ? 44100 : 48000
+                sampleRate: 48000
               }, 
               video: { 
-                width: { ideal: isMobile ? 1280 : 3840, max: isMobile ? 1920 : 3840 }, 
-                height: { ideal: isMobile ? 720 : 2160, max: isMobile ? 1080 : 2160 }, 
-                frameRate: { ideal: 30, max: isMobile ? 30 : 60 },
+                width: { ideal: 3840, max: 3840 }, 
+                height: { ideal: 2160, max: 2160 }, 
+                frameRate: { ideal: 60, max: 60 },
                 facingMode: "user"
               } 
             }
@@ -213,44 +258,33 @@ export class CallManager {
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
-                sampleRate: isMobile ? 44100 : 48000
+                sampleRate: 48000
               }, 
               video: false 
             }
       );
-      console.log("[CM] Media acquired:", this.localStream.getTracks().map(t => `${t.kind} - ${t.label}`));
+      console.log("[CM] Desktop high quality acquired");
     } catch (err) {
-      console.error("[CM] High quality failed, trying mobile-friendly fallback:", err);
-      // Fallback to mobile-friendly quality
+      console.error("[CM] Desktop high quality failed, trying 1080p:", err);
+      // Fallback to 1080p
       try {
         this.localStream = await navigator.mediaDevices.getUserMedia(
           callType === "video"
             ? { 
-                audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  autoGainControl: true
-                }, 
+                audio: true,
                 video: { 
-                  width: { ideal: 640, max: 1280 }, 
-                  height: { ideal: 480, max: 720 }, 
-                  frameRate: { ideal: 24, max: 30 },
+                  width: { ideal: 1920 }, 
+                  height: { ideal: 1080 }, 
+                  frameRate: { ideal: 30 },
                   facingMode: "user" 
                 } 
               }
-            : { 
-                audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  autoGainControl: true
-                }, 
-                video: false 
-              }
+            : { audio: true, video: false }
         );
-        console.log("[CM] Mobile fallback media acquired:", this.localStream.getTracks().map(t => `${t.kind} - ${t.label}`));
+        console.log("[CM] Desktop 1080p acquired");
       } catch (fallbackErr) {
-        console.error("[CM] Media error:", fallbackErr);
-        throw new Error("Could not access camera/microphone. Please allow permissions.");
+        console.error("[CM] Desktop fallback failed:", fallbackErr);
+        throw new Error(`Could not access camera/microphone. Error: ${fallbackErr.message}`);
       }
     }
   }
@@ -448,3 +482,82 @@ export class CallManager {
 }
 
 export const callManager = new CallManager();
+
+// Diagnostic function to test camera/microphone access
+export async function testMediaAccess(callType: CallType = "video"): Promise<{ success: boolean; message: string; details?: any }> {
+  console.log("[MediaTest] Testing media access for:", callType);
+  console.log("[MediaTest] User agent:", navigator.userAgent);
+  console.log("[MediaTest] Protocol:", window.location.protocol);
+  
+  // Check if getUserMedia is available
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return {
+      success: false,
+      message: "Your browser doesn't support video/audio calls. Please use a modern browser like Chrome, Firefox, or Safari.",
+      details: { error: "getUserMedia not available" }
+    };
+  }
+  
+  try {
+    // Try simplest possible constraints
+    const constraints = callType === "video" 
+      ? { audio: true, video: true } 
+      : { audio: true, video: false };
+    
+    console.log("[MediaTest] Requesting permissions with constraints:", constraints);
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    const tracks = stream.getTracks();
+    console.log("[MediaTest] ✅ Success! Tracks:", tracks.map(t => ({
+      kind: t.kind,
+      enabled: t.enabled,
+      readyState: t.readyState,
+      label: t.label
+    })));
+    
+    // Clean up
+    tracks.forEach(t => t.stop());
+    
+    return {
+      success: true,
+      message: `✅ Camera and microphone access working! Found ${tracks.length} track(s).`,
+      details: {
+        tracks: tracks.map(t => ({
+          kind: t.kind,
+          label: t.label,
+          enabled: t.enabled,
+          readyState: t.readyState
+        }))
+      }
+    };
+  } catch (err: any) {
+    console.error("[MediaTest] ❌ Failed:", err);
+    
+    let message = "Failed to access camera/microphone. ";
+    
+    if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+      message += "Permission denied. Please allow access in your browser settings.";
+    } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+      message += "No camera or microphone found on your device.";
+    } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+      message += "Camera/microphone is already in use by another app.";
+    } else if (err.name === "OverconstrainedError") {
+      message += "Your device doesn't support the required settings.";
+    } else if (err.name === "SecurityError") {
+      message += "Access blocked. Please use HTTPS or check browser settings.";
+    } else {
+      message += err.message;
+    }
+    
+    return {
+      success: false,
+      message,
+      details: {
+        errorName: err.name,
+        errorMessage: err.message,
+        protocol: window.location.protocol,
+        userAgent: navigator.userAgent
+      }
+    };
+  }
+}

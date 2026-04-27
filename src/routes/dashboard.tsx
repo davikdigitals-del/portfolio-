@@ -569,9 +569,17 @@ function DashboardLayout() {
 
     } catch (err: any) {
       console.error("[Dashboard] Answer failed:", err);
+      console.error("[Dashboard] Error details:", {
+        name: err?.name,
+        message: err?.message,
+        stack: err?.stack
+      });
       setActiveCall(null); setActiveProfile(null);
       if (callTimerRef.current) clearInterval(callTimerRef.current);
-      alert(err?.message ?? "Failed to answer call");
+      
+      // Show the actual error message
+      const errorMsg = err?.message || "Failed to answer call. Please check camera/microphone permissions.";
+      alert(errorMsg);
     }
   }, [user, incomingProfile, stopRingtone]);
 
