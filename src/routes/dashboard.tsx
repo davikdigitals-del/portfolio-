@@ -282,13 +282,17 @@ function DashboardLayout() {
 
       // Set callbacks BEFORE answerCall so ontrack fires correctly
       callManager.onRemoteStreamCb = (stream) => {
-        console.log("[Dashboard] Remote stream received, tracks:", stream.getTracks().map(t => t.kind));
-        if (call.call_type === "video" && remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          remoteVideoRef.current.play().catch(() => {});
-        } else if (remoteAudioRef.current) {
+        console.log("[Dashboard] Remote stream, tracks:", stream.getTracks().map(t => t.kind));
+        // Attach to audio element (always mounted)
+        if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = stream;
           remoteAudioRef.current.play().catch(() => {});
+        }
+        // Attach to video element (always mounted, shown when call is fullscreen)
+        if (call.call_type === "video" && remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+          remoteVideoRef.current.style.display = "block";
+          remoteVideoRef.current.play().catch(() => {});
         }
       };
 
@@ -381,6 +385,24 @@ function DashboardLayout() {
   // ── Expose answer function globally so chat component can trigger it ───────
   useEffect(() => {
     (window as any).__answerCall = answerCall;
+    (window as any).__setIncomingCall = async (call: Call) => {
+      const { data: profile } = await supabase
+        .from("profiles").select("display_name, avatar_url")
+        .eq("user_id", call.initiator_id).maybeSingle();
+      setIncomingCall(call);
+      setIncomingProfile(profile ?? null);
+      startRingtone();
+      if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 500]);
+      missedTimerRef.current = setTimeout(async () => {
+        await supabase.from("calls").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", call.id).eq("status", "ringing");
+        await supabase.from("messages").insert({
+          conversation_id: call.conversation_id, sender_id: call.initiator_id,
+          content: call.call_type === "video" ? "📵 Missed video call" : "📵 Missed voice call",
+          type: "call", call_data: { call_type: call.call_type, status: "missed", duration_seconds: 0 },
+        }).catch(() => {});
+        setIncomingCall(null); setIncomingProfile(null); stopRingtone();
+      }, 30_000);
+    };
     (window as any).__setActiveCall = (call: Call, profile: any) => {
       setActiveCall(call);
       setActiveProfile(profile);
@@ -388,42 +410,33 @@ function DashboardLayout() {
       setIsMuted(false);
       setIsVideoOff(false);
       callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
-
-      // Set callbacks so remote stream and end events work
       callManager.onRemoteStreamCb = (stream) => {
-        console.log("[Dashboard] Initiator remote stream received, tracks:", stream.getTracks().map(t => t.kind));
-        if (call.call_type === "video" && remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          remoteVideoRef.current.play().catch(() => {});
-        } else if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-          remoteAudioRef.current.play().catch(() => {});
-        }
+        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.play().catch(() => {}); }
+        if (call.call_type === "video" && remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; remoteVideoRef.current.style.display = "block"; remoteVideoRef.current.play().catch(() => {}); }
       };
       callManager.onCallEndCb = () => {
-        setActiveCall(null);
-        setActiveProfile(null);
+        setActiveCall(null); setActiveProfile(null);
         if (callTimerRef.current) clearInterval(callTimerRef.current);
-        setCallDuration(0);
-        setCallMinimized(false);
+        setCallDuration(0); setCallMinimized(false);
+        if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
       };
-
-      // Attach local video for initiator
       setTimeout(() => {
         if (call.call_type === "video" && localVideoRef.current) {
           const ls = callManager.getLocalStream();
-          if (ls) {
-            localVideoRef.current.srcObject = ls;
-            localVideoRef.current.play().catch(() => {});
-          }
+          if (ls) { localVideoRef.current.srcObject = ls; localVideoRef.current.play().catch(() => {}); }
         }
       }, 500);
     };
+    // Handle pending call from root listener (user was on non-dashboard page)
+    const pending = (window as any).__pendingCall;
+    if (pending) { void answerCall(pending); delete (window as any).__pendingCall; }
+
     return () => {
       delete (window as any).__answerCall;
+      delete (window as any).__setIncomingCall;
       delete (window as any).__setActiveCall;
     };
-  }, [answerCall]);
+  }, [answerCall, startRingtone, stopRingtone]);
 
   useEffect(() => { setMobileOpen(false); }, [routerState.location.pathname]);
 
@@ -589,6 +602,10 @@ function DashboardLayout() {
         <Outlet />
       </main>
 
+      {/* Always-mounted media elements — must exist even when call is minimized */}
+      <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
+      <video ref={remoteVideoRef} autoPlay playsInline style={{ display: "none", position: "absolute", width: 0, height: 0 }} />
+
       {/* ── INCOMING CALL SCREEN ─────────────────────────────────────────── */}
       {incomingCall && !activeCall && (
         <div className="fixed inset-0 z-[9999] flex flex-col" style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
@@ -668,12 +685,9 @@ function DashboardLayout() {
       {/* ── ACTIVE CALL — FULLSCREEN (WhatsApp style) ────────────────────── */}
       {activeCall && !callMinimized && (
         <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
-          {/* Hidden audio for voice calls */}
-          <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
-
-          {/* Remote video (video call) */}
+          {/* Remote video fills screen (video call) — uses always-mounted ref */}
           {activeCall.call_type === "video" && (
-            <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+            <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" style={{ display: "block" }} />
           )}
 
           {/* Voice call background */}

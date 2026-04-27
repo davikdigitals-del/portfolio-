@@ -1355,6 +1355,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
   // ---- Call functions ----
   // Active call UI is handled globally in dashboard.tsx via window.__setActiveCall
+  // Expose initiateCall globally so missed call messages can trigger callback
+  useEffect(() => {
+    (window as any).__initiateCall = (callType: CallType) => void initiateCall(callType);
+    return () => { delete (window as any).__initiateCall; };
+  });
+
   async function initiateCall(callType: CallType) {
     if (!user) return;
 
@@ -2387,26 +2393,46 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
   if (m.type === "call") {
     const cd = m.call_data;
     const isMissed = cd?.status === "missed" || cd?.status === "declined";
-    const icon = cd?.call_type === "video"
-      ? (isMissed ? "📵" : "📹")
-      : (isMissed ? "📵" : "📞");
-    const label = m.content ?? (cd?.call_type === "video" ? "Video call" : "Voice call");
+    const isVideo = cd?.call_type === "video";
+    const icon = isVideo ? (isMissed ? "📵" : "📹") : (isMissed ? "📵" : "📞");
+    const label = m.content ?? (isVideo ? "Video call" : "Voice call");
     return (
-      <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm max-w-[220px] ${
-        mine
-          ? "bg-gradient-primary text-primary-foreground rounded-br-sm"
-          : "bg-surface-elevated text-foreground rounded-bl-sm"
-      }`}>
+      <button
+        onClick={() => {
+          // Tap missed call to call back
+          if (isMissed) {
+            const initiateCallFn = (window as any).__initiateCall;
+            if (initiateCallFn) initiateCallFn(cd?.call_type ?? "voice");
+          }
+        }}
+        className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm max-w-[220px] transition-opacity ${
+          isMissed ? "active:opacity-70 cursor-pointer" : "cursor-default"
+        } ${
+          mine
+            ? "bg-gradient-primary text-primary-foreground rounded-br-sm"
+            : "bg-surface-elevated text-foreground rounded-bl-sm"
+        }`}
+      >
         <span className="text-lg shrink-0">{icon}</span>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 text-left">
           <div className={`font-medium text-sm ${isMissed ? (mine ? "text-red-200" : "text-red-500") : ""}`}>{label}</div>
           {cd?.duration_seconds && cd.duration_seconds > 0 && (
             <div className={`text-[11px] mt-0.5 ${mine ? "text-white/60" : "text-muted-foreground"}`}>
               {Math.floor(cd.duration_seconds / 60)}:{(cd.duration_seconds % 60).toString().padStart(2, "0")}
             </div>
           )}
+          {isMissed && (
+            <div className={`text-[11px] mt-0.5 font-medium ${mine ? "text-white/80" : "text-primary"}`}>
+              Tap to call back
+            </div>
+          )}
         </div>
-      </div>
+        {isMissed && (
+          <span className={`shrink-0 ${mine ? "text-white/70" : "text-primary"}`}>
+            {isVideo ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+          </span>
+        )}
+      </button>
     );
   }
 

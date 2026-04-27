@@ -1,8 +1,11 @@
 import { Outlet, createRootRoute, HeadContent, Scripts, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
 import { Preloader } from "@/components/preloader";
+import { supabase } from "@/integrations/supabase/client";
+import { sendPushNotification } from "@/lib/notifications";
+import type { Call } from "@/lib/calls";
 
 import appCss from "../styles.css?url";
 
@@ -69,15 +72,67 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const [ready, setReady] = useState(false);
+  const { user } = useAuth();
 
-  // Register service worker for background push notifications
+  // Register service worker
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .catch(() => { /* SW not critical, fail silently */ });
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
   }, []);
+
+  // Global call listener — runs on EVERY page so calls work even outside dashboard
+  useEffect(() => {
+    if (!user) return;
+
+    // Check URL params for incoming call (from push notification tap)
+    const params = new URLSearchParams(window.location.search);
+    const callId = params.get("call");
+    const convId = params.get("conv");
+    if (callId && convId) {
+      window.history.replaceState({}, "", window.location.pathname);
+      // Delegate to dashboard's handler if it exists, otherwise store for later
+      supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(({ data: call }) => {
+        if (call && call.status === "ringing") {
+          const handler = (window as any).__answerCall;
+          if (handler) handler(call);
+          else (window as any).__pendingCall = call;
+        }
+      });
+    }
+
+    // Subscribe to incoming calls globally
+    const ch = supabase.channel(`root-calls-${user.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "calls",
+        filter: `receiver_id=eq.${user.id}`,
+      }, async (payload) => {
+        const call = payload.new as Call;
+        if (call.status !== "ringing") return;
+
+        // If dashboard handler exists, use it
+        const setIncoming = (window as any).__setIncomingCall;
+        if (setIncoming) {
+          setIncoming(call);
+          return;
+        }
+
+        // Otherwise show a push notification so user can tap to open
+        const { data: profile } = await supabase
+          .from("profiles").select("display_name").eq("user_id", call.initiator_id).maybeSingle();
+
+        void sendPushNotification(
+          call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
+          `${profile?.display_name ?? "Someone"} is calling...`,
+          { tag: `call-${call.id}`, requireInteraction: true }
+        );
+      })
+      .subscribe();
+
+    return () => { void supabase.removeChannel(ch); };
+  }, [user?.id]);
 
   return (
     <AuthProvider>
