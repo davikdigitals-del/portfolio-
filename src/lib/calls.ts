@@ -190,10 +190,29 @@ export class CallManager {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia(
         callType === "video"
-          ? { audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" } }
-          : { audio: true, video: false }
+          ? { 
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              }, 
+              video: { 
+                width: { ideal: 1920, max: 1920 }, 
+                height: { ideal: 1080, max: 1080 }, 
+                frameRate: { ideal: 30, max: 30 },
+                facingMode: "user" 
+              } 
+            }
+          : { 
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              }, 
+              video: false 
+            }
       );
-      console.log("[CM] Media:", this.localStream.getTracks().map(t => t.kind));
+      console.log("[CM] Media acquired:", this.localStream.getTracks().map(t => `${t.kind} - ${t.label}`));
     } catch (err) {
       console.error("[CM] Media error:", err);
       throw new Error("Could not access camera/microphone. Please allow permissions.");

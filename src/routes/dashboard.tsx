@@ -419,7 +419,12 @@ function DashboardLayout() {
     try {
       // Only request video — don't touch the existing audio track
       const newVideoStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: newFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { 
+          facingMode: { exact: newFacing }, 
+          width: { ideal: 1920, max: 1920 }, 
+          height: { ideal: 1080, max: 1080 },
+          frameRate: { ideal: 30, max: 30 }
+        },
       });
       const newVideoTrack = newVideoStream.getVideoTracks()[0];
       if (!newVideoTrack) return;
@@ -901,7 +906,7 @@ function DashboardLayout() {
 
           {/* Local video preview — always render video element, just hide/style it */}
           {activeCall.call_type === "video" && (
-            <div className="absolute bottom-32 right-4 w-28 h-40 rounded-2xl border-2 border-white/40 shadow-xl z-10 overflow-hidden">
+            <div className="absolute bottom-24 md:bottom-32 right-2 md:right-4 w-20 h-28 md:w-28 md:h-40 rounded-xl md:rounded-2xl border-2 border-white/40 shadow-xl z-10 overflow-hidden">
 
               {/* Always-mounted local video — hidden when camera off */}
               <video
@@ -941,57 +946,57 @@ function DashboardLayout() {
           )}
 
           {/* Controls — floating island at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 z-10 pb-10 pt-6"
+          <div className="absolute bottom-0 left-0 right-0 z-10 pb-6 md:pb-10 pt-6"
             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}
           >
-            <div className="flex items-center justify-center gap-5">
+            <div className="flex items-center justify-center gap-3 md:gap-5 px-2">
 
               {/* Mute / Unmute */}
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1">
                 <button
                   onClick={() => {
                     const next = !isMuted;
                     callManager.toggleAudio(next); // true = muted = disable tracks
                     setIsMuted(next);
                   }}
-                  className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                  className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-white/20 text-white"}`}
                 >
-                  {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                  {isMuted ? <MicOff className="h-5 w-5 md:h-6 md:w-6" /> : <Mic className="h-5 w-5 md:h-6 md:w-6" />}
                 </button>
-                <span className="text-white/60 text-[11px]">{isMuted ? "Unmute" : "Mute"}</span>
+                <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">{isMuted ? "Unmute" : "Mute"}</span>
               </div>
 
               {/* Camera off / on (video only) */}
               {activeCall.call_type === "video" && (
-                <div className="flex flex-col items-center gap-1.5">
+                <div className="flex flex-col items-center gap-1">
                   <button
                     onClick={() => {
                       const next = !isVideoOff;
                       callManager.toggleVideo(next); // true = off = disable tracks
                       setIsVideoOff(next);
                     }}
-                    className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                    className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-white/20 text-white"}`}
                   >
-                    {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+                    {isVideoOff ? <VideoOff className="h-5 w-5 md:h-6 md:w-6" /> : <Video className="h-5 w-5 md:h-6 md:w-6" />}
                   </button>
-                  <span className="text-white/60 text-[11px]">{isVideoOff ? "Camera on" : "Camera off"}</span>
+                  <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">{isVideoOff ? "Camera on" : "Camera off"}</span>
                 </div>
               )}
 
               {/* End call */}
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1">
                 <button
                   onClick={() => void endActiveCall()}
-                  className="h-16 w-16 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
+                  className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
                 >
-                  <PhoneOff className="h-7 w-7 text-white" />
+                  <PhoneOff className="h-6 w-6 md:h-7 md:w-7 text-white" />
                 </button>
-                <span className="text-white/60 text-[11px]">End</span>
+                <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">End</span>
               </div>
 
-              {/* Screen share (video only, desktop) */}
+              {/* Screen share (video only, desktop/tablet only) */}
               {activeCall.call_type === "video" && (
-                <div className="flex flex-col items-center gap-1.5">
+                <div className="hidden md:flex flex-col items-center gap-1">
                   <button
                     onClick={async () => {
                       try {
@@ -1001,7 +1006,12 @@ function DashboardLayout() {
                           console.log("[ScreenShare] Stopping screen share, switching to camera");
                           // Stop screen share — switch back to camera
                           const cameraStream = await navigator.mediaDevices.getUserMedia({ 
-                            video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } 
+                            video: { 
+                              facingMode: facingMode, 
+                              width: { ideal: 1920, max: 1920 }, 
+                              height: { ideal: 1080, max: 1080 },
+                              frameRate: { ideal: 30, max: 30 }
+                            } 
                           });
                           const cameraTrack = cameraStream.getVideoTracks()[0];
                           
@@ -1027,9 +1037,15 @@ function DashboardLayout() {
                           toast.success("Screen sharing stopped");
                         } else {
                           console.log("[ScreenShare] Starting screen share");
-                          // Start screen share
+                          // Start screen share with high quality
                           const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ 
-                            video: { cursor: "always" }, 
+                            video: { 
+                              cursor: "always",
+                              displaySurface: "monitor",
+                              width: { ideal: 1920, max: 1920 },
+                              height: { ideal: 1080, max: 1080 },
+                              frameRate: { ideal: 30, max: 30 }
+                            }, 
                             audio: false 
                           });
                           const screenTrack = screenStream.getVideoTracks()[0];
@@ -1053,9 +1069,38 @@ function DashboardLayout() {
                           }
                           
                           // Auto-stop when user ends screen share via browser UI
-                          screenTrack.onended = () => {
+                          screenTrack.onended = async () => {
                             console.log("[ScreenShare] Screen share ended by user");
                             setIsScreenSharing(false);
+                            
+                            // Switch back to camera automatically
+                            try {
+                              const cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                                video: { 
+                                  facingMode: facingMode, 
+                                  width: { ideal: 1920, max: 1920 }, 
+                                  height: { ideal: 1080, max: 1080 },
+                                  frameRate: { ideal: 30, max: 30 }
+                                } 
+                              });
+                              const cameraTrack = cameraStream.getVideoTracks()[0];
+                              
+                              const pc = callManager.getPeerConnection();
+                              if (pc && cameraTrack) {
+                                const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                                if (sender) {
+                                  await sender.replaceTrack(cameraTrack);
+                                }
+                              }
+                              
+                              if (localVideoRef.current) {
+                                localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
+                                localVideoRef.current.play().catch(() => {});
+                              }
+                            } catch (err) {
+                              console.error("[ScreenShare] Failed to switch back to camera:", err);
+                            }
+                            
                             toast.info("Screen sharing stopped");
                           };
                           
