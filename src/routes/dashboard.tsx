@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { sendPushNotification } from "@/lib/notifications";
+import { sendPushNotification, sendWebPush } from "@/lib/notifications";
 import { callManager, type Call } from "@/lib/calls";
 
 export const Route = createFileRoute("/dashboard")({
@@ -479,8 +479,27 @@ function DashboardLayout() {
         void sendPushNotification(
           call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
           `${profile?.display_name ?? "Someone"} is calling...`,
-          { tag: `call-${call.id}`, requireInteraction: true }
+          { 
+            tag: `call-${call.id}`, 
+            requireInteraction: true,
+            onClick: () => {
+              // Focus window and show incoming call
+              window.focus();
+              const setIncoming = (window as any).__setIncomingCall;
+              if (setIncoming) void setIncoming(call);
+            }
+          }
         );
+        
+        // Real Web Push — wakes phone even when browser is closed
+        if (user) {
+          void sendWebPush(
+            user.id,
+            call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
+            `${profile?.display_name ?? "Someone"} is calling...`,
+            `/dashboard/chat?conv=${call.conversation_id}&call=${call.id}`
+          );
+        }
 
         // Clear any existing missed timer before setting a new one
         if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
@@ -1446,16 +1465,44 @@ function DashboardLayout() {
                     onClick={() => {
                       const next = !isSpeaker;
                       setIsSpeaker(next);
-                      // Set audio output to speaker or earpiece
+                      console.log("[Speaker] Toggling speaker:", next ? "ON (loudspeaker)" : "OFF (earpiece)");
+                      
+                      // Set audio output and volume
                       if (remoteAudioRef.current) {
-                        const audio = remoteAudioRef.current as any;
-                        if (audio.setSinkId) {
-                          // setSinkId('') = default (earpiece on mobile), 'speaker' = loudspeaker
-                          audio.setSinkId(next ? "" : "").catch(() => {});
+                        const audio = remoteAudioRef.current;
+                        
+                        // Set volume based on speaker state
+                        audio.volume = next ? 1.0 : 0.7; // Full volume for speaker, 70% for earpiece
+                        console.log("[Speaker] Volume set to:", audio.volume);
+                        
+                        // Try to set audio output device (not supported on all browsers)
+                        if ((audio as any).setSinkId) {
+                          // 'default' = system default (usually earpiece on mobile)
+                          // '' or no call = also default
+                          // On mobile, we can't force loudspeaker via setSinkId
+                          // Volume control is the main way to differentiate
+                          (audio as any).setSinkId('default').catch((err: any) => {
+                            console.warn("[Speaker] setSinkId not supported:", err);
+                          });
+                        }
+                        
+                        // For mobile: use Web Audio API to boost volume
+                        if (next) {
+                          try {
+                            const audioContext = new AudioContext();
+                            const source = audioContext.createMediaElementSource(audio);
+                            const gainNode = audioContext.createGain();
+                            gainNode.gain.value = 2.0; // Boost volume 2x for speaker mode
+                            source.connect(gainNode);
+                            gainNode.connect(audioContext.destination);
+                            console.log("[Speaker] Audio boost applied");
+                          } catch (err) {
+                            console.warn("[Speaker] Audio boost failed (may already be connected):", err);
+                          }
                         }
                       }
                     }}
-                    className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isSpeaker ? "bg-white/20 text-white" : "bg-white text-black"}`}
+                    className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isSpeaker ? "bg-white text-black" : "bg-white/20 text-white"}`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -1463,7 +1510,7 @@ function DashboardLayout() {
                       <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
                     </svg>
                   </button>
-                  <span className="text-white/60 text-[11px]">{isSpeaker ? "Speaker" : "Earpiece"}</span>
+                  <span className="text-white/60 text-[11px]">{isSpeaker ? "Speaker ON" : "Earpiece"}</span>
                 </div>
               )}
 

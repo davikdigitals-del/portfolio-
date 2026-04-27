@@ -124,17 +124,41 @@ export class CallManager {
 
   async declineCall(callId: string): Promise<void> {
     console.log("[CM] Declining call:", callId);
+    
+    // Store callId before cleanup
+    const storedCallId = callId || this.callId;
+    
     try {
-      // Send signal first so the other party knows immediately
-      await this.sendSignal({ type: "declined" });
+      // Try to send signal if channel is open
+      if (this.channel) {
+        console.log("[CM] Sending declined signal to other party");
+        await this.sendSignal({ type: "declined" });
+      } else {
+        console.log("[CM] No channel open, signal not sent (receiver hasn't connected yet)");
+      }
       
-      // Update database
-      await supabase
-        .from("calls")
-        .update({ status: "declined", ended_at: new Date().toISOString() })
-        .eq("id", callId);
-      
-      console.log("[CM] Call declined successfully");
+      // Update database - this is the critical part that both sides will see
+      if (storedCallId) {
+        console.log("[CM] Updating call status to declined in database");
+        await supabase
+          .from("calls")
+          .update({ status: "declined", ended_at: new Date().toISOString() })
+          .eq("id", storedCallId);
+        
+        // Insert declined call message
+        if (this.conversationId && this.initiatorId) {
+          const isVideo = this.callType === "video";
+          await supabase.from("messages").insert({
+            conversation_id: this.conversationId,
+            sender_id: this.initiatorId,
+            content: `❌ ${isVideo ? "Video" : "Voice"} call declined`,
+            type: "call",
+            call_data: { call_type: this.callType, status: "declined", duration_seconds: 0 },
+          }).catch(e => console.error("[CM] Failed to insert declined message:", e));
+        }
+        
+        console.log("[CM] Call declined successfully");
+      }
     } catch (err) {
       console.error("[CM] Error declining call:", err);
     } finally {

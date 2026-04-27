@@ -117,7 +117,7 @@ function releaseWakeLock() {
 export async function sendPushNotification(
   title: string,
   body: string,
-  options?: { icon?: string; tag?: string; onClick?: () => void }
+  options?: { icon?: string; tag?: string; requireInteraction?: boolean; onClick?: () => void }
 ) {
   if (!canNotify()) return;
 
@@ -152,6 +152,7 @@ export async function sendPushNotification(
         tag: options?.tag ?? "msg",
         vibrate: [400, 200, 400, 200, 400], // Very strong vibration
         count: notificationState.notificationCount,
+        requireInteraction: options?.requireInteraction ?? false,
       });
       return;
     } catch (err) {
@@ -173,7 +174,7 @@ export async function sendPushNotification(
           data: { url: "/dashboard/chat" },
           vibrate: [400, 200, 400, 200, 400], // Very strong vibration
           badge: "/me.webp",
-          requireInteraction: true, // Keep notification until user interacts
+          requireInteraction: options?.requireInteraction ?? true, // Keep notification until user interacts
           actions: [
             { action: "open", title: "Open" },
             { action: "close", title: "Close" }
@@ -192,7 +193,7 @@ export async function sendPushNotification(
 function _showBasicNotification(
   title: string,
   body: string,
-  options?: { icon?: string; tag?: string; onClick?: () => void }
+  options?: { icon?: string; tag?: string; requireInteraction?: boolean; onClick?: () => void }
 ) {
   try {
     const n = new Notification(title, {
@@ -200,7 +201,7 @@ function _showBasicNotification(
       icon: options?.icon ?? "/me.webp",
       tag: options?.tag,
       vibrate: [400, 200, 400, 200, 400], // Very strong vibration
-      requireInteraction: true, // Keep notification until user interacts
+      requireInteraction: options?.requireInteraction ?? true, // Keep notification until user interacts
     });
     n.onclick = () => { 
       window.focus(); 
