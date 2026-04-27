@@ -526,10 +526,16 @@ export class CallManager {
         }
 
       } else if (msg.type === "end" || msg.type === "declined") {
-        console.log("[CM] Peer ended/declined");
+        console.log("[CM] Peer ended/declined via signal");
         const endCb = this.onCallEndCb;
         this.cleanup();
-        endCb?.();
+        if (endCb) {
+          endCb();
+        } else {
+          // onCallEndCb not set yet (call was still ringing) — trigger global cleanup
+          const endFn = (window as any).__endActiveCall;
+          if (endFn) void endFn();
+        }
       }
     } catch (err) {
       console.error("[CM] handleSignal error:", err);

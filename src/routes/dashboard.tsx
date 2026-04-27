@@ -507,16 +507,29 @@ function DashboardLayout() {
         
         // Use current state via callback to avoid stale closure
         setActiveCall((currentActive) => {
-          // If an active call was ended by the other party
-          if (currentActive && call.id === currentActive.id && call.status === "ended") {
-            console.log("[CallListener] Active call ended by other party - triggering cleanup");
-            // Trigger cleanup immediately using window global
+          // If an active call was ended/declined/missed by the other party
+          if (currentActive && call.id === currentActive.id && (call.status === "ended" || call.status === "declined" || call.status === "missed")) {
+            console.log("[CallListener] Active call terminated by other party - triggering cleanup");
             const endFn = (window as any).__endActiveCall;
             if (endFn) void endFn();
-            return null; // Clear active call
+            return null;
           }
           return currentActive;
         });
+
+        // Also handle the case where initiator is waiting (ringing) and receiver declines/misses
+        // In this case activeCall is null but we still need to clean up the initiator's UI
+        setIncomingCall((currentIncoming) => currentIncoming); // no-op, just to get a re-render hook
+        const endFn = (window as any).__endActiveCall;
+        if ((call.status === "declined" || call.status === "missed") && endFn) {
+          // Check if we are the initiator waiting for this call
+          void supabase.auth.getUser().then(({ data }) => {
+            if (data.user && call.initiator_id === data.user.id) {
+              console.log("[CallListener] Initiator: receiver declined/missed, cleaning up");
+              void endFn();
+            }
+          });
+        }
       })
       .subscribe((status) => {
         console.log("[CallListener] Channel status:", status);
@@ -648,9 +661,13 @@ function DashboardLayout() {
       // End call via callManager (handles DB update and signaling)
       await callManager.endCall();
       
-      // Clear UI state
+      // Clear ALL call UI state — covers both active and ringing states
       setActiveCall(null);
       setActiveProfile(null);
+      setIncomingCall(null);
+      setIncomingProfile(null);
+      stopRingtone();
+      if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
       if (callTimerRef.current) { 
         clearInterval(callTimerRef.current); 
         callTimerRef.current = null; 
@@ -664,12 +681,14 @@ function DashboardLayout() {
       setRemoteVideoActive(false);
       if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
       setIsScreenSharing(false);
+      localStorage.removeItem("activeCall");
+      localStorage.removeItem("incomingCall");
       
       console.log("[Dashboard] Active call ended successfully");
     } catch (err) {
       console.error("[Dashboard] Error ending active call:", err);
     }
-  }, []);
+  }, [stopRingtone]);
   const flipCamera = useCallback(async () => {
     const newFacing = facingMode === "user" ? "environment" : "user";
     setFacingMode(newFacing);
