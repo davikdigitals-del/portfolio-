@@ -194,28 +194,60 @@ export class CallManager {
               audio: {
                 echoCancellation: true,
                 noiseSuppression: true,
-                autoGainControl: true
+                autoGainControl: true,
+                sampleRate: 48000
               }, 
               video: { 
-                width: { ideal: 1920, max: 1920 }, 
-                height: { ideal: 1080, max: 1080 }, 
-                frameRate: { ideal: 30, max: 30 },
-                facingMode: "user" 
+                width: { ideal: 3840, max: 3840 }, 
+                height: { ideal: 2160, max: 2160 }, 
+                frameRate: { ideal: 60, max: 60 },
+                facingMode: "user"
               } 
             }
           : { 
               audio: {
                 echoCancellation: true,
                 noiseSuppression: true,
-                autoGainControl: true
+                autoGainControl: true,
+                sampleRate: 48000
               }, 
               video: false 
             }
       );
       console.log("[CM] Media acquired:", this.localStream.getTracks().map(t => `${t.kind} - ${t.label}`));
     } catch (err) {
-      console.error("[CM] Media error:", err);
-      throw new Error("Could not access camera/microphone. Please allow permissions.");
+      console.error("[CM] High quality failed, trying fallback:", err);
+      // Fallback to lower quality if 4K not supported
+      try {
+        this.localStream = await navigator.mediaDevices.getUserMedia(
+          callType === "video"
+            ? { 
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true
+                }, 
+                video: { 
+                  width: { ideal: 1920, max: 1920 }, 
+                  height: { ideal: 1080, max: 1080 }, 
+                  frameRate: { ideal: 30, max: 30 },
+                  facingMode: "user" 
+                } 
+              }
+            : { 
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true
+                }, 
+                video: false 
+              }
+        );
+        console.log("[CM] Fallback media acquired:", this.localStream.getTracks().map(t => `${t.kind} - ${t.label}`));
+      } catch (fallbackErr) {
+        console.error("[CM] Media error:", fallbackErr);
+        throw new Error("Could not access camera/microphone. Please allow permissions.");
+      }
     }
   }
 
@@ -236,7 +268,18 @@ export class CallManager {
     this.pc = pc;
 
     if (addTracksNow) {
-      this.localStream?.getTracks().forEach(track => pc.addTrack(track, this.localStream!));
+      this.localStream?.getTracks().forEach(track => {
+        const sender = pc.addTrack(track, this.localStream!);
+        
+        // Set high bitrate for video
+        if (track.kind === "video") {
+          const params = sender.getParameters();
+          if (!params.encodings) params.encodings = [{}];
+          params.encodings[0].maxBitrate = 8000000; // 8 Mbps for 4K
+          params.encodings[0].priority = "high";
+          sender.setParameters(params).catch(e => console.warn("[CM] Failed to set bitrate:", e));
+        }
+      });
     }
 
     // Remote stream
@@ -253,22 +296,34 @@ export class CallManager {
       if (candidate) void this.sendSignal({ type: "ice", candidate: candidate.toJSON() });
     };
 
-    // Connection state
+    // Connection state with auto-recovery
     pc.onconnectionstatechange = () => {
       console.log("[CM] Connection:", pc.connectionState);
       if (pc.connectionState === "connected") {
         if (!this.startTime) this.startTime = Date.now();
         this.onCallActiveCb?.();
       } else if (pc.connectionState === "failed") {
-        void this.endCall();
+        console.log("[CM] Connection failed, attempting ICE restart");
+        // Try ICE restart before giving up
+        pc.restartIce();
+        setTimeout(() => {
+          if (pc.connectionState === "failed") {
+            void this.endCall();
+          }
+        }, 5000);
       }
     };
 
     pc.oniceconnectionstatechange = () => {
       console.log("[CM] ICE:", pc.iceConnectionState);
       if (pc.iceConnectionState === "disconnected") {
+        console.log("[CM] ICE disconnected, waiting for recovery");
         setTimeout(() => {
-          if (this.pc?.iceConnectionState === "disconnected" || this.pc?.iceConnectionState === "failed") {
+          if (this.pc?.iceConnectionState === "disconnected") {
+            console.log("[CM] ICE still disconnected, restarting");
+            this.pc?.restartIce();
+          }
+          if (this.pc?.iceConnectionState === "failed") {
             void this.endCall();
           }
         }, 5000);

@@ -142,6 +142,128 @@ function DashboardLayout() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
+  // ── Prevent refresh/close during active call ───────────────────────────────
+  useEffect(() => {
+    if (!activeCall) return;
+    
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "You have an active call. Are you sure you want to leave?";
+      
+      // Save call state to localStorage for recovery
+      try {
+        localStorage.setItem("activeCall", JSON.stringify({
+          call: activeCall,
+          profile: activeProfile,
+          timestamp: Date.now()
+        }));
+      } catch (err) {
+        console.error("[CallPersist] Failed to save call state:", err);
+      }
+      
+      return e.returnValue;
+    };
+    
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [activeCall, activeProfile]);
+
+  // ── Restore active call on page load ───────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    
+    try {
+      const savedCall = localStorage.getItem("activeCall");
+      if (savedCall) {
+        const { call, profile, timestamp } = JSON.parse(savedCall);
+        
+        // Only restore if less than 5 minutes old
+        if (Date.now() - timestamp < 300000) {
+          console.log("[CallPersist] Restoring call:", call);
+          
+          // Verify call is still active in database
+          supabase
+            .from("calls")
+            .select("*")
+            .eq("id", call.id)
+            .eq("status", "active")
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data) {
+                setActiveCall(data as Call);
+                setActiveProfile(profile);
+                toast.info("Reconnecting to call...");
+                
+                // Try to rejoin the call
+                void answerCall(data as Call);
+              } else {
+                localStorage.removeItem("activeCall");
+              }
+            });
+        } else {
+          localStorage.removeItem("activeCall");
+        }
+      }
+    } catch (err) {
+      console.error("[CallPersist] Failed to restore call:", err);
+      localStorage.removeItem("activeCall");
+    }
+  }, [user]);
+
+  // ── Clear call state from localStorage when call ends ──────────────────────
+  useEffect(() => {
+    if (!activeCall) {
+      localStorage.removeItem("activeCall");
+    }
+  }, [activeCall]);
+
+  // ── Restore incoming call on page load ─────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    
+    try {
+      const savedIncoming = localStorage.getItem("incomingCall");
+      if (savedIncoming) {
+        const { call, profile, timestamp } = JSON.parse(savedIncoming);
+        
+        // Only restore if less than 1 minute old (calls ring for limited time)
+        if (Date.now() - timestamp < 60000) {
+          console.log("[CallPersist] Restoring incoming call:", call);
+          
+          // Verify call is still ringing in database
+          supabase
+            .from("calls")
+            .select("*")
+            .eq("id", call.id)
+            .eq("status", "ringing")
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data) {
+                setIncomingCall(data as Call);
+                setIncomingProfile(profile);
+                startRingtone();
+                toast.info("Incoming call restored");
+              } else {
+                localStorage.removeItem("incomingCall");
+              }
+            });
+        } else {
+          localStorage.removeItem("incomingCall");
+        }
+      }
+    } catch (err) {
+      console.error("[CallPersist] Failed to restore incoming call:", err);
+      localStorage.removeItem("incomingCall");
+    }
+  }, [user, startRingtone]);
+
+  // ── Clear incoming call from localStorage when answered/declined ───────────
+  useEffect(() => {
+    if (!incomingCall) {
+      localStorage.removeItem("incomingCall");
+    }
+  }, [incomingCall]);
+
   // ── Ringtone helpers (defined first so useEffects below can use them) ──────
   const startRingtone = useCallback(() => {
     // Stop any existing ringtone first
@@ -225,6 +347,17 @@ function DashboardLayout() {
         setIncomingCall(call);
         setIncomingProfile(profile ?? null);
         startRingtone();
+
+        // Save incoming call to localStorage for recovery
+        try {
+          localStorage.setItem("incomingCall", JSON.stringify({
+            call,
+            profile: profile ?? null,
+            timestamp: Date.now()
+          }));
+        } catch (err) {
+          console.error("[CallPersist] Failed to save incoming call:", err);
+        }
 
         // Vibrate aggressively
         if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 500, 200, 500]);
