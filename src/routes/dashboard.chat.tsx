@@ -1659,32 +1659,32 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <header className="h-14 md:h-16 border-b border-border px-3 md:px-5 flex items-center gap-2 md:gap-3 bg-surface/40 shrink-0">
+      <header className="h-14 md:h-16 border-b border-border px-2 md:px-5 flex items-center gap-1.5 md:gap-3 bg-surface/40 shrink-0">
         {/* Back button — mobile only */}
         <button
           onClick={onBack}
-          className="md:hidden flex items-center justify-center h-9 w-9 rounded-full hover:bg-accent transition-colors shrink-0 text-foreground"
+          className="md:hidden flex items-center justify-center h-8 w-8 rounded-full hover:bg-accent transition-colors shrink-0 text-foreground"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
         <div className="relative">
           {!isAdmin && adminProfile?.avatar_url ? (
-            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-9 w-9 rounded-full object-cover ring-2 ring-border" />
+            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-8 w-8 md:h-9 md:w-9 rounded-full object-cover ring-2 ring-border" />
           ) : isAdmin && conversation.profile?.avatar_url ? (
-            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-9 w-9 rounded-full object-cover ring-2 ring-border" />
+            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-8 w-8 md:h-9 md:w-9 rounded-full object-cover ring-2 ring-border" />
           ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">{counterpartInitial}</div>
+            <div className="flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs md:text-sm font-semibold">{counterpartInitial}</div>
           )}
-          <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface ${isOnline ? "bg-green-500" : "bg-gray-400"}`} />
+          <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 md:h-3 md:w-3 rounded-full border-2 border-surface ${isOnline ? "bg-green-500" : "bg-gray-400"}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate">{counterpartName}</div>
-          <div className={`text-xs font-medium ${isOnline ? "text-green-500" : "text-muted-foreground"}`}>
+          <div className="font-semibold text-xs md:text-sm truncate">{counterpartName}</div>
+          <div className={`text-[10px] md:text-xs font-medium ${isOnline ? "text-green-500" : "text-muted-foreground"}`}>
             {statusLabel}
           </div>
         </div>
         {isAdmin && conversation.profile?.email && (
-          <div className="hidden md:block text-xs text-muted-foreground mr-2">{conversation.profile.email}</div>
+          <div className="hidden lg:block text-xs text-muted-foreground mr-2">{conversation.profile.email}</div>
         )}
         {/* JOIN button — shown when there's an active call on this conversation */}
         {activeCallOnConv && activeCallOnConv.initiator_id !== user?.id && (
@@ -1708,6 +1708,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             JOIN
           </button>
         )}
+        {/* Call buttons - compact on mobile */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -1715,7 +1716,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             initiateCall("voice");
           }}
           title="Start voice call"
-          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
+          className="p-1.5 md:p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
         >
           <Phone className="h-4 w-4" />
         </button>
@@ -1726,26 +1727,28 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             initiateCall("video");
           }}
           title="Start video call"
-          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
+          className="p-1.5 md:p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
         >
           <Video className="h-4 w-4" />
         </button>
+        {/* Hide schedule button on small mobile */}
         <button
           onClick={() => setShowSchedule(true)}
           title="Schedule a call"
-          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
+          className="hidden sm:flex p-1.5 md:p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
         >
           <Calendar className="h-4 w-4" />
         </button>
+        {/* Hide AI Summary on mobile */}
         {isAdmin && (
           <Button
             variant="outline"
             size="sm"
             onClick={() => { setShowSummary((v) => !v); if (!summary) void generateSummary(); }}
-            className="gap-1.5 text-xs h-8 shrink-0"
+            className="hidden md:flex gap-1.5 text-xs h-8 shrink-0"
           >
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            AI Summary
+            <span className="hidden lg:inline">AI Summary</span>
           </Button>
         )}
       </header>
