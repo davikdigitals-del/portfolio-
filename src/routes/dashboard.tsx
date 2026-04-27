@@ -1287,8 +1287,9 @@ function DashboardLayout() {
             <div className="flex items-center justify-center gap-4 md:gap-6 px-4">
 
               {/* More options (...) */}
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1.5 relative">
                 <button
+                  onClick={(e) => { e.stopPropagation(); setShowCallOptions(v => !v); }}
                   className="h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 bg-[#1f2c34] text-white"
                 >
                   <MoreVertical className="h-5 w-5 md:h-6 md:w-6" />
@@ -1388,6 +1389,98 @@ function DashboardLayout() {
 
             </div>
           </div>
+
+          {/* More options bottom sheet */}
+          {showCallOptions && (
+            <>
+              {/* Backdrop */}
+              <div className="absolute inset-0 z-20" onClick={() => setShowCallOptions(false)} />
+              {/* Sheet */}
+              <div className="absolute bottom-0 left-0 right-0 z-30 rounded-t-2xl overflow-hidden animate-fade-up"
+                style={{ background: "#1f2c34" }}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Handle bar */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className="w-10 h-1 rounded-full bg-[#8696a0]/40" />
+                </div>
+
+                {/* End-to-end encrypted label */}
+                <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-[#8696a0]">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  End-to-end encrypted
+                </div>
+
+                {/* Options */}
+                <div className="pb-8" style={{ borderTop: "1px solid #2a3942" }}>
+                  {/* Share screen */}
+                  <button
+                    onClick={async () => {
+                      setShowCallOptions(false);
+                      try {
+                        if (isScreenSharing) {
+                          const cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
+                          const cameraTrack = cameraStream.getVideoTracks()[0];
+                          const pc = callManager.getPeerConnection();
+                          if (pc && cameraTrack) {
+                            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                            if (sender) await sender.replaceTrack(cameraTrack);
+                          }
+                          if (localVideoRef.current) { localVideoRef.current.srcObject = new MediaStream([cameraTrack]); localVideoRef.current.play().catch(() => {}); }
+                          setIsScreenSharing(false);
+                          toast.success("Screen sharing stopped");
+                        } else {
+                          const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true, audio: false });
+                          const screenTrack = screenStream.getVideoTracks()[0];
+                          const pc = callManager.getPeerConnection();
+                          if (pc && screenTrack) {
+                            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                            if (sender) await sender.replaceTrack(screenTrack);
+                          }
+                          if (localVideoRef.current) { localVideoRef.current.srcObject = new MediaStream([screenTrack]); localVideoRef.current.play().catch(() => {}); }
+                          screenTrack.onended = async () => {
+                            setIsScreenSharing(false);
+                            try {
+                              const cs = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
+                              const ct = cs.getVideoTracks()[0];
+                              const pc2 = callManager.getPeerConnection();
+                              if (pc2 && ct) { const s = pc2.getSenders().find(s => s.track?.kind === "video"); if (s) await s.replaceTrack(ct); }
+                              if (localVideoRef.current) { localVideoRef.current.srcObject = new MediaStream([ct]); localVideoRef.current.play().catch(() => {}); }
+                            } catch { /* ignore */ }
+                          };
+                          setIsScreenSharing(true);
+                          toast.success("Screen sharing started");
+                        }
+                      } catch (err: any) {
+                        if (err.name === "NotAllowedError") toast.error("Screen sharing permission denied");
+                        else toast.error("Failed to share screen");
+                      }
+                    }}
+                    className="flex items-center justify-between w-full px-6 py-4 text-[#e9edef] hover:bg-[#2a3942] transition-colors text-sm"
+                  >
+                    <span>{isScreenSharing ? "Stop sharing screen" : "Share screen"}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#8696a0]">
+                      <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                  </button>
+
+                  {/* Send message */}
+                  <button
+                    onClick={() => { setShowCallOptions(false); setCallMinimized(true); }}
+                    className="flex items-center justify-between w-full px-6 py-4 text-[#e9edef] hover:bg-[#2a3942] transition-colors text-sm"
+                    style={{ borderTop: "1px solid #2a3942" }}
+                  >
+                    <span>Send message</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#8696a0]">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
