@@ -43,6 +43,15 @@ function DashboardOverview() {
   const [userUnread, setUserUnread] = useState(0);
   const [userMessages, setUserMessages] = useState(0);
 
+  // Wait until role is resolved — prevents admin flashing as client
+  if (role === null) {
+    return (
+      <div className="h-full flex items-center justify-center" style={{ background: "#0b141a" }}>
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#00a884] border-t-transparent" />
+      </div>
+    );
+  }
+
   useEffect(() => {
     if (!user) return;
     void load();

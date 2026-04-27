@@ -634,6 +634,15 @@ function ChatPage() {
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
+  // Wait for role to resolve — prevents admin flashing as client view
+  if (role === null) {
+    return (
+      <div className="h-full flex items-center justify-center" style={{ background: "#0b141a" }}>
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#00a884] border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full relative overflow-hidden">
       {/* Notification alerts */}
