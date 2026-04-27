@@ -2536,8 +2536,8 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     const VideoOutgoing = () => (
       // Video camera with outgoing arrow
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
+        <path d="M23 7l-7 5 7 5V7z" fill="currentColor"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" fill="currentColor"/>
         <polyline points="17 3 22 3 22 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         <line x1="22" y1="3" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
@@ -2546,8 +2546,8 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     const VideoIncomingMissed = () => (
       // Video camera with incoming arrow (red for missed)
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
+        <path d="M23 7l-7 5 7 5V7z" fill="currentColor"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" fill="currentColor"/>
         <polyline points="7 21 2 21 2 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         <line x1="2" y1="21" x2="7" y2="16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
@@ -2555,9 +2555,9 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     
     const VideoAnswered = () => (
       // Simple video camera icon (answered call)
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M23 7l-7 5 7 5V7z"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
       </svg>
     );
 
