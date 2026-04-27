@@ -1351,8 +1351,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   // ---- Call functions ----
   // Active call UI is handled globally in dashboard.tsx via window.__setActiveCall
   // Expose initiateCall globally so missed call messages can trigger callback
+  // Use ref to avoid stale closure issues
+  const initiateCallRef = useRef<((callType: CallType) => void) | null>(null);
   useEffect(() => {
-    (window as any).__initiateCall = (callType: CallType) => void initiateCall(callType);
+    initiateCallRef.current = (callType: CallType) => void initiateCall(callType);
+    (window as any).__initiateCall = initiateCallRef.current;
     return () => { delete (window as any).__initiateCall; };
   });
 
@@ -1559,16 +1562,20 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         {/* JOIN button — shown when there's an active call on this conversation */}
         {activeCallOnConv && activeCallOnConv.initiator_id !== user?.id && (
           <button
-            onClick={() => {
-              // Answer the active call
-              supabase.from("calls").select("*").eq("id", activeCallOnConv.id).single().then(({ data: call }) => {
-                if (call) {
-                  const answerFn = (window as any).__answerCall;
-                  if (answerFn) void answerFn(call);
-                }
-              });
+            onClick={async () => {
+              // Fetch the full call record and answer it
+              const { data: call } = await supabase
+                .from("calls").select("*").eq("id", activeCallOnConv.id).single();
+              if (!call) { toast.error("Call not found"); return; }
+              // For JOIN, we treat it like answering — use the global answerCall
+              const answerFn = (window as any).__answerCall;
+              if (answerFn) {
+                void answerFn(call);
+              } else {
+                toast.error("Please go to the dashboard to join the call");
+              }
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500 text-white text-xs font-bold animate-pulse shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500 text-white text-xs font-bold animate-pulse shrink-0 active:scale-95 transition-transform"
           >
             {activeCallOnConv.call_type === "video" ? <Video className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
             JOIN

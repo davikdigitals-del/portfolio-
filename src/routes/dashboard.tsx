@@ -178,15 +178,10 @@ function DashboardLayout() {
     const convId = params.get("conv");
     if (!callId || !convId) return;
     window.history.replaceState({}, "", window.location.pathname);
-    supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(async ({ data: call }) => {
-      if (!call || call.status !== "ringing") return;
-      const { data: profile } = await supabase
-        .from("profiles").select("display_name, avatar_url")
-        .eq("user_id", call.initiator_id).maybeSingle();
-      setIncomingCall(call as Call);
-      setIncomingProfile(profile ?? null);
-      startRingtone();
-      if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 500]);
+    // Store as pending — the expose useEffect will pick it up after handlers are set
+    supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(({ data: call }) => {
+      if (!call) return;
+      (window as any).__pendingCall = call;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -492,8 +487,19 @@ function DashboardLayout() {
       }, 500);
     };
     // Handle pending call from root listener (user was on non-dashboard page)
+    // Use a small delay to ensure all handlers are registered
     const pending = (window as any).__pendingCall;
-    if (pending) { void answerCall(pending); delete (window as any).__pendingCall; }
+    if (pending) {
+      delete (window as any).__pendingCall;
+      setTimeout(() => {
+        if (pending.status === "ringing") {
+          // Show incoming call screen (don't auto-answer)
+          const setIncoming = (window as any).__setIncomingCall;
+          if (setIncoming) void setIncoming(pending);
+        }
+        // active calls: JOIN button in chat header handles them
+      }, 200);
+    }
 
     return () => {
       delete (window as any).__answerCall;

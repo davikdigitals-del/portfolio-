@@ -105,16 +105,26 @@ function GlobalCallListener() {
     const convId = params.get("conv");
     if (callId && convId) {
       window.history.replaceState({}, "", window.location.pathname);
+      // Fetch the call and show incoming screen if still ringing
       supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(({ data: call }) => {
-        if (call && call.status === "ringing") {
-          // Store for dashboard to pick up — don't try to answer here
+        if (!call) return;
+        if (call.status === "ringing") {
+          // Show incoming call screen via dashboard handler
+          const setIncoming = (window as any).__setIncomingCall;
+          if (setIncoming) {
+            void setIncoming(call);
+          } else {
+            // Dashboard not mounted yet — store for when it mounts
+            (window as any).__pendingCall = call;
+          }
+        } else if (call.status === "active") {
+          // Call already active — store for JOIN
           (window as any).__pendingCall = call;
         }
       });
     }
 
-    // Subscribe to incoming calls — ONLY fires if dashboard listener isn't active
-    // Dashboard sets window.__setIncomingCall when it mounts
+    // Subscribe to incoming calls — only fires if dashboard listener isn't active
     const ch = supabase.channel(`root-calls-${user.id}`)
       .on("postgres_changes", {
         event: "INSERT",
