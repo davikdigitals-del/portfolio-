@@ -847,46 +847,44 @@ function DashboardLayout() {
             </div>
           )}
 
-          {/* Local video preview — draggable corner (video call) */}
+          {/* Local video preview — always render video element, just hide/style it */}
           {activeCall.call_type === "video" && (
             <div className="absolute bottom-32 right-4 w-28 h-40 rounded-2xl border-2 border-white/40 shadow-xl z-10 overflow-hidden">
-              {isVideoOff ? (
-                // Camera OFF: show same gradient background as incoming call
-                <div className="relative w-full h-full" style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                    {user && avatarUrl ? (
-                      <img src={avatarUrl} alt="You" className="h-16 w-16 rounded-full object-cover ring-2 ring-white/40" />
-                    ) : (
-                      <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center text-white text-xl font-bold ring-2 ring-white/40">
-                        {(displayName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
-                      </div>
-                    )}
-                    <span className="text-white/60 text-[10px]">Camera off</span>
-                  </div>
-                </div>
-              ) : isAppHidden ? (
-                // App MINIMIZED/HIDDEN: show blurred video with pause indicator
-                <div className="relative w-full h-full">
-                  <video
-                    ref={localVideoRef}
-                    autoPlay playsInline muted
-                    className="w-full h-full object-cover blur-lg scale-110"
-                  />
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <Pause className="h-6 w-6 text-white" />
-                      <span className="text-white/80 text-[10px]">Paused</span>
+
+              {/* Always-mounted local video — hidden when camera off */}
+              <video
+                ref={localVideoRef}
+                autoPlay playsInline muted
+                className={`w-full h-full object-cover transition-all duration-300 ${
+                  isVideoOff ? "hidden" : isAppHidden ? "blur-lg scale-110" : ""
+                }`}
+              />
+
+              {/* Camera OFF overlay — gradient + avatar */}
+              {isVideoOff && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2"
+                  style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="You" className="h-14 w-14 rounded-full object-cover ring-2 ring-white/40" />
+                  ) : (
+                    <div className="h-14 w-14 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center text-white text-xl font-bold ring-2 ring-white/40">
+                      {(displayName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
                     </div>
+                  )}
+                  <span className="text-white/60 text-[10px]">Camera off</span>
+                </div>
+              )}
+
+              {/* App HIDDEN overlay — blur + pause icon */}
+              {!isVideoOff && isAppHidden && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-1">
+                    <Pause className="h-6 w-6 text-white" />
+                    <span className="text-white/80 text-[10px]">Paused</span>
                   </div>
                 </div>
-              ) : (
-                // Camera ON & App ACTIVE: show normal video
-                <video
-                  ref={localVideoRef}
-                  autoPlay playsInline muted
-                  className="w-full h-full object-cover"
-                />
               )}
+
             </div>
           )}
 

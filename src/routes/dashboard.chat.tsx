@@ -2594,10 +2594,6 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
         <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
           <span className={iconFg}>{IconEl}</span>
         </div>
-          <span className={isMissed && !outgoing ? "text-red-500" : outgoing ? (mine ? "text-white" : "text-green-600") : (mine ? "text-white" : "text-primary")}>
-            {IconEl}
-          </span>
-        </div>
         <div className="flex-1 min-w-0 text-left">
           <div className={`font-semibold text-sm leading-tight ${isMissed && !outgoing ? "text-red-500" : ""}`}>{titleText}</div>
           {subtitleText && (
