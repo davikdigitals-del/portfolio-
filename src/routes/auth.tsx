@@ -102,95 +102,93 @@ function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 bg-gradient-hero">
-      <div className="w-full max-w-md animate-fade-up">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8">
-          <ArrowLeft className="h-4 w-4" /> Back to home
-        </Link>
-        <div className="rounded-3xl border border-border bg-card shadow-elevated p-8">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
-              <MessageCircle className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">Pulse</span>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#0b141a" }}>
+      <div className="w-full max-w-sm animate-fade-up">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#00a884] shadow-lg mb-4">
+            <MessageCircle className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {showForgotPassword ? "Reset Password" : isRegister ? "Create your account" : "Welcome back"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {showForgotPassword 
-              ? "Enter your email to receive a password reset link." 
-              : isRegister 
-                ? "Start chatting in under a minute." 
-                : "Sign in to continue your conversations."}
+          <h1 className="text-2xl font-bold text-[#e9edef]">Pulse</h1>
+          <p className="text-sm text-[#8696a0] mt-1">
+            {showForgotPassword ? "Reset your password" : isRegister ? "Create your account" : "Sign in to continue"}
           </p>
+        </div>
+
+        <div className="rounded-2xl p-6 space-y-4" style={{ background: "#1f2c34", border: "1px solid #2a3942" }}>
 
           {showForgotPassword ? (
-            <form onSubmit={handleForgotPassword} className="mt-6 space-y-4">
+            <form onSubmit={handleForgotPassword} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  required 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  placeholder="you@company.com" 
-                  autoComplete="email" 
+                <label htmlFor="email" className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  className="w-full rounded-lg px-3 py-2.5 text-sm text-[#e9edef] placeholder:text-[#8696a0] outline-none focus:border-[#00a884]"
+                  style={{ background: "#2a3942", border: "1px solid #3d5260" }}
                 />
               </div>
-              <Button type="submit" disabled={submitting} className="w-full h-11 bg-gradient-primary hover:opacity-90 shadow-glow">
+              <button type="submit" disabled={submitting} className="w-full py-3 rounded-lg bg-[#00a884] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Reset Link"}
-              </Button>
-              <button 
-                type="button"
-                onClick={() => setShowForgotPassword(false)} 
-                className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
+              </button>
+              <button type="button" onClick={() => setShowForgotPassword(false)} className="w-full text-sm text-[#8696a0] hover:text-[#e9edef] transition-colors">
                 Back to sign in
               </button>
             </form>
           ) : (
-            <form onSubmit={onSubmit} className="mt-6 space-y-4">
-            {isRegister && (
+            <form onSubmit={onSubmit} className="space-y-4">
+              {isRegister && (
+                <div className="space-y-1.5">
+                  <label htmlFor="name" className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Display name</label>
+                  <input id="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" autoComplete="name"
+                    className="w-full rounded-lg px-3 py-2.5 text-sm text-[#e9edef] placeholder:text-[#8696a0] outline-none focus:border-[#00a884]"
+                    style={{ background: "#2a3942", border: "1px solid #3d5260" }} />
+                </div>
+              )}
               <div className="space-y-1.5">
-                <Label htmlFor="name">Display name</Label>
-                <Input id="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" autoComplete="name" />
+                <label htmlFor="email" className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Email</label>
+                <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email"
+                  className="w-full rounded-lg px-3 py-2.5 text-sm text-[#e9edef] placeholder:text-[#8696a0] outline-none focus:border-[#00a884]"
+                  style={{ background: "#2a3942", border: "1px solid #3d5260" }} />
               </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" autoComplete="email" />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                {!isRegister && (
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPassword(true)}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    Forgot password?
-                  </button>
-                )}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Password</label>
+                  {!isRegister && (
+                    <button type="button" onClick={() => setShowForgotPassword(true)} className="text-xs text-[#00a884] hover:underline">
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete={isRegister ? "new-password" : "current-password"}
+                  className="w-full rounded-lg px-3 py-2.5 text-sm text-[#e9edef] placeholder:text-[#8696a0] outline-none focus:border-[#00a884]"
+                  style={{ background: "#2a3942", border: "1px solid #3d5260" }} />
               </div>
-              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete={isRegister ? "new-password" : "current-password"} />
-            </div>
-            <Button type="submit" disabled={submitting} className="w-full h-11 bg-gradient-primary hover:opacity-90 shadow-glow">
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isRegister ? "Create account" : "Sign in"}
-            </Button>
-          </form>
+              <button type="submit" disabled={submitting} className="w-full py-3 rounded-lg bg-[#00a884] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isRegister ? "Create account" : "Sign in"}
+              </button>
+            </form>
           )}
 
           {!showForgotPassword && (
-            <div className="mt-6 text-center text-sm text-muted-foreground">
+            <div className="text-center text-sm text-[#8696a0] pt-2">
               {isRegister ? "Already have an account?" : "New to Pulse?"}{" "}
-              <button onClick={() => setIsRegister(!isRegister)} className="text-primary hover:underline font-medium">
+              <button onClick={() => setIsRegister(!isRegister)} className="text-[#00a884] hover:underline font-medium">
                 {isRegister ? "Sign in" : "Create one"}
               </button>
             </div>
           )}
+        </div>
+
+        <div className="mt-4 text-center">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-[#8696a0] hover:text-[#e9edef] transition-colors">
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to home
+          </Link>
         </div>
       </div>
     </div>

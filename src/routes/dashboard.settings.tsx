@@ -99,104 +99,76 @@ function SettingsPage() {
   const initial = (name || user?.email || "U")[0].toUpperCase();
 
   return (
-    <div className="h-full overflow-y-auto p-8 md:p-10">
-      <div className="max-w-xl animate-fade-up space-y-8">
+    <div className="h-full overflow-y-auto p-6 md:p-8" style={{ background: "#0b141a" }}>
+      <div className="max-w-lg animate-fade-up space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground mt-1">Manage your profile and photo.</p>
+          <h1 className="text-xl font-bold text-[#e9edef]">Settings</h1>
+          <p className="text-sm text-[#8696a0] mt-0.5">Manage your profile and photo.</p>
         </div>
 
         {/* Profile card */}
-        <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
-          <h2 className="font-semibold">Profile</h2>
+        <div className="rounded-xl p-5 space-y-5" style={{ background: "#1f2c34", border: "1px solid #2a3942" }}>
+          <h2 className="font-semibold text-[#e9edef] text-sm">Profile</h2>
 
           {/* Avatar upload */}
-          <div className="flex items-center gap-5">
-            <div className="relative group">
+          <div className="flex items-center gap-4">
+            <div className="relative group shrink-0">
               {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={name || "Profile"}
-                  className="h-20 w-20 rounded-full object-cover ring-2 ring-border"
-                />
+                <img src={avatarUrl} alt={name || "Profile"} className="h-20 w-20 rounded-full object-cover" />
               ) : (
-                <div className="h-20 w-20 rounded-full bg-gradient-primary flex items-center justify-center text-primary-foreground text-2xl font-bold ring-2 ring-border">
+                <div className="h-20 w-20 rounded-full bg-[#00a884] flex items-center justify-center text-white text-2xl font-bold">
                   {initial}
                 </div>
               )}
-              {/* Overlay on hover */}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
                 className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               >
-                {uploading
-                  ? <Loader2 className="h-5 w-5 text-white animate-spin" />
-                  : <Camera className="h-5 w-5 text-white" />
-                }
+                {uploading ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-5 w-5 text-white" />}
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageChange}
-              />
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </div>
             <div>
-              <p className="text-sm font-medium">Profile photo</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                This photo is shown to clients in the chat
-              </p>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="mt-2 text-xs text-primary hover:underline disabled:opacity-50"
-              >
+              <p className="text-sm font-medium text-[#e9edef]">Profile photo</p>
+              <p className="text-xs text-[#8696a0] mt-0.5">Shown to clients in chat</p>
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                className="mt-2 text-xs text-[#00a884] hover:underline disabled:opacity-50">
                 {uploading ? "Uploading..." : avatarUrl ? "Change photo" : "Upload photo"}
               </button>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" value={user?.email ?? ""} disabled />
+            <label className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Email</label>
+            <input value={user?.email ?? ""} disabled
+              className="w-full rounded-lg px-3 py-2.5 text-sm text-[#8696a0] outline-none cursor-not-allowed"
+              style={{ background: "#2a3942", border: "1px solid #3d5260" }} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="name">Display name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-            />
-            <p className="text-xs text-muted-foreground">
-              This is the name clients see when chatting with you.
-            </p>
+            <label className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Display name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name"
+              className="w-full rounded-lg px-3 py-2.5 text-sm text-[#e9edef] placeholder:text-[#8696a0] outline-none focus:border-[#00a884]"
+              style={{ background: "#2a3942", border: "1px solid #3d5260" }} />
+            <p className="text-xs text-[#8696a0]">This is the name clients see when chatting with you.</p>
           </div>
 
-          <Button
-            onClick={save}
-            disabled={loading}
-            className="bg-gradient-primary hover:opacity-90 shadow-glow"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          <button onClick={save} disabled={loading}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#00a884] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Save changes
-          </Button>
+          </button>
         </div>
 
         {/* Admin badge */}
         {role === "admin" && (
-          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5 flex items-center gap-3">
-            <ShieldCheck className="h-6 w-6 text-primary shrink-0" />
+          <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: "#1f2c34", border: "1px solid #00a884/30" }}>
+            <ShieldCheck className="h-5 w-5 text-[#00a884] shrink-0" />
             <div>
-              <div className="font-semibold text-sm">Admin account</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                You have full admin access to this workspace.
-              </div>
+              <div className="font-semibold text-sm text-[#e9edef]">Admin account</div>
+              <div className="text-xs text-[#8696a0] mt-0.5">You have full admin access to this workspace.</div>
             </div>
           </div>
         )}

@@ -94,24 +94,112 @@ export async function initializePushNotifications() {
         console.error('[Native] Push registration error:', error);
       });
 
-      // Listen for push notifications received
+      // Listen for push notifications received (app in foreground)
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('[Native] Push notification received:', notification);
-        // Show in-app notification
-        window.dispatchEvent(new CustomEvent('push-received', { detail: notification }));
+        
+        // Trigger haptic feedback
+        Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
+        
+        // Show in-app notification banner
+        window.dispatchEvent(new CustomEvent('push-received', { 
+          detail: {
+            title: notification.title,
+            body: notification.body,
+            data: notification.data
+          }
+        }));
       });
 
-      // Listen for push notification tapped
+      // Listen for push notification tapped (app in background/closed)
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
         console.log('[Native] Push notification tapped:', notification);
+        
+        // Trigger haptic feedback
+        Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {});
+        
         // Navigate to relevant screen
         handlePushNotificationTap(notification);
       });
+
+      // Create notification channels for Android
+      if (platform === 'android') {
+        await createNotificationChannels();
+      }
     } else {
       console.log('[Native] Push notification permission denied');
     }
   } catch (err) {
     console.error('[Native] Push notification setup error:', err);
+  }
+}
+
+// Create notification channels for Android
+async function createNotificationChannels() {
+  try {
+    // Messages channel
+    await PushNotifications.createChannel({
+      id: 'messages',
+      name: 'Messages',
+      description: 'New message notifications',
+      importance: 5, // Max importance
+      visibility: 1, // Public
+      sound: 'default',
+      vibration: true,
+      lights: true,
+      lightColor: '#25D366', // WhatsApp green
+    });
+
+    // Calls channel
+    await PushNotifications.createChannel({
+      id: 'calls',
+      name: 'Calls',
+      description: 'Incoming call notifications',
+      importance: 5, // Max importance
+      visibility: 1, // Public
+      sound: 'ringtone',
+      vibration: true,
+      lights: true,
+      lightColor: '#25D366',
+    });
+
+    // General channel
+    await PushNotifications.createChannel({
+      id: 'general',
+      name: 'General',
+      description: 'General notifications',
+      importance: 4, // High importance
+      visibility: 1, // Public
+      sound: 'default',
+      vibration: true,
+    });
+
+    console.log('[Native] Notification channels created');
+  } catch (err) {
+    console.error('[Native] Failed to create notification channels:', err);
+  }
+}
+
+// Show a local notification (for testing or immediate display)
+export async function showLocalNotification(
+  title: string,
+  body: string,
+  data?: any
+) {
+  if (!isNativeApp) return;
+
+  try {
+    // Trigger haptic feedback
+    await Haptics.impact({ style: ImpactStyle.Medium });
+
+    // Dispatch event for in-app handling
+    window.dispatchEvent(new CustomEvent('show-native-notification', {
+      detail: { title, body, data }
+    }));
+
+    console.log('[Native] Local notification shown:', title);
+  } catch (err) {
+    console.error('[Native] Local notification error:', err);
   }
 }
 

@@ -1,10 +1,27 @@
 import { supabase } from "@/integrations/supabase/client";
+import { isNativeApp, platform } from "./native";
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
-// ─── Web Push subscription ────────────────────────────────────────────────────
+// ─── Unified Notification System ──────────────────────────────────────────────
+// Automatically uses native push notifications on mobile apps
+// Falls back to web push notifications on web browsers
 
 const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
 
 export async function requestNotificationPermission(): Promise<boolean> {
+  // Native app - use Capacitor Push Notifications
+  if (isNativeApp) {
+    try {
+      const permission = await PushNotifications.requestPermissions();
+      return permission.receive === 'granted';
+    } catch (err) {
+      console.error('[Notifications] Native permission error:', err);
+      return false;
+    }
+  }
+  
+  // Web app - use Web Notifications API
   if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
   if (Notification.permission === "denied") return false;
@@ -17,12 +34,25 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 export function canNotify(): boolean {
+  // Native app - always return true if initialized
+  if (isNativeApp) {
+    return true; // Capacitor handles permissions internally
+  }
+  
+  // Web app - check Notification API
   return "Notification" in window && Notification.permission === "granted";
 }
 
-// Subscribe this device to Web Push and store in DB
-// Call this after permission is granted
+// Subscribe this device to Push Notifications and store in DB
+// Automatically handles both native (FCM/APNs) and web push
 export async function subscribeToWebPush(userId: string): Promise<boolean> {
+  // Native app - handled by Capacitor in native.ts
+  if (isNativeApp) {
+    console.log('[Notifications] Native push handled by Capacitor');
+    return true;
+  }
+  
+  // Web app - use Web Push API
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
   if (!canNotify()) return false;
   if (!VAPID_PUBLIC) return false;
@@ -58,8 +88,8 @@ export async function subscribeToWebPush(userId: string): Promise<boolean> {
   }
 }
 
-// Send a real Web Push notification via the Edge Function
-// This wakes the phone even when browser is closed
+// Send a push notification via backend
+// Automatically routes to FCM/APNs for native apps or Web Push for web
 export async function sendWebPush(
   userId: string,
   title: string,
@@ -68,10 +98,16 @@ export async function sendWebPush(
 ): Promise<void> {
   try {
     await supabase.functions.invoke("send-push", {
-      body: { user_id: userId, title, body, url },
+      body: { 
+        user_id: userId, 
+        title, 
+        body, 
+        url,
+        platform: isNativeApp ? platform : 'web'
+      },
     });
   } catch (err) {
-    console.error("Web push error:", err);
+    console.error("Push notification error:", err);
   }
 }
 
@@ -82,59 +118,60 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return new Uint8Array([...rawData].map(c => c.charCodeAt(0)));
 }
 
-// ─── Aggressive notification system for iPhone/Safari ───────────────────────
-
-// Keep track of notification state to prevent sleep
-let notificationState = {
-  lastNotificationTime: 0,
-  notificationCount: 0,
-  isShowingNotification: false,
-};
-
-// Wake lock to prevent device sleep
-let wakeLock: any = null;
-
-async function acquireWakeLock() {
-  try {
-    if ("wakeLock" in navigator) {
-      wakeLock = await (navigator as any).wakeLock.request("screen");
-      console.log("Wake lock acquired");
-    }
-  } catch (err) {
-    console.error("Wake lock error:", err);
-  }
-}
-
-function releaseWakeLock() {
-  if (wakeLock) {
-    wakeLock.release().catch(() => {});
-    wakeLock = null;
-  }
-}
-
-// ─── In-app / SW notification (for foreground + background tab) ───────────────
+// ─── Show Local Notification ──────────────────────────────────────────────────
+// Uses native notifications on mobile, web notifications on browser
 
 export async function sendPushNotification(
   title: string,
   body: string,
-  options?: { icon?: string; tag?: string; requireInteraction?: boolean; onClick?: () => void }
+  options?: { 
+    icon?: string; 
+    tag?: string; 
+    requireInteraction?: boolean; 
+    onClick?: () => void;
+    data?: any;
+  }
 ) {
-  if (!canNotify()) return;
+  // Native app - use Capacitor Local Notifications
+  if (isNativeApp) {
+    try {
+      // Trigger haptic feedback
+      await Haptics.impact({ style: ImpactStyle.Medium });
+      
+      // Schedule local notification
+      await PushNotifications.createChannel({
+        id: 'default',
+        name: 'Default',
+        description: 'Default notification channel',
+        importance: 5, // Max importance
+        visibility: 1, // Public
+        sound: 'default',
+        vibration: true,
+      });
 
-  const appVisible = document.visibilityState === "visible";
-  const now = Date.now();
-  
-  // Prevent notification spam
-  if (now - notificationState.lastNotificationTime < 500) {
+      // Show notification using Capacitor
+      const { PushNotifications: LocalNotifications } = await import('@capacitor/push-notifications');
+      
+      // For immediate display, we use the push notification received event
+      window.dispatchEvent(new CustomEvent('show-native-notification', {
+        detail: { title, body, data: options?.data }
+      }));
+      
+      console.log('[Notifications] Native notification shown:', title);
+      return;
+    } catch (err) {
+      console.error('[Notifications] Native notification error:', err);
+      // Fall through to web notification
+    }
+  }
+
+  // Web app - use Web Notifications API
+  if (!canNotify()) {
+    console.warn('[Notifications] Cannot show notification - permission not granted');
     return;
   }
-  
-  notificationState.lastNotificationTime = now;
-  notificationState.notificationCount++;
-  notificationState.isShowingNotification = true;
 
-  // Acquire wake lock to prevent sleep
-  await acquireWakeLock();
+  const appVisible = document.visibilityState === "visible";
 
   if (appVisible) {
     // App is open — show basic notification directly
@@ -142,7 +179,7 @@ export async function sendPushNotification(
     return;
   }
 
-  // App is in background — use SW with aggressive wake-up
+  // App is in background — use Service Worker
   if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
     try {
       navigator.serviceWorker.controller.postMessage({
@@ -150,9 +187,9 @@ export async function sendPushNotification(
         title,
         body,
         tag: options?.tag ?? "msg",
-        vibrate: [400, 200, 400, 200, 400], // Very strong vibration
-        count: notificationState.notificationCount,
+        vibrate: [400, 200, 400, 200, 400],
         requireInteraction: options?.requireInteraction ?? false,
+        data: options?.data,
       });
       return;
     } catch (err) {
@@ -171,10 +208,10 @@ export async function sendPushNotification(
           body,
           icon: options?.icon ?? "/me.webp",
           tag: options?.tag ?? "msg",
-          data: { url: "/dashboard/chat" },
-          vibrate: [400, 200, 400, 200, 400], // Very strong vibration
+          data: options?.data ?? { url: "/dashboard/chat" },
+          vibrate: [400, 200, 400, 200, 400],
           badge: "/me.webp",
-          requireInteraction: options?.requireInteraction ?? true, // Keep notification until user interacts
+          requireInteraction: options?.requireInteraction ?? true,
           actions: [
             { action: "open", title: "Open" },
             { action: "close", title: "Close" }
@@ -193,34 +230,28 @@ export async function sendPushNotification(
 function _showBasicNotification(
   title: string,
   body: string,
-  options?: { icon?: string; tag?: string; requireInteraction?: boolean; onClick?: () => void }
+  options?: { icon?: string; tag?: string; requireInteraction?: boolean; onClick?: () => void; data?: any }
 ) {
   try {
     const n = new Notification(title, {
       body,
       icon: options?.icon ?? "/me.webp",
       tag: options?.tag,
-      vibrate: [400, 200, 400, 200, 400], // Very strong vibration
-      requireInteraction: options?.requireInteraction ?? true, // Keep notification until user interacts
+      vibrate: [400, 200, 400, 200, 400],
+      requireInteraction: options?.requireInteraction ?? true,
+      data: options?.data,
     });
     n.onclick = () => { 
       window.focus(); 
       options?.onClick?.(); 
       n.close();
-      releaseWakeLock();
-      notificationState.isShowingNotification = false;
     };
-    n.onclose = () => {
-      releaseWakeLock();
-      notificationState.isShowingNotification = false;
-    };
-    // Don't auto-close — let user dismiss it
   } catch (err) {
     console.error("Notification error:", err);
   }
 }
 
-// ─── 15-minute unread reminder ────────────────────────────────────────────────
+// ─── Unread Message Reminders ──────────────────────────────────────────────────
 
 let reminderTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -234,7 +265,7 @@ export function startUnreadReminder(getUnreadCount: () => number, isAdmin: boole
         isAdmin
           ? `You have ${count} unread message${count > 1 ? "s" : ""} from client${count > 1 ? "s" : ""}.`
           : `You have ${count} unread message${count > 1 ? "s" : ""} from Ajibola.`,
-        { tag: "unread-reminder" }
+        { tag: "unread-reminder", data: { type: 'unread', count } }
       );
     }
   }, 15 * 60 * 1000);
@@ -244,7 +275,7 @@ export function stopUnreadReminder() {
   if (reminderTimer) { clearInterval(reminderTimer); reminderTimer = null; }
 }
 
-// ─── Background refresh when app is hidden ────────────────────────────────────
+// ─── Background Message Polling ────────────────────────────────────────────────
 
 let bgRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -253,16 +284,15 @@ export function startBackgroundRefresh(onRefresh: () => void) {
   
   const handleVisibilityChange = () => {
     if (document.hidden) {
-      // App went to background — start aggressive refresh
-      console.log("App hidden - starting background refresh");
+      // App went to background — start polling for new messages
+      console.log("[Notifications] App hidden - starting background refresh");
       bgRefreshTimer = setInterval(() => {
         onRefresh();
-      }, 3000); // Refresh every 3 seconds in background (more aggressive)
+      }, 5000); // Poll every 5 seconds in background
     } else {
-      // App came to foreground — stop background refresh
-      console.log("App visible - stopping background refresh");
+      // App came to foreground — stop background polling
+      console.log("[Notifications] App visible - stopping background refresh");
       stopBackgroundRefresh();
-      releaseWakeLock();
     }
   };
 

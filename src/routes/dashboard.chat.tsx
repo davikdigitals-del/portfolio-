@@ -564,32 +564,35 @@ function ChatPage() {
   return (
     <div className="flex h-full relative overflow-hidden">
       {/* Notification alerts */}
-      <div className="fixed top-16 right-2 z-50 flex flex-col gap-2 pointer-events-none w-[calc(100vw-1rem)] md:w-auto md:right-4 md:top-4 md:max-w-xs">
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-[calc(100vw-2rem)] max-w-sm">
         {alerts.map((a) => (
-          <div key={a.id} className="pointer-events-auto flex items-center gap-3 bg-card border border-border rounded-xl px-3 py-2.5 shadow-lg animate-fade-up text-sm">            <Bell className="h-4 w-4 text-primary shrink-0" />
-            <span className="flex-1 truncate text-xs">{a.text}</span>
-            <button onClick={() => { setActiveId(a.convId); setAlerts((p) => p.filter((x) => x.id !== a.id)); }} className="text-primary text-xs font-medium hover:underline shrink-0">View</button>
-            <button onClick={() => setAlerts((p) => p.filter((x) => x.id !== a.id))} className="text-muted-foreground hover:text-foreground ml-1"><X className="h-3 w-3" /></button>
+          <div key={a.id} className="pointer-events-auto flex items-center gap-3 rounded-xl px-3 py-2.5 shadow-2xl animate-fade-up text-sm" style={{ background: "#1f2c34", border: "1px solid #2a3942" }}>
+            <div className="h-8 w-8 rounded-full bg-[#00a884] flex items-center justify-center shrink-0">
+              <Bell className="h-4 w-4 text-white" />
+            </div>
+            <span className="flex-1 truncate text-xs text-[#e9edef]">{a.text}</span>
+            <button onClick={() => { setActiveId(a.convId); setAlerts((p) => p.filter((x) => x.id !== a.id)); }} className="text-[#00a884] text-xs font-semibold hover:underline shrink-0">Open</button>
+            <button onClick={() => setAlerts((p) => p.filter((x) => x.id !== a.id))} className="text-[#8696a0] hover:text-[#e9edef] ml-1"><X className="h-3.5 w-3.5" /></button>
           </div>
         ))}
       </div>
 
       {/* Sidebar — full screen on mobile when no chat open */}
-      <aside className={`flex flex-col border-r border-border bg-surface/50 shrink-0 ${active ? "hidden md:flex md:w-80" : "flex w-full md:w-80"}`}>
-        <div className="h-14 md:h-16 border-b border-border px-4 md:px-5 flex items-center justify-between shrink-0">
-          <h2 className="font-semibold">{isAdmin ? "Inbox" : "Your conversation"}</h2>
+      <aside className={`flex flex-col border-r border-border bg-[#111b21] shrink-0 ${active ? "hidden md:flex md:w-80" : "flex w-full md:w-80"}`}>
+        <div className="h-14 border-b border-border px-4 flex items-center justify-between shrink-0 bg-[#202c33]">
+          <h2 className="font-semibold text-[#e9edef] text-base">{isAdmin ? "Chats" : "Chats"}</h2>
           <div className="flex items-center gap-1">
-            <button onClick={() => setSoundOn((v) => !v)} title={soundOn ? "Mute sound" : "Enable sound"} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
-              {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            <button onClick={() => setSoundOn((v) => !v)} title={soundOn ? "Mute sound" : "Enable sound"} className="p-2 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors">
+              {soundOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
             </button>
-            <button onClick={() => setNotifsOn((v) => !v)} title={notifsOn ? "Disable notifications" : "Enable notifications"} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
-              {notifsOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+            <button onClick={() => setNotifsOn((v) => !v)} title={notifsOn ? "Disable notifications" : "Enable notifications"} className="p-2 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors">
+              {notifsOn ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
             </button>
             {typeof window !== "undefined" && "Notification" in window && Notification.permission === "default" && (
               <button
                 onClick={() => requestNotificationPermission().then((ok) => ok && toast.success("Push notifications enabled!"))}
                 title="Enable push notifications"
-                className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors text-[10px] font-medium"
+                className="p-2 rounded-full text-[#00a884] hover:bg-[#2a3942] transition-colors text-[10px] font-medium"
               >
                 Allow
               </button>
@@ -598,9 +601,9 @@ function ChatPage() {
         </div>
         {/* Notification permission banner */}
         {notifPermission === "default" && (
-          <div className="px-4 py-2.5 bg-primary/10 border-b border-primary/20 flex items-center gap-3">
-            <Bell className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-xs text-foreground flex-1">Enable notifications to get message alerts</span>
+          <div className="px-4 py-2.5 bg-[#00a884]/10 border-b border-[#2a3942] flex items-center gap-3">
+            <Bell className="h-4 w-4 text-[#00a884] shrink-0" />
+            <span className="text-xs text-[#e9edef] flex-1">Enable notifications to get message alerts</span>
             <button
               onClick={async () => {
                 const granted = await requestNotificationPermission();
@@ -610,61 +613,60 @@ function ChatPage() {
                   toast.success("Notifications enabled!");
                 }
               }}
-              className="text-xs font-semibold text-primary hover:underline shrink-0"
+              className="text-xs font-semibold text-[#00a884] hover:underline shrink-0"
             >
               Allow
             </button>
           </div>
         )}
         {notifPermission === "denied" && (
-          <div className="px-4 py-2 bg-muted/50 border-b border-border flex items-center gap-2">
-            <BellOff className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground">Notifications blocked. Enable in browser settings.</span>
+          <div className="px-4 py-2 bg-[#1f2c34] border-b border-[#2a3942] flex items-center gap-2">
+            <BellOff className="h-3.5 w-3.5 text-[#8696a0] shrink-0" />
+            <span className="text-xs text-[#8696a0]">Notifications blocked. Enable in browser settings.</span>
           </div>
         )}
         {isAdmin && (
-          <div className="p-3 border-b border-border">
+          <div className="p-3 border-b border-[#2a3942] bg-[#111b21]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search conversations..." className="pl-9 h-9" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8696a0]" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search or start new chat" className="pl-9 h-9 bg-[#2a3942] border-0 text-[#e9edef] placeholder:text-[#8696a0] rounded-lg focus-visible:ring-0" />
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-[#111b21]">
           {loading ? (
-            <div className="p-3 space-y-2">{[1,2,3].map((i) => <div key={i} className="h-16 rounded-xl bg-muted/40 animate-pulse" />)}</div>
+            <div className="p-3 space-y-1">{[1,2,3].map((i) => <div key={i} className="h-[72px] rounded bg-[#1f2c34]/60 animate-pulse" />)}</div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">No conversations yet.</div>
+            <div className="p-8 text-center text-sm text-[#8696a0]">No conversations yet.</div>
           ) : (
-            <ul className="p-2 space-y-1">
+            <ul className="divide-y divide-[#2a3942]/40">
               {filtered.map((c) => {
                 const unread = isAdmin ? c.unread_admin : c.unread_user;
 
                 // CLIENT view: show admin's avatar, name, online status
                 if (!isAdmin) {
-                  // Admin should NOT show as online in the sidebar list
                   const adminOnline = false;
                   const adminName = adminProfile?.display_name ?? "Ajibola Gbenga Joseph";
                   const adminInitial = adminName[0].toUpperCase();
                   return (
                     <li key={c.id}>
-                      <button onClick={() => setActiveId(c.id)} className={`w-full text-left flex items-center gap-3 p-3 rounded-xl transition-colors ${activeId === c.id ? "bg-accent" : "hover:bg-accent/50"}`}>
+                      <button onClick={() => setActiveId(c.id)} className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors ${activeId === c.id ? "bg-[#2a3942]" : "hover:bg-[#1f2c34]"}`}>
                         <div className="relative shrink-0">
                           {adminProfile?.avatar_url ? (
-                            <img src={adminProfile.avatar_url} alt={adminName} className="h-10 w-10 rounded-full object-cover ring-2 ring-border" />
+                            <img src={adminProfile.avatar_url} alt={adminName} className="h-12 w-12 rounded-full object-cover" />
                           ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">{adminInitial}</div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#00a884] text-white text-base font-semibold">{adminInitial}</div>
                           )}
-                          <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface ${adminOnline ? "bg-green-500" : "bg-gray-400"}`} />
+                          <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#111b21] ${adminOnline ? "bg-[#25d366]" : "bg-[#8696a0]"}`} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium text-sm truncate">{adminName}</span>
-                            {c.last_message_at && <span className="text-[10px] text-muted-foreground shrink-0">{formatTime(c.last_message_at)}</span>}
+                            <span className="font-medium text-sm text-[#e9edef] truncate">{adminName}</span>
+                            {c.last_message_at && <span className={`text-[11px] shrink-0 ${unread > 0 ? "text-[#00a884]" : "text-[#8696a0]"}`}>{formatTime(c.last_message_at)}</span>}
                           </div>
                           <div className="flex items-center justify-between gap-2 mt-0.5">
                             <LiveLastSeen iso={adminProfile?.last_seen ?? null} online={adminOnline} />
-                            {unread > 0 && <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 text-[10px] font-semibold rounded-full bg-primary text-primary-foreground">{unread}</span>}
+                            {unread > 0 && <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-semibold rounded-full bg-[#00a884] text-white">{unread}</span>}
                           </div>
                         </div>
                       </button>
@@ -678,23 +680,23 @@ function ChatPage() {
                 const clientInitial = clientName[0].toUpperCase();
                 return (
                   <li key={c.id}>
-                    <button onClick={() => setActiveId(c.id)} className={`w-full text-left flex items-center gap-3 p-3 rounded-xl transition-colors ${activeId === c.id ? "bg-accent" : "hover:bg-accent/50"}`}>
+                    <button onClick={() => setActiveId(c.id)} className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors ${activeId === c.id ? "bg-[#2a3942]" : "hover:bg-[#1f2c34]"}`}>
                       <div className="relative shrink-0">
                         {c.profile?.avatar_url ? (
-                          <img src={c.profile.avatar_url} alt={clientName} className="h-10 w-10 rounded-full object-cover ring-2 ring-border" />
+                          <img src={c.profile.avatar_url} alt={clientName} className="h-12 w-12 rounded-full object-cover" />
                         ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">{clientInitial}</div>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#00a884] text-white text-base font-semibold">{clientInitial}</div>
                         )}
-                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface ${clientOnline ? "bg-green-500" : "bg-gray-400"}`} />
+                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#111b21] ${clientOnline ? "bg-[#25d366]" : "bg-[#8696a0]"}`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-sm truncate">{clientName}</span>
-                          {c.last_message_at && <span className="text-[10px] text-muted-foreground shrink-0">{formatTime(c.last_message_at)}</span>}
+                          <span className="font-medium text-sm text-[#e9edef] truncate">{clientName}</span>
+                          {c.last_message_at && <span className={`text-[11px] shrink-0 ${unread > 0 ? "text-[#00a884]" : "text-[#8696a0]"}`}>{formatTime(c.last_message_at)}</span>}
                         </div>
                         <div className="flex items-center justify-between gap-2 mt-0.5">
-                          <span className="text-xs text-muted-foreground truncate">{c.last_message ?? "Start the conversation"}</span>
-                          {unread > 0 && <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 text-[10px] font-semibold rounded-full bg-primary text-primary-foreground">{unread}</span>}
+                          <span className="text-xs text-[#8696a0] truncate">{c.last_message ?? "Start the conversation"}</span>
+                          {unread > 0 && <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-semibold rounded-full bg-[#00a884] text-white">{unread}</span>}
                         </div>
                       </div>
                     </button>
@@ -742,6 +744,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   );
   const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [showCallDropdown, setShowCallDropdown] = useState(false);
 
   // Reset reply state when conversation changes
   useEffect(() => {
@@ -1306,6 +1309,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
   // ---- Context menu (long press / right click) ----
   const [ctxMenu, setCtxMenu] = useState<{ msgId: string; x: number; y: number; mine: boolean; type: string } | null>(null);
+  const [reactionsMenu, setReactionsMenu] = useState<{ msgId: string; x: number; y: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressDataRef = useRef<{ msg: Message; mine: boolean; x: number; y: number } | null>(null);
   const ctxMenuJustOpenedRef = useRef(false);
@@ -1319,8 +1323,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     y = Math.max(8, Math.min(y, viewportHeight - menuH - 8));
     ctxMenuJustOpenedRef.current = true;
     setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
+    // Show reactions bar above the context menu
+    setReactionsMenu({ msgId: msg.id, x: Math.max(8, Math.min(x, viewportWidth - 280)), y: Math.max(8, y - 60) });
     console.log("[ContextMenu] Menu state set:", { msgId: msg.id, x, y, mine, type: msg.type });
-    // Clear the "just opened" flag after a short delay
     setTimeout(() => { ctxMenuJustOpenedRef.current = false; }, 300);
   }
 
@@ -1349,10 +1354,10 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   useEffect(() => {
     if (!ctxMenu) return;
     const close = (e: Event) => {
-      if (ctxMenuJustOpenedRef.current) return; // ignore the opening touch
+      if (ctxMenuJustOpenedRef.current) return;
       setCtxMenu(null);
+      setReactionsMenu(null);
     };
-    // Use touchend (not touchstart) so it doesn't fire on the long-press release
     document.addEventListener("click", close);
     document.addEventListener("touchend", close);
     return () => {
@@ -1682,13 +1687,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const statusLabel = useLastSeenLabel(lastSeen, isOnline);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background">
-      {/* Professional Header with better spacing */}
-      <header className="h-16 md:h-18 border-b border-border/50 px-4 md:px-6 flex items-center gap-3 md:gap-4 bg-surface/30 backdrop-blur-sm shrink-0 shadow-sm">
-        {/* Back button — mobile only, larger touch target */}
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: "#0b141a" }}>
+      {/* WhatsApp-style Header */}
+      <header className="h-14 px-2 flex items-center gap-2 shrink-0" style={{ background: "#202c33" }}>
+        {/* Back button — mobile only */}
         <button
           onClick={onBack}
-          className="md:hidden flex items-center justify-center h-10 w-10 rounded-xl hover:bg-accent/50 active:bg-accent transition-all duration-200 shrink-0 text-foreground active:scale-95"
+          className="md:hidden flex items-center justify-center h-10 w-10 rounded-full hover:bg-[#2a3942] active:bg-[#2a3942] transition-all shrink-0 text-[#aebac1]"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
@@ -1696,30 +1701,22 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         {/* Avatar with online indicator */}
         <div className="relative shrink-0">
           {!isAdmin && adminProfile?.avatar_url ? (
-            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-11 w-11 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-border/50 shadow-sm" />
+            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-10 w-10 rounded-full object-cover" />
           ) : isAdmin && conversation.profile?.avatar_url ? (
-            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-11 w-11 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-border/50 shadow-sm" />
+            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-10 w-10 rounded-full object-cover" />
           ) : (
-            <div className="flex h-11 w-11 md:h-12 md:w-12 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-base md:text-lg font-bold shadow-sm">{counterpartInitial}</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#00a884] text-white text-base font-bold">{counterpartInitial}</div>
           )}
-          <span className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-[3px] border-surface shadow-sm ${isOnline ? "bg-green-500" : "bg-gray-400"}`} />
+          <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#202c33] ${isOnline ? "bg-[#25d366]" : "bg-[#8696a0]"}`} />
         </div>
         
         {/* Name and status */}
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm md:text-base truncate text-foreground">{counterpartName}</div>
-          <div className={`text-xs md:text-sm font-medium flex items-center gap-1.5 ${isOnline ? "text-green-500" : "text-muted-foreground"}`}>
-            {isOnline && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />}
+        <div className="flex-1 min-w-0 cursor-pointer">
+          <div className="font-semibold text-sm text-[#e9edef] truncate">{counterpartName}</div>
+          <div className={`text-xs font-normal ${isOnline ? "text-[#25d366]" : "text-[#8696a0]"}`}>
             {statusLabel}
           </div>
         </div>
-        
-        {/* Email (desktop only) */}
-        {isAdmin && conversation.profile?.email && (
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 text-xs text-muted-foreground font-medium">
-            {conversation.profile.email}
-          </div>
-        )}
         
         {/* JOIN button — active call indicator */}
         {activeCallOnConv && activeCallOnConv.initiator_id !== user?.id && (
@@ -1735,83 +1732,93 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                 toast.error("Please go to the dashboard to join the call");
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-bold shadow-lg shadow-green-500/30 animate-pulse shrink-0 active:scale-95 transition-all duration-200"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#25d366] text-white text-xs font-bold shadow-lg animate-pulse shrink-0"
           >
-            {activeCallOnConv.call_type === "video" ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
-            <span className="hidden sm:inline">JOIN CALL</span>
-            <span className="sm:hidden">JOIN</span>
+            {activeCallOnConv.call_type === "video" ? <Video className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
+            JOIN
           </button>
         )}
         
-        {/* Action buttons - professional styling */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Action buttons */}
+        <div className="flex items-center gap-0 shrink-0">
           <button
             onClick={(e) => {
               e.stopPropagation();
-              console.log("[Call Button] Voice call clicked");
-              initiateCall("voice");
-            }}
-            title="Start voice call"
-            className="p-2.5 md:p-3 text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all duration-200 shrink-0 active:scale-95"
-          >
-            <Phone className="h-4.5 w-4.5 md:h-5 md:w-5" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              console.log("[Call Button] Video call clicked");
               initiateCall("video");
             }}
             title="Start video call"
-            className="p-2.5 md:p-3 text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all duration-200 shrink-0 active:scale-95"
+            className="p-2.5 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] rounded-full transition-all shrink-0"
           >
-            <Video className="h-4.5 w-4.5 md:h-5 md:w-5" />
+            <Video className="h-5 w-5" />
           </button>
-          <button
-            onClick={() => setShowSchedule(true)}
-            title="Schedule a call"
-            className="hidden sm:flex p-2.5 md:p-3 text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all duration-200 shrink-0 active:scale-95"
-          >
-            <Calendar className="h-4.5 w-4.5 md:h-5 md:w-5" />
-          </button>
+          {/* Call button with dropdown */}
+          <div className="relative shrink-0">
+            <div className="flex items-center">
+              <button
+                onClick={(e) => { e.stopPropagation(); initiateCall("voice"); }}
+                title="Start voice call"
+                className="p-2.5 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] rounded-full transition-all"
+              >
+                <Phone className="h-5 w-5" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowCallDropdown(v => !v); }}
+                className="p-1 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] rounded-full transition-all"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+            {showCallDropdown && (
+              <div
+                className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl overflow-hidden z-50 min-w-[200px] animate-fade-up"
+                style={{ background: "#233138", border: "1px solid #2a3942" }}
+                onClick={e => e.stopPropagation()}
+              >
+                <button onClick={() => { initiateCall("voice"); setShowCallDropdown(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#e9edef] hover:bg-[#2a3942] transition-colors text-left">
+                  <Phone className="h-4 w-4 text-[#8696a0]" /> Voice call
+                </button>
+                <button onClick={() => { initiateCall("video"); setShowCallDropdown(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#e9edef] hover:bg-[#2a3942] transition-colors text-left">
+                  <Video className="h-4 w-4 text-[#8696a0]" /> Video call
+                </button>
+                <button onClick={() => { setShowSchedule(true); setShowCallDropdown(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#e9edef] hover:bg-[#2a3942] transition-colors text-left">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#8696a0]"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  Send call link
+                </button>
+              </div>
+            )}
+          </div>
           {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={() => { setShowSummary((v) => !v); if (!summary) void generateSummary(); }}
-              className="hidden md:flex gap-2 text-xs h-9 px-3 rounded-xl border-border/50 hover:bg-accent/50 transition-all duration-200"
+              className="hidden md:flex p-2.5 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] rounded-full transition-all shrink-0"
+              title="AI Summary"
             >
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="hidden lg:inline font-medium">AI Summary</span>
-            </Button>
+              <Sparkles className="h-5 w-5" />
+            </button>
           )}
         </div>
       </header>
 
-      {/* AI Summary panel - professional styling */}
+      {/* AI Summary panel */}
       {isAdmin && showSummary && (
-        <div className="border-b border-border/50 bg-gradient-to-r from-primary/5 to-primary/10 px-6 py-4 shrink-0 shadow-sm">
+        <div className="border-b border-[#2a3942] px-4 py-3 shrink-0" style={{ background: "#1f2c34" }}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 flex-1 min-w-0">
-              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
+              <Sparkles className="h-4 w-4 text-[#00a884] shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-primary mb-2">Conversation Summary</div>
+                <div className="text-xs font-semibold text-[#00a884] mb-1">Conversation Summary</div>
                 {summaryLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Analyzing conversation...
+                  <div className="flex items-center gap-2 text-xs text-[#8696a0]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing...
                   </div>
                 ) : (
-                  <p className="text-sm text-foreground/80 leading-relaxed">{summary ?? "No summary available yet."}</p>
+                  <p className="text-xs text-[#e9edef]/80 leading-relaxed">{summary ?? "No summary yet."}</p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="ghost" size="sm" onClick={() => void generateSummary()} className="h-8 text-xs px-3 rounded-lg hover:bg-primary/10" disabled={summaryLoading}>
-                Refresh
-              </Button>
-              <button onClick={() => setShowSummary(false)} className="text-muted-foreground hover:text-foreground p-1">
+              <button onClick={() => void generateSummary()} className="text-xs text-[#00a884] hover:underline" disabled={summaryLoading}>Refresh</button>
+              <button onClick={() => setShowSummary(false)} className="text-[#8696a0] hover:text-[#e9edef] p-1">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -1824,42 +1831,42 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
       {/* ── Schedule Call Modal ──────────────────────────────────────────── */}
       {showSchedule && (
-        <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center bg-black/60 p-4" onClick={() => setShowSchedule(false)}>
-          <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h3 className="font-semibold text-base">Schedule a call</h3>
-              <button onClick={() => setShowSchedule(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center bg-black/70 p-4" onClick={() => setShowSchedule(false)}>
+          <div className="w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden" style={{ background: "#1f2c34" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a3942]">
+              <h3 className="font-semibold text-base text-[#e9edef]">Schedule a call</h3>
+              <button onClick={() => setShowSchedule(false)} className="text-[#8696a0] hover:text-[#e9edef]"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-5 space-y-4">
               {/* Call type */}
               <div className="flex gap-2">
-                <button onClick={() => setScheduleType("voice")} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-colors ${scheduleType === "voice" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                <button onClick={() => setScheduleType("voice")} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-colors ${scheduleType === "voice" ? "bg-[#00a884] text-white border-[#00a884]" : "border-[#2a3942] text-[#8696a0] hover:bg-[#2a3942]"}`}>
                   <Phone className="h-4 w-4" /> Voice
                 </button>
-                <button onClick={() => setScheduleType("video")} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-colors ${scheduleType === "video" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                <button onClick={() => setScheduleType("video")} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-colors ${scheduleType === "video" ? "bg-[#00a884] text-white border-[#00a884]" : "border-[#2a3942] text-[#8696a0] hover:bg-[#2a3942]"}`}>
                   <Video className="h-4 w-4" /> Video
                 </button>
               </div>
               {/* Title */}
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Title (optional)</label>
-                <input value={scheduleTitle} onChange={e => setScheduleTitle(e.target.value)} placeholder="e.g. Project discussion" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/60" />
+                <label className="text-xs text-[#8696a0] mb-1 block">Title (optional)</label>
+                <input value={scheduleTitle} onChange={e => setScheduleTitle(e.target.value)} placeholder="e.g. Project discussion" className="w-full rounded-xl border border-[#2a3942] bg-[#2a3942] px-3 py-2.5 text-sm outline-none focus:border-[#00a884] text-[#e9edef] placeholder:text-[#8696a0]" />
               </div>
               {/* Date */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Date</label>
-                  <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} min={new Date().toISOString().split("T")[0]} className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/60" />
+                  <label className="text-xs text-[#8696a0] mb-1 block">Date</label>
+                  <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} min={new Date().toISOString().split("T")[0]} className="w-full rounded-xl border border-[#2a3942] bg-[#2a3942] px-3 py-2.5 text-sm outline-none focus:border-[#00a884] text-[#e9edef]" />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Time</label>
-                  <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/60" />
+                  <label className="text-xs text-[#8696a0] mb-1 block">Time</label>
+                  <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full rounded-xl border border-[#2a3942] bg-[#2a3942] px-3 py-2.5 text-sm outline-none focus:border-[#00a884] text-[#e9edef]" />
                 </div>
               </div>
               <button
                 onClick={saveScheduledCall}
                 disabled={!scheduleDate || !scheduleTime || scheduleSaving}
-                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50 hover:opacity-90 transition-opacity"
+                className="w-full py-3 rounded-xl bg-[#00a884] text-white font-semibold text-sm disabled:opacity-50 hover:opacity-90 transition-opacity"
               >
                 {scheduleSaving ? "Scheduling..." : "Schedule Call"}
               </button>
@@ -1870,7 +1877,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
       {/* ── Scheduled calls banner ───────────────────────────────────────── */}
       {scheduledCalls.length > 0 && (
-        <div className="border-b border-border bg-primary/5 px-4 py-2 shrink-0 space-y-1.5">
+        <div className="border-b border-[#2a3942] px-4 py-2 shrink-0 space-y-1.5" style={{ background: "#1f2c34" }}>
           {scheduledCalls.map(sc => {
             const dt = new Date(sc.scheduled_at);
             const isToday = dt.toDateString() === new Date().toDateString();
@@ -1878,30 +1885,30 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             const dateStr = isToday ? "Today" : dt.toLocaleDateString([], { month: "short", day: "numeric" });
             return (
               <div key={sc.id} className="flex items-center gap-3">
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${sc.call_type === "video" ? "bg-blue-500/20 text-blue-500" : "bg-green-500/20 text-green-500"}`}>
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${sc.call_type === "video" ? "bg-[#53bdeb]/20 text-[#53bdeb]" : "bg-[#00a884]/20 text-[#00a884]"}`}>
                   {sc.call_type === "video" ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold truncate">{sc.title}</div>
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <div className="text-xs font-semibold truncate text-[#e9edef]">{sc.title}</div>
+                  <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
                     <Clock className="h-3 w-3" /> {dateStr} at {timeStr}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => { navigator.clipboard.writeText(sc.call_link); toast.success("Link copied!"); }}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    className="p-1.5 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors"
                     title="Copy call link"
                   >
                     <Link className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => initiateCall(sc.call_type)}
-                    className="px-2.5 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90"
+                    className="px-2.5 py-1 rounded-full bg-[#00a884] text-white text-[11px] font-semibold hover:opacity-90"
                   >
                     Start
                   </button>
-                  <button onClick={() => cancelScheduledCall(sc.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive transition-colors">
+                  <button onClick={() => cancelScheduledCall(sc.id)} className="p-1.5 rounded-full text-[#8696a0] hover:text-[#f15c6d] transition-colors">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -1914,14 +1921,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       {/* Messages — flex-1 so it fills remaining space, overflow scrolls */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 overscroll-contain"
-        style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+        className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1 overscroll-contain"
+        style={{ WebkitOverflowScrolling: "touch", background: "#0b141a" } as React.CSSProperties}
         onClick={() => setCtxMenu(null)}
       >
         {messages.length === 0 && (
-          <div className="text-center text-sm text-muted-foreground py-12">
-            <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            Say hello
+          <div className="text-center text-sm text-[#8696a0] py-12">
+            <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            Say hello 👋
           </div>
         )}
         {messages.map((m, i) => {
@@ -1932,21 +1939,44 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
           const canEdit = mine && m.type === "text" && !m.deleted_at;
           const canDelete = (mine || isAdmin) && !m.deleted_at;
 
+          // Date separator logic
+          const msgDate = new Date(m.created_at);
+          const prevDate = prev ? new Date(prev.created_at) : null;
+          const showDateSep = !prevDate || msgDate.toDateString() !== prevDate.toDateString();
+          const today = new Date();
+          const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+          let dateSepLabel = "";
+          if (showDateSep) {
+            if (msgDate.toDateString() === today.toDateString()) dateSepLabel = "Today";
+            else if (msgDate.toDateString() === yesterday.toDateString()) dateSepLabel = "Yesterday";
+            else dateSepLabel = msgDate.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
+          }
+
           return (
-            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start items-end gap-2"} ${showGap ? "mt-3" : ""} animate-message-in`}>
+            <div key={m.id}>
+              {/* Date separator */}
+              {showDateSep && (
+                <div className="flex items-center justify-center my-3">
+                  <span className="px-3 py-1 rounded-lg text-[11px] text-[#e9edef] font-medium shadow-sm" style={{ background: "#1f2c34" }}>
+                    {dateSepLabel}
+                  </span>
+                </div>
+              )}
+              {/* Message row */}
+              <div className={`flex ${mine ? "justify-end" : "justify-start items-end gap-1.5"} ${showGap ? "mt-2" : ""}`}>
               {!mine && showAvatar && (
                 <div className="shrink-0 mb-1">
                   {isAdmin ? (
                     conversation.profile?.avatar_url ? (
                       <img src={conversation.profile.avatar_url} alt="client" className="h-7 w-7 rounded-full object-cover" />
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">{counterpartInitial}</div>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00a884] text-white text-xs font-semibold">{counterpartInitial}</div>
                     )
                   ) : (
                     adminProfile?.avatar_url ? (
                       <img src={adminProfile.avatar_url} alt={adminProfile.display_name || "Admin"} className="h-7 w-7 rounded-full object-cover" />
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold">{counterpartInitial}</div>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00a884] text-white text-xs font-semibold">{counterpartInitial}</div>
                     )
                   )}
                 </div>
@@ -1956,7 +1986,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
               <div className="max-w-[75%]">
                 {/* Inline edit mode */}
                 {editingId === m.id ? (
-                  <div className="flex items-end gap-2 rounded-2xl border border-primary/60 bg-card p-2 min-w-[200px]">
+                  <div className="flex items-end gap-2 rounded-lg border border-[#00a884]/60 bg-[#1f2c34] p-2 min-w-[200px]">
                     <textarea
                       autoFocus
                       value={editText}
@@ -1966,11 +1996,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                         if (e.key === "Escape") setEditingId(null);
                       }}
                       rows={1}
-                      className="flex-1 resize-none bg-transparent outline-none text-sm px-1 max-h-24"
+                      className="flex-1 resize-none bg-transparent outline-none text-sm px-1 max-h-24 text-[#e9edef]"
                     />
                     <div className="flex gap-1 shrink-0">
-                      <button onClick={() => void saveEdit(m.id)} className="text-xs text-primary font-medium hover:underline">Save</button>
-                      <button onClick={() => setEditingId(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                      <button onClick={() => void saveEdit(m.id)} className="text-xs text-[#00a884] font-medium hover:underline">Save</button>
+                      <button onClick={() => setEditingId(null)} className="text-xs text-[#8696a0] hover:text-[#e9edef]">Cancel</button>
                     </div>
                   </div>
                 ) : (
@@ -1997,38 +2027,65 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                     />
                   </div>
                 )}
-                <div className={`flex items-center gap-1 mt-1 text-[10px] text-muted-foreground ${mine ? "justify-end mr-2" : "ml-2"}`}>
+                <div className={`flex items-center gap-1 mt-0.5 text-[10px] text-[#8696a0] ${mine ? "justify-end mr-1" : "ml-1"}`}>
                   <span>{formatTime(m.created_at)}</span>
                   {mine && !m.deleted_at && (
                     m.status === "seen"
-                      ? <CheckCheck className="h-3 w-3 text-primary" />              // blue double — seen
+                      ? <CheckCheck className="h-3 w-3 text-[#53bdeb]" />
                       : m.status === "delivered"
-                        ? <CheckCheck className="h-3 w-3 text-muted-foreground" />   // grey double — delivered
-                        : <Check className="h-3 w-3 text-muted-foreground" />        // grey single — sent
+                        ? <CheckCheck className="h-3 w-3 text-[#8696a0]" />
+                        : <Check className="h-3 w-3 text-[#8696a0]" />
                   )}
                 </div>
               </div>
+              </div>{/* end message row flex */}
             </div>
           );
         })}
         {theyTyping && (
           <div className="flex justify-start">
-            <div className="px-4 py-3 rounded-2xl bg-surface-elevated rounded-bl-sm">
+            <div className="px-4 py-3 rounded-lg rounded-bl-none" style={{ background: "#1f2c34" }}>
               <div className="flex gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-typing" />
-                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-typing [animation-delay:160ms]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-typing [animation-delay:320ms]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#8696a0] animate-typing" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#8696a0] animate-typing [animation-delay:160ms]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#8696a0] animate-typing [animation-delay:320ms]" />
               </div>
             </div>
           </div>
         )}
       </div>
 
+      {/* Reactions bar (floats above context menu) */}
+      {reactionsMenu && (
+        <div
+          className="fixed z-[51] flex items-center gap-1 px-3 py-2 rounded-full shadow-2xl animate-fade-up"
+          style={{ left: reactionsMenu.x, top: reactionsMenu.y, background: "#233138", border: "1px solid #2a3942" }}
+          onClick={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
+        >
+          {["👍","❤️","😂","😮","😢","🙏","🧍"].map((emoji) => (
+            <button
+              key={emoji}
+              onClick={() => { setReactionsMenu(null); setCtxMenu(null); }}
+              className="text-xl hover:scale-125 transition-transform active:scale-110 p-0.5"
+            >
+              {emoji}
+            </button>
+          ))}
+          <button
+            onClick={() => { setReactionsMenu(null); setCtxMenu(null); }}
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2a3942] text-[#8696a0] hover:text-[#e9edef] text-sm font-bold ml-1"
+          >
+            +
+          </button>
+        </div>
+      )}
+
       {/* WhatsApp-style context menu */}
       {ctxMenu && (
         <div
-          className="fixed z-50 rounded-2xl border border-border bg-card shadow-xl overflow-hidden min-w-[180px] animate-fade-up"
-          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          className="fixed z-50 rounded-lg border border-[#2a3942] overflow-hidden min-w-[200px] animate-fade-up shadow-2xl"
+          style={{ left: ctxMenu.x, top: ctxMenu.y, background: "#233138" }}
           onClick={(e) => e.stopPropagation()}
           onTouchEnd={(e) => e.stopPropagation()}
         >
@@ -2039,10 +2096,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
               const msg = messages.find((m) => m.id === ctxMenu.msgId);
               if (msg) setReplyingTo(msg);
               setCtxMenu(null);
+              setReactionsMenu(null);
             }}
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent active:bg-accent transition-colors text-left"
+            className="flex items-center gap-3 w-full px-5 py-3.5 text-sm hover:bg-[#2a3942] transition-colors text-left text-[#e9edef]"
           >
-            <Reply className="h-4 w-4 text-primary shrink-0" />
+            <Reply className="h-4 w-4 text-[#8696a0] shrink-0" />
             Reply
           </button>
           {ctxMenu.mine && ctxMenu.type === "text" && (
@@ -2056,10 +2114,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                   setEditingId(msg.id); 
                 }
                 setCtxMenu(null);
+                setReactionsMenu(null);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent active:bg-accent transition-colors text-left"
+              className="flex items-center gap-3 w-full px-5 py-3.5 text-sm hover:bg-[#2a3942] transition-colors text-left text-[#e9edef]"
             >
-              <Pencil className="h-4 w-4 text-primary shrink-0" />
+              <Pencil className="h-4 w-4 text-[#8696a0] shrink-0" />
               Edit message
             </button>
           )}
@@ -2069,10 +2128,10 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                 e.preventDefault();
                 e.stopPropagation(); 
                 setCtxMenu(null);
-                // Execute delete after menu closes to prevent event conflicts
+                setReactionsMenu(null);
                 setTimeout(() => deleteMessage(ctxMenu.msgId), 50);
               }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-destructive/10 active:bg-destructive/10 text-destructive transition-colors text-left"
+              className="flex items-center gap-3 w-full px-5 py-3.5 text-sm hover:bg-[#2a3942] text-[#f15c6d] transition-colors text-left"
             >
               <Trash2 className="h-4 w-4 shrink-0" />
               Delete message
@@ -2083,7 +2142,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
       {/* File previews */}
       {filePreviews.length > 0 && (
-        <div className="px-4 pt-3 border-t border-border bg-surface/40 flex flex-wrap gap-2 shrink-0">
+        <div className="px-3 pt-2 pb-1 border-t border-[#2a3942] flex flex-wrap gap-2 shrink-0" style={{ background: "#111b21" }}>
           {filePreviews.map((fp, idx) => (
             <div key={idx} className="relative group">
               {fp.kind === "image" && fp.previewUrl ? (
@@ -2096,13 +2155,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                   </div>
                 </div>
               ) : (
-                <div className="h-16 w-32 flex flex-col items-center justify-center rounded-lg border border-border bg-muted/40 px-2 gap-1">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-[10px] text-muted-foreground truncate w-full text-center">{fp.file.name}</span>
-                  <span className="text-[9px] text-muted-foreground">{formatBytes(fp.file.size)}</span>
+                <div className="h-16 w-32 flex flex-col items-center justify-center rounded-lg px-2 gap-1" style={{ background: "#1f2c34", border: "1px solid #2a3942" }}>
+                  <FileText className="h-5 w-5 text-[#8696a0]" />
+                  <span className="text-[10px] text-[#8696a0] truncate w-full text-center">{fp.file.name}</span>
+                  <span className="text-[9px] text-[#8696a0]">{formatBytes(fp.file.size)}</span>
                 </div>
               )}
-              <button onClick={() => removePreview(idx)} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => removePreview(idx)} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-[#f15c6d] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <X className="h-2.5 w-2.5" />
               </button>
             </div>
@@ -2113,15 +2172,15 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       {/* Composer — shrink-0 keeps it at bottom, safe-area for iPhone home bar */}
       <form
         onSubmit={send}
-        className="shrink-0 border-t border-border bg-surface/40 px-2 pt-2 md:px-4 md:pt-4"
-        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))" }}
+        className="shrink-0 px-2 pt-2 flex items-end gap-2"
+        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))", background: "#111b21" }}
       >
         {/* Reply preview */}
         {replyingTo && (
-          <div className="mb-2 flex items-center gap-2 px-3 py-2.5 rounded-lg border-l-4 border-primary bg-primary/10 backdrop-blur-sm">
+          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded border-l-4 border-[#00a884]" style={{ background: "#1f2c34" }}>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-primary">Replying to</div>
-              <div className="text-xs text-foreground/80 truncate mt-1 font-medium">
+              <div className="text-xs font-bold text-[#00a884]">Replying to</div>
+              <div className="text-xs text-[#e9edef]/80 truncate mt-0.5">
                 {replyingTo.type === "voice"
                   ? "🎙️ Voice note"
                   : replyingTo.type === "image"
@@ -2134,14 +2193,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             <button
               type="button"
               onClick={() => setReplyingTo(null)}
-              className="text-muted-foreground hover:text-foreground transition-colors shrink-0 p-1"
+              className="text-[#8696a0] hover:text-[#e9edef] transition-colors shrink-0 p-1"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
         {recording ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-red-500/40 bg-red-500/5 px-4 py-3">
+          <div className="flex-1 flex items-center gap-3 rounded-full px-4 py-2.5" style={{ background: "#2a3942" }}>
             {/* Cancel */}
             <button
               type="button"
@@ -2155,7 +2214,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                 setRecordingSeconds(0);
                 setWaveformBars(Array(24).fill(10));
               }}
-              className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+              className="text-[#8696a0] hover:text-[#f15c6d] transition-colors shrink-0"
               title="Cancel recording"
             >
               <X className="h-5 w-5" />
@@ -2168,12 +2227,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                 {waveformBars.map((h, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-full bg-red-400 transition-all duration-75"
+                    className="flex-1 rounded-full bg-[#00a884] transition-all duration-75"
                     style={{ height: `${h}%` }}
                   />
                 ))}
               </div>
-              <span className="text-sm font-mono font-medium text-red-500 shrink-0 w-10 text-right">
+              <span className="text-sm font-mono font-medium text-red-400 shrink-0 w-10 text-right">
                 {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, "0")}
               </span>
             </div>
@@ -2182,49 +2241,51 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             <button
               type="button"
               onClick={stopRecording}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 shrink-0 shadow-glow"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0"
               title="Send voice note"
             >
               <Send className="h-4 w-4" />
             </button>
           </div>
         ) : (
-          <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2 focus-within:border-primary/60 focus-within:shadow-glow transition-all">
-            <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.csv,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileSelect} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} title="Attach file" className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0">
-              <Paperclip className="h-4 w-4" />
-            </button>
-            <textarea
-              value={text}
-              onChange={(e) => { setText(e.target.value); broadcastTyping(); }}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(e as unknown as FormEvent); } }}
-              rows={1}
-              placeholder={filePreviews.length > 0 ? `${filePreviews.length} file(s) ready to send...` : "Type a message..."}
-              disabled={filePreviews.length > 0}
-              className="chat-textarea flex-1 resize-none bg-transparent outline-none px-2 py-2 max-h-32 placeholder:text-muted-foreground disabled:opacity-50"
-            />
-            {/* Show mic when no text, send when text */}
+          <>
+            {/* Attachment + text input */}
+            <div className="flex-1 flex items-end gap-2 rounded-full px-3 py-1.5" style={{ background: "#2a3942" }}>
+              <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.csv,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileSelect} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} title="Attach file" className="p-1.5 text-[#8696a0] hover:text-[#e9edef] transition-colors shrink-0">
+                <Paperclip className="h-5 w-5" />
+              </button>
+              <textarea
+                value={text}
+                onChange={(e) => { setText(e.target.value); broadcastTyping(); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(e as unknown as FormEvent); } }}
+                rows={1}
+                placeholder={filePreviews.length > 0 ? `${filePreviews.length} file(s) ready...` : "Message"}
+                disabled={filePreviews.length > 0}
+                className="chat-textarea flex-1 resize-none bg-transparent outline-none py-2 max-h-32 text-[#e9edef] placeholder:text-[#8696a0] disabled:opacity-50 text-sm"
+              />
+            </div>
+            {/* Mic / Send button */}
             {!text.trim() && filePreviews.length === 0 ? (
               <button
                 type="button"
                 onClick={startRecording}
                 disabled={uploading}
                 title="Record voice note"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40"
               >
-                <Mic className="h-4 w-4" />
+                <Mic className="h-5 w-5" />
               </button>
             ) : (
-              <Button
+              <button
                 type="submit"
                 disabled={(!text.trim() && filePreviews.length === 0) || sending || uploading}
-                size="sm"
-                className="bg-gradient-primary hover:opacity-90 shadow-glow h-9 w-9 p-0 shrink-0"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40"
               >
-                {sending || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
+                {sending || uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              </button>
             )}
-          </div>
+          </>
         )}
       </form>
     </div>
@@ -2248,12 +2309,12 @@ function QuotedMessage({ message, messages }: { message: Message; messages: Mess
     : quotedMsg.content ?? "";
 
   return (
-    <div className="flex gap-2 mb-2 pb-2 border-l-4 border-white/40 pl-2">
+    <div className="flex gap-2 mb-2 pb-2 border-l-4 border-[#00a884] pl-2 rounded-sm" style={{ background: "rgba(0,0,0,0.15)" }}>
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-white/90 text-[12px] leading-tight">
+        <div className="font-bold text-[#00a884] text-[11px] leading-tight">
           {quotedMsg.sender_id === message.sender_id ? "You" : "Them"}
         </div>
-        <div className="text-white/70 text-[13px] truncate mt-1 leading-tight">{quotedContent}</div>
+        <div className="text-white/70 text-[12px] truncate mt-0.5 leading-tight">{quotedContent}</div>
       </div>
     </div>
   );
@@ -2472,23 +2533,23 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId, senderProfile 
       )}
       
       {/* Voice message bubble */}
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-2xl min-w-[260px] max-w-[320px] ${
-        mine ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow" : "bg-surface-elevated text-foreground rounded-bl-sm"
-      }`}>
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl min-w-[260px] max-w-[320px] ${
+        mine ? "rounded-tr-none" : "rounded-tl-none"
+      }`} style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
         {/* Play/Pause button */}
         <button
           onClick={handleToggle}
           disabled={loading || error !== null}
           className={`flex h-9 w-9 items-center justify-center rounded-full shrink-0 transition-all active:scale-95 disabled:opacity-50 ${
-            mine ? "bg-white/25 hover:bg-white/35" : "bg-primary hover:bg-primary/90"
+            mine ? "bg-white/20 hover:bg-white/30" : "bg-[#00a884] hover:bg-[#00a884]/90"
           }`}
           title={error ? error : isPlaying ? "Pause" : "Play"}
         >
           {loading
-            ? <Loader2 className={`h-4 w-4 animate-spin ${mine ? "text-white" : "text-primary-foreground"}`} />
+            ? <Loader2 className="h-4 w-4 animate-spin text-white" />
             : isPlaying
-            ? <Pause className={`h-4 w-4 ${mine ? "text-white" : "text-primary-foreground"}`} />
-            : <Play className={`h-4 w-4 ml-0.5 ${mine ? "text-white" : "text-primary-foreground"}`} />
+            ? <Pause className="h-4 w-4 text-white" />
+            : <Play className="h-4 w-4 ml-0.5 text-white" />
           }
         </button>
         
@@ -2501,8 +2562,8 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId, senderProfile 
                 key={i} 
                 className={`flex-1 rounded-full transition-all duration-150 ${
                   b.filled 
-                    ? (mine ? "bg-white" : "bg-primary") 
-                    : (mine ? "bg-white/30" : (error ? "bg-red-500/30" : "bg-muted-foreground/25"))
+                    ? "bg-white" 
+                    : (error ? "bg-red-500/30" : "bg-white/30")
                 }`} 
                 style={{ height: `${b.h}%`, minWidth: '2px' }} 
               />
@@ -2510,7 +2571,7 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId, senderProfile 
           </div>
           
           {/* Duration */}
-          <div className={`text-[11px] font-medium ${mine ? "text-white/80" : "text-muted-foreground"}`}>
+          <div className="text-[11px] font-medium text-[#8696a0]">
             {error ? "⚠️ Error" : (isPlaying || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration))}
           </div>
         </div>
@@ -2657,7 +2718,7 @@ function ImageBubble({ message: m, mine }: { message: Message; mine: boolean }) 
   const [open, setOpen] = useState(false);
   return (
     <>
-      <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} w-[260px] max-w-[260px]`}>
+      <div className={`rounded-xl overflow-hidden ${mine ? "rounded-tr-none" : "rounded-tl-none"} w-[260px] max-w-[260px]`}>
         <button
           onClick={() => setOpen(true)}
           className="block w-full relative group focus:outline-none"
@@ -2677,10 +2738,10 @@ function ImageBubble({ message: m, mine }: { message: Message; mine: boolean }) 
             </div>
           </div>
         </button>
-        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${mine ? "bg-gradient-primary text-primary-foreground" : "bg-surface-elevated"}`}>
-          <span className={`text-[11px] truncate ${mine ? "text-white/70" : "text-muted-foreground"}`}>{m.file_name}</span>
+        <div className="flex items-center justify-between gap-2 px-3 py-2" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
+          <span className="text-[11px] truncate text-[#8696a0]">{m.file_name}</span>
           <a href={m.file_url!} download={m.file_name ?? "image"} target="_blank" rel="noreferrer"
-            className="shrink-0 hover:opacity-70 transition-opacity" onClick={e => e.stopPropagation()}>
+            className="shrink-0 hover:opacity-70 transition-opacity text-[#8696a0]" onClick={e => e.stopPropagation()}>
             <Download className="h-3.5 w-3.5" />
           </a>
         </div>
@@ -2711,8 +2772,8 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
   senderProfile?: { display_name: string | null; avatar_url: string | null } | null;
 }) {
   const base = mine
-    ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
-    : "bg-surface-elevated text-foreground rounded-bl-sm";
+    ? "text-[#e9edef] rounded-tr-none"
+    : "text-[#e9edef] rounded-tl-none";
 
   // ── Call message (WhatsApp style) ────────────────────────────────────────────
   if (m.type === "call") {
@@ -2818,10 +2879,10 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     const isBad = (isMissed || isDeclined);
     const iconBg = isBad && !outgoing
       ? "bg-red-500/15"
-      : mine ? "bg-white/20" : "bg-green-500/15";
+      : mine ? "bg-white/20" : "bg-[#00a884]/15";
     const iconFg = isBad && !outgoing
-      ? "text-red-500"
-      : mine ? "text-white" : "text-green-600";
+      ? "text-red-400"
+      : mine ? "text-white" : "text-[#00a884]";
 
     return (
       <button
@@ -2831,18 +2892,19 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
             if (fn) fn(cd?.call_type ?? "voice");
           }
         }}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm min-w-[180px] max-w-[240px] transition-opacity ${
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm min-w-[180px] max-w-[240px] transition-opacity ${
           canCallBack ? "active:opacity-70 cursor-pointer" : "cursor-default"
-        } ${mine ? "bg-gradient-primary text-primary-foreground rounded-br-sm" : "bg-surface-elevated text-foreground rounded-bl-sm"}`}
+        } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
+        style={{ background: mine ? "#005c4b" : "#1f2c34" }}
       >
         {/* Icon circle — WhatsApp style */}
         <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
           <span className={iconFg}>{IconEl}</span>
         </div>
         <div className="flex-1 min-w-0 text-left">
-          <div className={`font-semibold text-sm leading-tight ${isMissed && !outgoing ? "text-red-500" : ""}`}>{titleText}</div>
+          <div className={`font-semibold text-sm leading-tight ${isMissed && !outgoing ? "text-red-400" : "text-[#e9edef]"}`}>{titleText}</div>
           {subtitleText && (
-            <div className={`text-[11px] mt-0.5 ${canCallBack ? "text-primary font-medium" : mine ? "text-white/60" : "text-muted-foreground"}`}>
+            <div className={`text-[11px] mt-0.5 ${canCallBack ? "text-[#00a884] font-medium" : "text-[#8696a0]"}`}>
               {subtitleText}
             </div>
           )}
@@ -2870,7 +2932,7 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     // Video — inline player like WhatsApp
     if (isVideo) {
       return (
-        <div className={`rounded-2xl overflow-hidden ${mine ? "rounded-br-sm" : "rounded-bl-sm"} w-[260px] max-w-[260px]`}>
+        <div className={`rounded-xl overflow-hidden ${mine ? "rounded-tr-none" : "rounded-tl-none"} w-[260px] max-w-[260px]`}>
           <video
             src={m.file_url}
             controls
@@ -2878,12 +2940,12 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
             className="w-full block bg-black"
             style={{ maxHeight: 260, minHeight: 120 }}
           />
-          <div className={`flex items-center justify-between gap-2 px-3 py-2 ${mine ? "bg-gradient-primary text-primary-foreground" : "bg-surface-elevated"}`}>
+          <div className="flex items-center justify-between gap-2 px-3 py-2" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${mine ? "bg-white/20 text-white" : "bg-primary/15 text-primary"}`}>{ext}</span>
-              <span className={`text-[11px] truncate ${mine ? "text-white/70" : "text-muted-foreground"}`}>{name}</span>
+              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white/20 text-white">{ext}</span>
+              <span className="text-[11px] truncate text-[#8696a0]">{name}</span>
             </div>
-            <a href={m.file_url} download={name} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 transition-opacity">
+            <a href={m.file_url} download={name} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 transition-opacity text-[#8696a0]">
               <Download className="h-3.5 w-3.5" />
             </a>
           </div>
@@ -2892,13 +2954,14 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     }
 
     // Document card — WhatsApp style with coloured type badge
-    const bgColor = mine ? "bg-white/20" : docBgColor(ext);
+    const bgColor = docBgColor(ext);
     return (
       <a
         href={m.file_url}
         target="_blank"
         rel="noreferrer"
-        className={`flex items-center gap-3 px-3 py-3 rounded-2xl ${base} min-w-[200px] max-w-[280px] hover:opacity-90 active:scale-[0.98] transition-all`}
+        className={`flex items-center gap-3 px-3 py-3 rounded-xl ${mine ? "rounded-tr-none" : "rounded-tl-none"} min-w-[200px] max-w-[280px] hover:opacity-90 active:scale-[0.98] transition-all`}
+        style={{ background: mine ? "#005c4b" : "#1f2c34" }}
       >
         {/* Coloured type block */}
         <div className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${bgColor}`}>
@@ -2907,12 +2970,12 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className={`text-sm font-semibold truncate leading-tight ${mine ? "text-white" : "text-foreground"}`}>{name}</div>
-          <div className={`text-[11px] mt-0.5 ${mine ? "text-white/60" : "text-muted-foreground"}`}>
+          <div className="text-sm font-semibold truncate leading-tight text-[#e9edef]">{name}</div>
+          <div className="text-[11px] mt-0.5 text-[#8696a0]">
             {m.file_size ? formatBytes(m.file_size) : ext.toUpperCase() + " Document"}
           </div>
         </div>
-        <Download className={`h-4 w-4 shrink-0 ${mine ? "text-white/70" : "text-muted-foreground"}`} />
+        <Download className="h-4 w-4 shrink-0 text-[#8696a0]" />
       </a>
     );
   }
@@ -2920,8 +2983,8 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
   // ── Deleted ─────────────────────────────────────────────────────────────────
   if (m.deleted_at) {
     return (
-      <div className="px-4 py-2.5 rounded-2xl text-sm italic text-muted-foreground bg-muted/30">
-        This message was deleted
+      <div className="px-4 py-2.5 rounded-xl text-sm italic text-[#8696a0]" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
+        🚫 This message was deleted
       </div>
     );
   }
@@ -2958,7 +3021,10 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
 
   // ── Plain text ───────────────────────────────────────────────────────────────
   return (
-    <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words ${base}`}>
+    <div
+      className={`px-3 py-2 rounded-xl text-sm whitespace-pre-wrap break-words ${base}`}
+      style={{ background: mine ? "#005c4b" : "#1f2c34" }}
+    >
       {m.replied_to_id && <QuotedMessage message={m} messages={messages} />}
       {m.pinned && <Pin className="inline h-3 w-3 mr-1 opacity-70" />}
       {m.content}

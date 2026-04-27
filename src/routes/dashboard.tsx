@@ -910,22 +910,23 @@ function DashboardLayout() {
 
   const SidebarContent = () => (
     <>
-      {/* Logo/Brand - Professional */}
+      {/* Brand */}
       <Link
         to="/"
-        className="flex items-center gap-3 px-5 h-16 md:h-18 border-b border-border/50 hover:bg-sidebar-accent/30 transition-all duration-200 shrink-0 group"
+        className="flex items-center gap-3 px-4 h-14 border-b border-[#2a3942] hover:bg-[#2a3942] transition-all shrink-0"
+        style={{ background: "#202c33" }}
       >
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden border border-border/60 shadow-sm group-hover:shadow-md transition-shadow">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full overflow-hidden border border-[#2a3942]">
           <img src="/me.webp" alt="Ajibola" className="w-full h-full object-cover object-top" />
         </div>
         <div className="flex flex-col">
-          <span className="font-bold text-base">Ajibola</span>
-          <span className="text-xs text-sidebar-foreground/50">Portfolio & Chat</span>
+          <span className="font-semibold text-sm text-[#e9edef]">Ajibola</span>
+          <span className="text-[11px] text-[#8696a0]">Portfolio & Chat</span>
         </div>
       </Link>
 
-      {/* Navigation - Professional spacing */}
-      <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+      {/* Navigation */}
+      <nav className="flex-1 py-2 overflow-y-auto" style={{ background: "#111b21" }}>
         {navItems.map((item) => (
           <NavItem
             key={item.to}
@@ -939,33 +940,32 @@ function DashboardLayout() {
         ))}
       </nav>
 
-      {/* User Profile - Professional */}
-      <div className="p-4 border-t border-border/50 shrink-0 space-y-3">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-sidebar-accent/30">
+      {/* User Profile */}
+      <div className="p-3 border-t border-[#2a3942] shrink-0" style={{ background: "#202c33" }}>
+        <div className="flex items-center gap-3 px-2 py-2">
           {avatarUrl ? (
-            <img src={avatarUrl} alt={displayName} className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-border/50" />
+            <img src={avatarUrl} alt={displayName} className="h-9 w-9 rounded-full object-cover shrink-0" />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold shrink-0 shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#00a884] text-white text-sm font-semibold shrink-0">
               {initial}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold truncate">{displayName || user.email}</div>
+            <div className="text-sm font-medium truncate text-[#e9edef]">{displayName || user.email}</div>
             {isAdmin && (
-              <div className="flex items-center gap-1.5 text-xs text-primary mt-0.5 font-medium">
-                <ShieldCheck className="h-3.5 w-3.5" /> Administrator
+              <div className="flex items-center gap-1 text-[11px] text-[#00a884] mt-0.5">
+                <ShieldCheck className="h-3 w-3" /> Admin
               </div>
             )}
           </div>
+          <button
+            onClick={() => signOut().then(() => navigate({ to: "/" }))}
+            className="p-1.5 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200"
-          onClick={() => signOut().then(() => navigate({ to: "/" }))}
-        >
-          <LogOut className="h-4 w-4 mr-2.5" /> Sign out
-        </Button>
       </div>
     </>
   );
@@ -977,47 +977,47 @@ function DashboardLayout() {
     <div className="flex bg-background overflow-hidden" style={{ height: "calc(var(--vh, 1vh) * 100)" }}>
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 flex-col border-r border-border bg-sidebar shrink-0">
+      <aside className="hidden md:flex w-56 flex-col border-r border-[#2a3942] shrink-0" style={{ background: "#111b21" }}>
         <SidebarContent />
       </aside>
 
-      {/* Mobile top bar - Professional with backdrop blur */}
-      <div className="md:hidden fixed left-0 right-0 top-0 z-30 bg-sidebar/95 backdrop-blur-lg border-b border-border/50 flex items-center justify-between px-4 h-16 shadow-sm"
-        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed left-0 right-0 top-0 z-30 flex items-center justify-between px-4 h-14 shadow-sm"
+        style={{ background: "#202c33", borderBottom: "1px solid #2a3942", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <Link to="/" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl overflow-hidden border border-border/60 shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full overflow-hidden">
             <img src="/me.webp" alt="Ajibola" className="w-full h-full object-cover object-top" />
           </div>
-          <span className="font-bold text-base">Ajibola</span>
+          <span className="font-semibold text-sm text-[#e9edef]">Ajibola</span>
         </Link>
         <div className="flex items-center gap-3">
           {unreadCount > 0 && (
-            <span className="inline-flex items-center justify-center h-6 min-w-[24px] px-2 text-xs font-bold rounded-full bg-primary text-primary-foreground shadow-sm">
+            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full bg-[#00a884] text-white">
               {unreadCount}
             </span>
           )}
           <button 
             onClick={() => setMobileOpen((v) => !v)} 
-            className="p-2.5 rounded-xl text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 active:scale-95"
+            className="p-2 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile drawer overlay - Smooth backdrop */}
+      {/* Mobile drawer overlay */}
       {mobileOpen && (
         <div 
-          className="md:hidden fixed inset-0 z-20 bg-black/70 backdrop-blur-sm animate-fade-in" 
+          className="md:hidden fixed inset-0 z-20 bg-black/60 animate-fade-in" 
           onClick={() => setMobileOpen(false)} 
         />
       )}
 
-      {/* Mobile drawer - Smooth slide animation */}
+      {/* Mobile drawer */}
       <aside
-        className={`md:hidden fixed top-0 left-0 bottom-0 z-30 w-80 flex flex-col bg-sidebar border-r border-border shadow-2xl transform transition-transform duration-300 ease-out ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
-        style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        className={`md:hidden fixed top-0 left-0 bottom-0 z-30 w-64 flex flex-col shadow-2xl transform transition-transform duration-300 ease-out ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+        style={{ background: "#111b21", borderRight: "1px solid #2a3942", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <SidebarContent />
       </aside>
@@ -1033,43 +1033,47 @@ function DashboardLayout() {
 
       {/* ── INCOMING CALL SCREEN ─────────────────────────────────────────── */}
       {incomingCall && !activeCall && (
-        <div className="fixed inset-0 z-[9999] flex flex-col" style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
-          <div className="pt-16 pb-4 text-center">
-            <p className="text-white/60 text-sm font-medium tracking-widest uppercase">
+        <div className="fixed inset-0 z-[9999] flex flex-col" style={{ background: "#0d1117" }}>
+          {/* Subtle doodle pattern overlay */}
+          <div className="absolute inset-0 opacity-5" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+          }} />
+          <div className="pt-14 pb-4 text-center relative z-10">
+            <p className="text-[#8696a0] text-sm font-medium tracking-wide">
               {incomingCall.call_type === "video" ? "Incoming Video Call" : "Incoming Voice Call"}
             </p>
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center gap-6">
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 relative z-10">
             <div className="relative flex items-center justify-center">
-              <div className="absolute h-56 w-56 rounded-full bg-white/5 animate-ping" style={{ animationDuration: "2s" }} />
-              <div className="absolute h-44 w-44 rounded-full bg-white/10 animate-ping" style={{ animationDuration: "2s", animationDelay: "0.5s" }} />
+              <div className="absolute h-52 w-52 rounded-full border border-white/10 animate-ping" style={{ animationDuration: "2s" }} />
+              <div className="absolute h-40 w-40 rounded-full border border-white/15 animate-ping" style={{ animationDuration: "2s", animationDelay: "0.5s" }} />
               {incomingProfile?.avatar_url ? (
-                <img src={incomingProfile.avatar_url} alt="Caller" className="h-36 w-36 rounded-full object-cover ring-4 ring-white/40 shadow-2xl relative z-10" />
+                <img src={incomingProfile.avatar_url} alt="Caller" className="h-36 w-36 rounded-full object-cover ring-4 ring-white/20 shadow-2xl relative z-10" />
               ) : (
-                <div className="h-36 w-36 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center text-white text-6xl font-bold ring-4 ring-white/40 shadow-2xl relative z-10">
+                <div className="h-36 w-36 rounded-full bg-[#00a884] flex items-center justify-center text-white text-6xl font-bold ring-4 ring-white/20 shadow-2xl relative z-10">
                   {(incomingProfile?.display_name?.[0] ?? "?").toUpperCase()}
                 </div>
               )}
             </div>
             <div className="text-center">
-              <h1 className="text-white text-4xl font-bold">{incomingProfile?.display_name ?? (isAdmin ? "Client" : "Ajibola")}</h1>
-              <p className="text-white/50 text-base mt-2">
-                {incomingCall.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call"}
+              <h1 className="text-white text-3xl font-bold">{incomingProfile?.display_name ?? (isAdmin ? "Client" : "Ajibola")}</h1>
+              <p className="text-[#8696a0] text-sm mt-2">
+                {incomingCall.call_type === "video" ? "Incoming video call" : "Incoming voice call"}
               </p>
             </div>
           </div>
-          <div className="pb-20 flex justify-center gap-20">
+          <div className="pb-16 flex justify-center gap-24 relative z-10">
             <div className="flex flex-col items-center gap-3">
-              <button onClick={() => declineCall(incomingCall)} className="h-20 w-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform">
-                <PhoneOff className="h-9 w-9 text-white" />
+              <button onClick={() => declineCall(incomingCall)} className="h-16 w-16 rounded-full bg-[#f15c6d] flex items-center justify-center shadow-2xl active:scale-90 transition-transform">
+                <PhoneOff className="h-7 w-7 text-white" />
               </button>
-              <span className="text-white/70 text-sm">Decline</span>
+              <span className="text-[#8696a0] text-sm">Decline</span>
             </div>
             <div className="flex flex-col items-center gap-3">
-              <button onClick={() => answerCall(incomingCall)} className="h-20 w-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform animate-bounce">
-                <Phone className="h-9 w-9 text-white" />
+              <button onClick={() => answerCall(incomingCall)} className="h-16 w-16 rounded-full bg-[#25d366] flex items-center justify-center shadow-2xl active:scale-90 transition-transform animate-bounce">
+                <Phone className="h-7 w-7 text-white" />
               </button>
-              <span className="text-white/70 text-sm">Answer</span>
+              <span className="text-[#8696a0] text-sm">Answer</span>
             </div>
           </div>
         </div>
@@ -1079,7 +1083,7 @@ function DashboardLayout() {
       {activeCall && callMinimized && (
         <div
           className="fixed top-0 left-0 right-0 z-[9998] flex items-center gap-3 px-4 py-2 cursor-pointer"
-          style={{ background: "linear-gradient(90deg, #16a34a, #15803d)", paddingTop: "max(0.5rem, env(safe-area-inset-top, 0.5rem))" }}
+          style={{ background: "#005c4b", paddingTop: "max(0.5rem, env(safe-area-inset-top, 0.5rem))", borderBottom: "1px solid #00a884" }}
           onClick={() => setCallMinimized(false)}
         >
           {/* Pulsing dot */}
@@ -1123,19 +1127,20 @@ function DashboardLayout() {
               {/* Fallback background when remote camera is off */}
               {!remoteVideoActive && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-6"
-                  style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
+                  style={{ background: "#0d1117" }}>
+                  {/* Doodle pattern */}
+                  <div className="absolute inset-0 opacity-5" style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+                  }} />
                   {activeProfile?.avatar_url ? (
-                    <img src={activeProfile.avatar_url} alt="Call" className="h-40 w-40 rounded-full object-cover ring-4 ring-white/20 shadow-2xl" />
+                    <img src={activeProfile.avatar_url} alt="Call" className="h-40 w-40 rounded-full object-cover ring-4 ring-white/20 shadow-2xl relative z-10" />
                   ) : (
-                    <div className="h-40 w-40 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-6xl font-bold ring-4 ring-white/20 shadow-2xl">
+                    <div className="h-40 w-40 rounded-full bg-[#00a884] flex items-center justify-center text-white text-6xl font-bold ring-4 ring-white/20 shadow-2xl relative z-10">
                       {(activeProfile?.display_name?.[0] ?? "?").toUpperCase()}
                     </div>
                   )}
-                  <div className="text-center">
-                    <p className="text-white/60 text-sm">Camera is off</p>
-                    {isAppHidden && (
-                      <p className="text-white/80 text-base font-semibold mt-2">Video call paused</p>
-                    )}
+                  <div className="text-center relative z-10">
+                    <p className="text-[#8696a0] text-sm">Camera is off</p>
                   </div>
                 </div>
               )}
@@ -1174,7 +1179,12 @@ function DashboardLayout() {
 
           {/* Voice call background */}
           {activeCall.call_type === "voice" && (
-            <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)" }} />
+            <div className="absolute inset-0" style={{ background: "#0d1117" }}>
+              {/* Doodle pattern */}
+              <div className="absolute inset-0 opacity-5" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+              }} />
+            </div>
           )}
 
           {/* Top bar: minimize button + name + timer */}
@@ -1192,18 +1202,18 @@ function DashboardLayout() {
               </svg>
             </button>
             <div className="flex-1">
-              <h1 className="text-white text-lg font-bold leading-tight">{activeProfile?.display_name ?? "Calling..."}</h1>
-              <p className="text-green-400 text-sm font-mono">{fmtDuration(callDuration)}</p>
+              <h1 className="text-white text-lg font-semibold leading-tight">{activeProfile?.display_name ?? "Calling..."}</h1>
+              <p className="text-[#25d366] text-sm font-mono">{fmtDuration(callDuration)}</p>
             </div>
           </div>
 
           {/* Voice call: avatar center */}
           {activeCall.call_type === "voice" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-10">
               {activeProfile?.avatar_url ? (
                 <img src={activeProfile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-white/20 shadow-2xl" />
               ) : (
-                <div className="h-32 w-32 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-5xl font-bold ring-4 ring-white/20 shadow-2xl">
+                <div className="h-32 w-32 rounded-full bg-[#00a884] flex items-center justify-center text-white text-5xl font-bold ring-4 ring-white/20 shadow-2xl">
                   {(activeProfile?.display_name?.[0] ?? "?").toUpperCase()}
                 </div>
               )}
@@ -1252,232 +1262,36 @@ function DashboardLayout() {
           )}
 
           {/* Controls — floating island at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 z-10 pb-6 md:pb-10 pt-6"
-            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}
+          <div className="absolute bottom-0 left-0 right-0 z-10 pb-8 md:pb-10 pt-8"
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9), transparent)" }}
           >
-            <div className="flex items-center justify-center gap-3 md:gap-5 px-2">
+            <div className="flex items-center justify-center gap-4 md:gap-6 px-4">
 
-              {/* Mute / Unmute */}
-              <div className="flex flex-col items-center gap-1">
+              {/* More options (...) */}
+              <div className="flex flex-col items-center gap-1.5">
                 <button
-                  onClick={() => {
-                    const next = !isMuted;
-                    const success = callManager.toggleAudio(next); // true = muted = disable tracks
-                    if (!success) {
-                      console.error("[Dashboard] Failed to toggle audio - no tracks found");
-                      alert("Failed to mute/unmute. Please check your microphone.");
-                      return;
-                    }
-                    setIsMuted(next);
-                  }}
-                  className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                  className="h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 bg-[#1f2c34] text-white"
                 >
-                  {isMuted ? <MicOff className="h-5 w-5 md:h-6 md:w-6" /> : <Mic className="h-5 w-5 md:h-6 md:w-6" />}
+                  <MoreVertical className="h-5 w-5 md:h-6 md:w-6" />
                 </button>
-                <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">{isMuted ? "Unmute" : "Mute"}</span>
+                <span className="text-[#8696a0] text-[10px] md:text-[11px]">More</span>
               </div>
 
               {/* Camera off / on (video only) */}
               {activeCall.call_type === "video" && (
-                <div className="flex flex-col items-center gap-1">
+                <div className="flex flex-col items-center gap-1.5">
                   <button
                     onClick={() => {
                       const next = !isVideoOff;
-                      const success = callManager.toggleVideo(next); // true = off = disable tracks
-                      if (!success) {
-                        console.error("[Dashboard] Failed to toggle video - no tracks found");
-                        alert("Failed to turn camera on/off. Please check your camera.");
-                        return;
-                      }
+                      const success = callManager.toggleVideo(next);
+                      if (!success) { alert("Failed to turn camera on/off."); return; }
                       setIsVideoOff(next);
                     }}
-                    className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                    className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-[#1f2c34] text-white"}`}
                   >
                     {isVideoOff ? <VideoOff className="h-5 w-5 md:h-6 md:w-6" /> : <Video className="h-5 w-5 md:h-6 md:w-6" />}
                   </button>
-                  <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">{isVideoOff ? "Camera on" : "Camera off"}</span>
-                </div>
-              )}
-
-              {/* End call */}
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  onClick={() => void endActiveCall()}
-                  className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
-                >
-                  <PhoneOff className="h-6 w-6 md:h-7 md:w-7 text-white" />
-                </button>
-                <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">End</span>
-              </div>
-
-              {/* More options (video only) - MOBILE ONLY for screen share */}
-              {activeCall.call_type === "video" && (
-                <div className="md:hidden relative flex flex-col items-center gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowCallOptions(!showCallOptions);
-                    }}
-                    className="h-12 w-12 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
-                  >
-                    <MoreVertical className="h-5 w-5" />
-                  </button>
-                  <span className="text-white/60 text-[10px]">More</span>
-                  
-                  {/* Options menu */}
-                  {showCallOptions && (
-                    <div className="absolute bottom-full mb-2 right-0 bg-black/90 backdrop-blur-sm rounded-2xl border border-white/20 shadow-2xl overflow-hidden min-w-[180px] animate-fade-up z-50">
-                      <button
-                        onClick={async () => {
-                          setShowCallOptions(false);
-                          try {
-                            console.log("[ScreenShare] Current state:", isScreenSharing);
-                            
-                            if (isScreenSharing) {
-                              console.log("[ScreenShare] Stopping screen share, switching to camera");
-                              // Stop screen share — switch back to camera
-                              const cameraStream = await navigator.mediaDevices.getUserMedia({ 
-                                video: { 
-                                  facingMode: facingMode, 
-                                  width: { ideal: 1920, max: 1920 }, 
-                                  height: { ideal: 1080, max: 1080 },
-                                  frameRate: { ideal: 30, max: 30 }
-                                } 
-                              });
-                              const cameraTrack = cameraStream.getVideoTracks()[0];
-                              
-                              if (!cameraTrack) {
-                                throw new Error("Could not get camera track");
-                              }
-                              
-                              const pc = callManager.getPeerConnection();
-                              if (pc && cameraTrack) {
-                                const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                                if (sender) {
-                                  await sender.replaceTrack(cameraTrack);
-                                  console.log("[ScreenShare] Replaced screen track with camera track");
-                                }
-                              }
-                              
-                              if (localVideoRef.current) {
-                                localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
-                                localVideoRef.current.play().catch(() => {});
-                              }
-                              
-                              setIsScreenSharing(false);
-                              toast.success("Screen sharing stopped");
-                            } else {
-                              console.log("[ScreenShare] Starting screen share");
-                              // Start screen share with high quality
-                              const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ 
-                                video: { 
-                                  cursor: "always",
-                                  displaySurface: "monitor",
-                                  width: { ideal: 1920, max: 1920 },
-                                  height: { ideal: 1080, max: 1080 },
-                                  frameRate: { ideal: 30, max: 30 }
-                                }, 
-                                audio: false 
-                              });
-                              const screenTrack = screenStream.getVideoTracks()[0];
-                              
-                              if (!screenTrack) {
-                                throw new Error("Could not get screen track");
-                              }
-                              
-                              const pc = callManager.getPeerConnection();
-                              if (pc && screenTrack) {
-                                const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                                if (sender) {
-                                  await sender.replaceTrack(screenTrack);
-                                  console.log("[ScreenShare] Replaced camera track with screen track");
-                                }
-                              }
-                              
-                              if (localVideoRef.current) {
-                                localVideoRef.current.srcObject = new MediaStream([screenTrack]);
-                                localVideoRef.current.play().catch(() => {});
-                              }
-                              
-                              // Auto-stop when user ends screen share via browser UI
-                              screenTrack.onended = async () => {
-                                console.log("[ScreenShare] Screen share ended by user");
-                                setIsScreenSharing(false);
-                                
-                                // Switch back to camera automatically
-                                try {
-                                  const cameraStream = await navigator.mediaDevices.getUserMedia({ 
-                                    video: { 
-                                      facingMode: facingMode, 
-                                      width: { ideal: 1920, max: 1920 }, 
-                                      height: { ideal: 1080, max: 1080 },
-                                      frameRate: { ideal: 30, max: 30 }
-                                    } 
-                                  });
-                                  const cameraTrack = cameraStream.getVideoTracks()[0];
-                                  
-                                  const pc = callManager.getPeerConnection();
-                                  if (pc && cameraTrack) {
-                                    const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                                    if (sender) {
-                                      await sender.replaceTrack(cameraTrack);
-                                    }
-                                  }
-                                  
-                                  if (localVideoRef.current) {
-                                    localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
-                                    localVideoRef.current.play().catch(() => {});
-                                  }
-                                } catch (err) {
-                                  console.error("[ScreenShare] Failed to switch back to camera:", err);
-                                }
-                                
-                                toast.info("Screen sharing stopped");
-                              };
-                              
-                              setIsScreenSharing(true);
-                              toast.success("Screen sharing started");
-                            }
-                          } catch (err: any) {
-                            console.error("[ScreenShare] Error:", err);
-                            if (err.name === "NotAllowedError") {
-                              toast.error("Screen sharing permission denied");
-                            } else if (err.name === "NotFoundError") {
-                              toast.error("No screen available to share");
-                            } else {
-                              toast.error("Failed to share screen: " + (err.message || "Unknown error"));
-                            }
-                          }
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-white/10 active:bg-white/10 transition-colors text-left text-white"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-                          {isScreenSharing && <path d="M9 9l3-3 3 3"/>}
-                        </svg>
-                        <span>{isScreenSharing ? "Stop sharing" : "Share screen"}</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Flip camera (video only) */}
-              {activeCall.call_type === "video" && (
-                <div className="flex flex-col items-center gap-1.5">
-                  <button
-                    onClick={() => void flipCamera()}
-                    className="h-14 w-14 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>
-                      <path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
-                      <circle cx="12" cy="12" r="3"/>
-                      <path d="m18 22-3-3 3-3"/>
-                      <path d="m6 2 3 3-3 3"/>
-                    </svg>
-                  </button>
-                  <span className="text-white/60 text-[11px]">Flip</span>
+                  <span className="text-[#8696a0] text-[10px] md:text-[11px]">{isVideoOff ? "Camera on" : "Camera off"}</span>
                 </div>
               )}
 
@@ -1488,30 +1302,14 @@ function DashboardLayout() {
                     onClick={() => {
                       const next = !isSpeaker;
                       setIsSpeaker(next);
-                      console.log("[Speaker] Toggling speaker:", next ? "ON (loudspeaker)" : "OFF (earpiece)");
-                      
-                      // Set audio output and volume
                       if (remoteAudioRef.current) {
-                        const audio = remoteAudioRef.current;
-                        
-                        // Set volume based on speaker state
-                        // Full volume for speaker, 50% for earpiece
-                        audio.volume = next ? 1.0 : 0.5;
-                        console.log("[Speaker] Volume set to:", audio.volume);
-                        
-                        // Try to set audio output device (not widely supported on mobile)
-                        if ((audio as any).setSinkId) {
-                          (audio as any).setSinkId('default').then(() => {
-                            console.log("[Speaker] setSinkId successful");
-                          }).catch((err: any) => {
-                            console.warn("[Speaker] setSinkId not supported:", err);
-                          });
+                        remoteAudioRef.current.volume = next ? 1.0 : 0.5;
+                        if ((remoteAudioRef.current as any).setSinkId) {
+                          (remoteAudioRef.current as any).setSinkId('default').catch(() => {});
                         }
-                      } else {
-                        console.error("[Speaker] remoteAudioRef.current is null!");
                       }
                     }}
-                    className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isSpeaker ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                    className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isSpeaker ? "bg-white text-black" : "bg-[#1f2c34] text-white"}`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -1519,7 +1317,53 @@ function DashboardLayout() {
                       <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
                     </svg>
                   </button>
-                  <span className="text-white/60 text-[11px]">{isSpeaker ? "Speaker ON" : "Earpiece"}</span>
+                  <span className="text-[#8696a0] text-[10px] md:text-[11px]">{isSpeaker ? "Speaker" : "Earpiece"}</span>
+                </div>
+              )}
+
+              {/* End call */}
+              <div className="flex flex-col items-center gap-1.5">
+                <button
+                  onClick={() => void endActiveCall()}
+                  className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-[#f15c6d] flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
+                >
+                  <PhoneOff className="h-6 w-6 md:h-7 md:w-7 text-white" />
+                </button>
+                <span className="text-[#8696a0] text-[10px] md:text-[11px]">End</span>
+              </div>
+
+              {/* Mute / Unmute */}
+              <div className="flex flex-col items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    const next = !isMuted;
+                    const success = callManager.toggleAudio(next);
+                    if (!success) { alert("Failed to mute/unmute."); return; }
+                    setIsMuted(next);
+                  }}
+                  className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-[#1f2c34] text-white"}`}
+                >
+                  {isMuted ? <MicOff className="h-5 w-5 md:h-6 md:w-6" /> : <Mic className="h-5 w-5 md:h-6 md:w-6" />}
+                </button>
+                <span className="text-[#8696a0] text-[10px] md:text-[11px]">{isMuted ? "Unmute" : "Mute"}</span>
+              </div>
+
+              {/* Flip camera (video only) */}
+              {activeCall.call_type === "video" && (
+                <div className="flex flex-col items-center gap-1.5">
+                  <button
+                    onClick={() => void flipCamera()}
+                    className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-[#1f2c34] text-white flex items-center justify-center transition-all active:scale-90"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>
+                      <path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="m18 22-3-3 3-3"/>
+                      <path d="m6 2 3 3-3 3"/>
+                    </svg>
+                  </button>
+                  <span className="text-[#8696a0] text-[10px] md:text-[11px]">Flip</span>
                 </div>
               )}
 
@@ -1548,15 +1392,15 @@ function NavItem({
       to={to}
       activeOptions={{ exact }}
       onClick={onClick}
-      className="group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200"
+      className="flex items-center gap-3 px-4 py-3 text-sm text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors"
       activeProps={{ 
-        className: "bg-sidebar-accent text-sidebar-foreground font-medium before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-8 before:bg-primary before:rounded-r-full" 
+        className: "flex items-center gap-3 px-4 py-3 text-sm text-[#e9edef] bg-[#2a3942] font-medium border-l-4 border-[#00a884]"
       }}
     >
-      <Icon className="h-5 w-5 shrink-0 transition-transform group-hover:scale-110" />
-      <span className="flex-1 font-medium">{label}</span>
+      <Icon className="h-5 w-5 shrink-0" />
+      <span className="flex-1">{label}</span>
       {badge != null && badge > 0 && (
-        <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full bg-primary text-primary-foreground shadow-sm">
+        <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full bg-[#00a884] text-white">
           {badge > 99 ? "99+" : badge}
         </span>
       )}

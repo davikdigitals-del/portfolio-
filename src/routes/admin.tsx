@@ -124,128 +124,87 @@ function AdminAuthPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0b141a" }}>
+        <Loader2 className="h-6 w-6 animate-spin text-[#00a884]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 bg-gradient-hero">
-      <div className="w-full max-w-md animate-fade-up">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
-          <ArrowLeft className="h-4 w-4" /> Back to site
-        </Link>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#0b141a" }}>
+      <div className="w-full max-w-sm animate-fade-up">
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#00a884] shadow-lg mb-4">
+            <ShieldCheck className="h-7 w-7 text-white" />
+          </div>
+          <h1 className="text-xl font-bold text-[#e9edef]">Admin Portal</h1>
+          <p className="text-sm text-[#8696a0] mt-0.5">Ajibola Gbenga Joseph</p>
+        </div>
 
-        <div className="rounded-3xl border border-border bg-card shadow-elevated p-8">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
-              <ShieldCheck className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <div>
-              <div className="font-bold text-lg">Admin Portal</div>
-              <div className="text-xs text-muted-foreground">Ajibola Gbenga Joseph</div>
-            </div>
+        <div className="rounded-2xl p-6 space-y-4" style={{ background: "#1f2c34", border: "1px solid #2a3942" }}>
+          <div>
+            <h2 className="text-lg font-bold text-[#e9edef]">
+              {mode === "login" ? "Welcome back" : "Create admin account"}
+            </h2>
+            <p className="text-xs text-[#8696a0] mt-0.5">
+              {mode === "login" ? "Sign in to access your dashboard." : "Set up your admin account."}
+            </p>
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight">
-            {mode === "login" ? "Welcome back" : "Create admin account"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {mode === "login"
-              ? "Sign in to access your dashboard."
-              : "Set up your admin account to manage the site."}
-          </p>
-
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "register" && (
               <div className="space-y-1.5">
-                <Label htmlFor="name">Your name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ajibola Gbenga Joseph"
-                  autoComplete="name"
-                />
+                <label className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Your name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ajibola Gbenga Joseph" autoComplete="name"
+                  className="w-full rounded-lg px-3 py-2.5 text-sm text-[#e9edef] placeholder:text-[#8696a0] outline-none"
+                  style={{ background: "#2a3942", border: "1px solid #3d5260" }} />
               </div>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                autoComplete="email"
-              />
+              <label className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Email</label>
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" autoComplete="email"
+                className="w-full rounded-lg px-3 py-2.5 text-sm text-[#e9edef] placeholder:text-[#8696a0] outline-none"
+                style={{ background: "#2a3942", border: "1px solid #3d5260" }} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <label className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Password</label>
               <div className="relative">
-                <Input
-                  id="password"
-                  type={showPw ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                <input type={showPw ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
                   autoComplete={mode === "register" ? "new-password" : "current-password"}
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
+                  className="w-full rounded-lg px-3 py-2.5 pr-10 text-sm text-[#e9edef] placeholder:text-[#8696a0] outline-none"
+                  style={{ background: "#2a3942", border: "1px solid #3d5260" }} />
+                <button type="button" onClick={() => setShowPw((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8696a0] hover:text-[#e9edef] transition-colors">
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
-
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="w-full h-11 bg-gradient-primary hover:opacity-90 shadow-glow gap-2"
-            >
-              {submitting
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : mode === "login" ? "Sign in to Dashboard" : "Create Admin Account"}
-            </Button>
+            <button type="submit" disabled={submitting}
+              className="w-full py-3 rounded-lg bg-[#00a884] text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "login" ? "Sign in to Dashboard" : "Create Admin Account"}
+            </button>
           </form>
 
-          <div className="mt-5 text-center text-sm text-muted-foreground">
+          <div className="text-center text-sm text-[#8696a0]">
             {mode === "login" ? "First time here?" : "Already have an account?"}{" "}
-            <button
-              onClick={() => setMode(mode === "login" ? "register" : "login")}
-              className="text-primary hover:underline font-medium"
-            >
+            <button onClick={() => setMode(mode === "login" ? "register" : "login")} className="text-[#00a884] hover:underline font-medium">
               {mode === "login" ? "Create admin account" : "Sign in"}
             </button>
           </div>
-          
-          {/* Troubleshooting */}
+
           {mode === "login" && (
-            <div className="mt-4 p-3 rounded-lg bg-muted/50 border border-border">
-              <p className="text-xs text-muted-foreground">
-                <strong>Troubleshooting:</strong> If you created an account but can't sign in:
-              </p>
-              <ul className="text-xs text-muted-foreground mt-1 space-y-1 ml-4 list-disc">
-                <li>Check your email for a confirmation link</li>
-                <li>Make sure you're using the correct email/password</li>
-                <li>Contact support if the issue persists</li>
-              </ul>
+            <div className="p-3 rounded-lg text-xs text-[#8696a0]" style={{ background: "#2a3942" }}>
+              <strong className="text-[#e9edef]">Troubleshooting:</strong> Check your email for a confirmation link if you can't sign in.
             </div>
           )}
         </div>
 
-        {/* Security note */}
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          This page is for site administrators only.
-        </p>
+        <div className="mt-4 flex items-center justify-between">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-[#8696a0] hover:text-[#e9edef] transition-colors">
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to site
+          </Link>
+          <p className="text-xs text-[#8696a0]">Administrators only</p>
+        </div>
       </div>
     </div>
   );
