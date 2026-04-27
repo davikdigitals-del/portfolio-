@@ -27,3 +27,5 @@ services:
         value: Ajibola Gbenga Joseph
       - key: SITE_URL
         value: https://ajibola-gbenga-joseph.onrender.com
+      - key: VITE_VAPID_PUBLIC_KEY
+        value: BKGlXPZHtSBjI7x0jhlRvfKSJDYCejXooO_wy8fA-faicY9hHAEgA0GjGV9HWVFQHIXqiWOxvtisvnhVKoWB764
