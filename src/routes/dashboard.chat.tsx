@@ -1377,8 +1377,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
     try {
       toast.loading(`Starting ${callType} call...`, { id: "call-toast" });
-      const call = await callManager.initiateCall(conversation.id, receiverId, callType, user.id);
-      toast.dismiss("call-toast");
 
       // Get receiver profile for the active call screen
       const { data: profile } = await supabase
@@ -1387,7 +1385,23 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         .eq("user_id", receiverId)
         .maybeSingle();
 
-      // Fire push notification to receiver immediately (works even if their app is backgrounded)
+      // Set up global active call screen BEFORE initiating
+      // so onRemoteStreamCb is ready when the answer arrives
+      const setActiveCallGlobal = (window as any).__setActiveCall;
+      if (setActiveCallGlobal) {
+        // This sets the callbacks on callManager
+        setActiveCallGlobal({ call_type: callType, id: "pending" } as any, profile);
+      }
+
+      const call = await callManager.initiateCall(conversation.id, receiverId, callType, user.id);
+      toast.dismiss("call-toast");
+
+      // Update with real call object
+      if (setActiveCallGlobal) {
+        setActiveCallGlobal(call, profile);
+      }
+
+      // Fire push notification to receiver
       void supabase.functions.invoke("notify-incoming-call", {
         body: {
           id: call.id,
@@ -1397,12 +1411,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
           conversation_id: conversation.id,
         },
       });
-
-      // Show global active call screen
-      const setActiveCallGlobal = (window as any).__setActiveCall;
-      if (setActiveCallGlobal) {
-        setActiveCallGlobal(call, profile);
-      }
 
       toast.success(`${callType === "video" ? "Video" : "Voice"} call started — waiting for answer`);
     } catch (err: any) {

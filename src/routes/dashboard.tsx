@@ -255,29 +255,27 @@ function DashboardLayout() {
     setIncomingCall(null);
 
     try {
-      await callManager.answerCall(call, user.id);
-
-      // Fetch the other person's profile
+      // Fetch the caller's profile
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name, avatar_url")
         .eq("user_id", call.initiator_id)
         .maybeSingle();
 
+      // Set up UI state first
       setActiveCall(call);
       setActiveProfile(profile ?? incomingProfile);
       setCallDuration(0);
       setIsMuted(false);
       setIsVideoOff(false);
-
-      // Start timer
       callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
 
-      // Attach streams
+      // Set callbacks BEFORE answerCall so ontrack fires correctly
       callManager.onRemoteStreamCb = (stream) => {
-        console.log("[Dashboard] Remote stream received");
+        console.log("[Dashboard] Remote stream received, tracks:", stream.getTracks().map(t => t.kind));
         if (call.call_type === "video" && remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
+          remoteVideoRef.current.play().catch(() => {});
         } else if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = stream;
           remoteAudioRef.current.play().catch(() => {});
@@ -291,17 +289,25 @@ function DashboardLayout() {
         setCallDuration(0);
       };
 
-      // Attach local video
+      // Now answer — callbacks are already set
+      await callManager.answerCall(call, user.id);
+
+      // Attach local video after a short delay
       setTimeout(() => {
         if (call.call_type === "video" && localVideoRef.current) {
           const ls = callManager.getLocalStream();
-          if (ls) localVideoRef.current.srcObject = ls;
+          if (ls) {
+            localVideoRef.current.srcObject = ls;
+            localVideoRef.current.play().catch(() => {});
+          }
         }
-      }, 300);
+      }, 500);
 
     } catch (err: any) {
       console.error("[Dashboard] Answer failed:", err);
-      setIncomingCall(null);
+      setActiveCall(null);
+      setActiveProfile(null);
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
       alert(err?.message ?? "Failed to answer call");
     }
   }, [user, incomingProfile, stopRingtone]);
@@ -317,7 +323,9 @@ function DashboardLayout() {
 
   // ── End active call ────────────────────────────────────────────────────────
   const endActiveCall = useCallback(async () => {
+    // callManager.endCall() updates DB + sends "end" signal to peer
     await callManager.endCall();
+    // UI cleanup (onCallEndCb also fires this, but call it directly too)
     setActiveCall(null);
     setActiveProfile(null);
     if (callTimerRef.current) clearInterval(callTimerRef.current);
@@ -335,9 +343,12 @@ function DashboardLayout() {
       setIsVideoOff(false);
       callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
 
+      // Set callbacks so remote stream and end events work
       callManager.onRemoteStreamCb = (stream) => {
+        console.log("[Dashboard] Initiator remote stream received, tracks:", stream.getTracks().map(t => t.kind));
         if (call.call_type === "video" && remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
+          remoteVideoRef.current.play().catch(() => {});
         } else if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = stream;
           remoteAudioRef.current.play().catch(() => {});
@@ -349,12 +360,17 @@ function DashboardLayout() {
         if (callTimerRef.current) clearInterval(callTimerRef.current);
         setCallDuration(0);
       };
+
+      // Attach local video for initiator
       setTimeout(() => {
         if (call.call_type === "video" && localVideoRef.current) {
           const ls = callManager.getLocalStream();
-          if (ls) localVideoRef.current.srcObject = ls;
+          if (ls) {
+            localVideoRef.current.srcObject = ls;
+            localVideoRef.current.play().catch(() => {});
+          }
         }
-      }, 300);
+      }, 500);
     };
     return () => {
       delete (window as any).__answerCall;
