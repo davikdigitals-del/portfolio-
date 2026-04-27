@@ -132,9 +132,12 @@ function DashboardLayout() {
 
   // ── Ringtone helpers (defined first so useEffects below can use them) ──────
   const startRingtone = useCallback(() => {
+    // Stop any existing ringtone first
+    if (ringtoneRef.current) { ringtoneRef.current.stop(); ringtoneRef.current = null; }
     try {
       const ctx = new AudioContext();
       let playing = true;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
       function ring() {
         if (!playing) return;
         const osc = ctx.createOscillator();
@@ -147,16 +150,24 @@ function DashboardLayout() {
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.8);
-        setTimeout(() => { if (playing) ring(); }, 1500);
+        timeoutId = setTimeout(() => { if (playing) ring(); }, 1500);
       }
       ring();
-      ringtoneRef.current = { stop: () => { playing = false; ctx.close(); } };
+      ringtoneRef.current = {
+        stop: () => {
+          playing = false;
+          if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+          ctx.close().catch(() => {});
+        }
+      };
     } catch { /* ignore */ }
   }, []);
 
   const stopRingtone = useCallback(() => {
-    ringtoneRef.current?.stop();
-    ringtoneRef.current = null;
+    if (ringtoneRef.current) {
+      try { ringtoneRef.current.stop(); } catch { /* ignore */ }
+      ringtoneRef.current = null;
+    }
   }, []);
 
   // ── Handle push notification tap: ?conv=...&call=... ──────────────────────
@@ -343,32 +354,56 @@ function DashboardLayout() {
     const newFacing = facingMode === "user" ? "environment" : "user";
     setFacingMode(newFacing);
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: { facingMode: newFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+      // Only request video — don't touch the existing audio track
+      const newVideoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: newFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
       });
-      const newVideoTrack = newStream.getVideoTracks()[0];
-      const pc = (callManager as any).pc as RTCPeerConnection | null;
+      const newVideoTrack = newVideoStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      // Replace the video track in the peer connection
+      const pc = callManager.getPeerConnection();
       if (pc) {
         const sender = pc.getSenders().find(s => s.track?.kind === "video");
-        if (sender && newVideoTrack) {
-          await sender.replaceTrack(newVideoTrack);
-        }
+        if (sender) await sender.replaceTrack(newVideoTrack);
       }
-      // Replace local stream video track
+
+      // Stop old video track and update local stream
       const localStream = callManager.getLocalStream();
       if (localStream) {
         localStream.getVideoTracks().forEach(t => t.stop());
-        localStream.removeTrack(localStream.getVideoTracks()[0]);
+        // Remove old video tracks and add new one
+        const oldTracks = localStream.getVideoTracks();
+        oldTracks.forEach(t => localStream.removeTrack(t));
         localStream.addTrack(newVideoTrack);
       }
+
       // Update local preview
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = newStream;
+        // Create a new stream with the new video + existing audio for preview
+        const previewStream = new MediaStream();
+        previewStream.addTrack(newVideoTrack);
+        localVideoRef.current.srcObject = previewStream;
         localVideoRef.current.play().catch(() => {});
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("[Dashboard] Flip camera failed:", err);
+      // If exact facingMode not supported, try without exact
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: newFacing },
+        });
+        const track = fallbackStream.getVideoTracks()[0];
+        const pc = callManager.getPeerConnection();
+        if (pc && track) {
+          const sender = pc.getSenders().find(s => s.track?.kind === "video");
+          if (sender) await sender.replaceTrack(track);
+        }
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = new MediaStream([track]);
+          localVideoRef.current.play().catch(() => {});
+        }
+      } catch { /* device may not support camera flip */ }
     }
   }, [facingMode]);
 
