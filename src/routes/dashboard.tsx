@@ -169,16 +169,15 @@ function DashboardLayout() {
   }, [activeCall, activeProfile]);
 
   // ── Restore active call on page load ───────────────────────────────────────
+  const hasRestoredCallRef = useRef(false);
+  
   useEffect(() => {
-    if (!user) return;
-    
-    // Only run once on mount
-    let hasRestored = false;
+    if (!user || hasRestoredCallRef.current) return;
     
     try {
       const savedCall = localStorage.getItem("activeCall");
-      if (savedCall && !hasRestored) {
-        hasRestored = true;
+      if (savedCall) {
+        hasRestoredCallRef.current = true;
         const { call, profile, timestamp } = JSON.parse(savedCall);
         
         // Only restore if less than 5 minutes old
@@ -212,8 +211,7 @@ function DashboardLayout() {
       console.error("[CallPersist] Failed to restore call:", err);
       localStorage.removeItem("activeCall");
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]); // Only run when user changes (on mount)
+  }, [user, answerCall]);
 
   // ── Clear call state from localStorage when call ends ──────────────────────
   useEffect(() => {
@@ -223,16 +221,15 @@ function DashboardLayout() {
   }, [activeCall]);
 
   // ── Restore incoming call on page load ─────────────────────────────────────
+  const hasRestoredIncomingRef = useRef(false);
+  
   useEffect(() => {
-    if (!user) return;
-    
-    // Only run once on mount
-    let hasRestored = false;
+    if (!user || hasRestoredIncomingRef.current) return;
     
     try {
       const savedIncoming = localStorage.getItem("incomingCall");
-      if (savedIncoming && !hasRestored) {
-        hasRestored = true;
+      if (savedIncoming) {
+        hasRestoredIncomingRef.current = true;
         const { call, profile, timestamp } = JSON.parse(savedIncoming);
         
         // Only restore if less than 1 minute old (calls ring for limited time)
@@ -264,8 +261,7 @@ function DashboardLayout() {
       console.error("[CallPersist] Failed to restore incoming call:", err);
       localStorage.removeItem("incomingCall");
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]); // Only run when user changes (on mount)
+  }, [user, startRingtone]);
 
   // ── Clear incoming call from localStorage when answered/declined ───────────
   useEffect(() => {
