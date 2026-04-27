@@ -198,6 +198,8 @@ function DashboardLayout() {
   }, [activeCall, activeProfile]);
 
   // ── Restore active call on page load ───────────────────────────────────────
+  // TEMPORARILY DISABLED - causing errors
+  /*
   const hasRestoredCallRef = useRef(false);
   
   useEffect(() => {
@@ -266,6 +268,7 @@ function DashboardLayout() {
     
     void restoreCall();
   }, [user, answerCall]);
+  */
 
   // ── Clear call state from localStorage when call ends ──────────────────────
   useEffect(() => {
@@ -275,6 +278,8 @@ function DashboardLayout() {
   }, [activeCall]);
 
   // ── Restore incoming call on page load ─────────────────────────────────────
+  // TEMPORARILY DISABLED - causing errors
+  /*
   const hasRestoredIncomingRef = useRef(false);
   
   useEffect(() => {
@@ -341,6 +346,7 @@ function DashboardLayout() {
     
     void restoreIncoming();
   }, [user, startRingtone]);
+  */
 
   // ── Clear incoming call from localStorage when answered/declined ───────────
   useEffect(() => {
