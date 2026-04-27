@@ -292,7 +292,7 @@ function DashboardLayout() {
       setIsVideoOff(false);
       setCallMinimized(false);
       if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
-      callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+      // Timer starts when connection is actually established (onCallActiveCb)
 
       // Set callbacks BEFORE answerCall so ontrack fires correctly
       callManager.onRemoteStreamCb = (stream) => {
@@ -304,9 +304,14 @@ function DashboardLayout() {
           remoteVideoRef.current.play().catch(() => {});
         }
       };
+      callManager.onCallActiveCb = () => {
+        // Start timer only when WebRTC connection is actually established
+        if (callTimerRef.current) clearInterval(callTimerRef.current);
+        callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+      };
       callManager.onCallEndCb = () => {
         setActiveCall(null); setActiveProfile(null);
-        if (callTimerRef.current) clearInterval(callTimerRef.current);
+        if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
         setCallDuration(0); setCallMinimized(false);
         if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
       };
@@ -342,13 +347,14 @@ function DashboardLayout() {
     await callManager.endCall();
     setActiveCall(null);
     setActiveProfile(null);
-    if (callTimerRef.current) clearInterval(callTimerRef.current);
+    if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
     setCallDuration(0);
     setCallMinimized(false);
     setIsMuted(false);
     setIsVideoOff(false);
     setIsSpeaker(true);
     setFacingMode("user");
+    if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
   }, []);
   const flipCamera = useCallback(async () => {
     const newFacing = facingMode === "user" ? "environment" : "user";
@@ -407,7 +413,17 @@ function DashboardLayout() {
     }
   }, [facingMode]);
 
-  // ── Expose answer function globally so chat component can trigger it ───────
+  // ── Re-attach local video when camera is turned back on ───────────────────
+  useEffect(() => {
+    if (!activeCall || activeCall.call_type !== "video" || isVideoOff) return;
+    // Camera just turned back on — re-attach local stream to preview
+    setTimeout(() => {
+      if (localVideoRef.current) {
+        const ls = callManager.getLocalStream();
+        if (ls) { localVideoRef.current.srcObject = ls; localVideoRef.current.play().catch(() => {}); }
+      }
+    }, 100);
+  }, [isVideoOff, activeCall]);
   useEffect(() => {
     (window as any).__answerCall = answerCall;
     (window as any).__setIncomingCall = async (call: Call) => {
@@ -444,7 +460,7 @@ function DashboardLayout() {
       setIsMuted(false);
       setIsVideoOff(false);
       setCallMinimized(false);
-      callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+      // Don't start timer here — start it when connection is established
 
       // Set callbacks — callManager.initiateCall already ran so these won't be wiped
       callManager.onRemoteStreamCb = (stream) => {
@@ -456,8 +472,16 @@ function DashboardLayout() {
           remoteVideoRef.current.play().catch(() => {});
         }
       };
+      callManager.onCallActiveCb = () => {
+        if (callTimerRef.current) clearInterval(callTimerRef.current);
+        callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+      };
       callManager.onCallEndCb = () => {
         setActiveCall(null); setActiveProfile(null);
+        if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
+        setCallDuration(0); setCallMinimized(false);
+        if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
+      };
         if (callTimerRef.current) clearInterval(callTimerRef.current);
         setCallDuration(0); setCallMinimized(false);
         if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";

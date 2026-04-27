@@ -1444,7 +1444,28 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     }
   }
 
-  // Call status updates handled globally in dashboard.tsx
+  const [activeCallOnConv, setActiveCallOnConv] = useState<{ id: string; call_type: "voice" | "video"; initiator_id: string } | null>(null);
+
+  // Check for ongoing call on this conversation (for JOIN button)
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("calls")
+      .select("id, call_type, initiator_id")
+      .eq("conversation_id", conversation.id)
+      .eq("status", "active")
+      .maybeSingle()
+      .then(({ data }) => setActiveCallOnConv(data ?? null));
+
+    const ch = supabase.channel(`conv-calls:${conversation.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "calls", filter: `conversation_id=eq.${conversation.id}` }, (payload) => {
+        const call = payload.new as any;
+        if (call.status === "active") setActiveCallOnConv({ id: call.id, call_type: call.call_type, initiator_id: call.initiator_id });
+        else if (call.status === "ended" || call.status === "missed" || call.status === "declined") setActiveCallOnConv(null);
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [conversation.id, user]);
 
   // ---- Schedule call ----
   const [showSchedule, setShowSchedule] = useState(false);
@@ -1534,6 +1555,24 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         </div>
         {isAdmin && conversation.profile?.email && (
           <div className="hidden md:block text-xs text-muted-foreground mr-2">{conversation.profile.email}</div>
+        )}
+        {/* JOIN button — shown when there's an active call on this conversation */}
+        {activeCallOnConv && activeCallOnConv.initiator_id !== user?.id && (
+          <button
+            onClick={() => {
+              // Answer the active call
+              supabase.from("calls").select("*").eq("id", activeCallOnConv.id).single().then(({ data: call }) => {
+                if (call) {
+                  const answerFn = (window as any).__answerCall;
+                  if (answerFn) void answerFn(call);
+                }
+              });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500 text-white text-xs font-bold animate-pulse shrink-0"
+          >
+            {activeCallOnConv.call_type === "video" ? <Video className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
+            JOIN
+          </button>
         )}
         {/* Call buttons */}
         <button
@@ -2370,6 +2409,11 @@ function ImageBubble({ message: m, mine }: { message: Message; mine: boolean }) 
   );
 }
 
+function formatDur(s: number): string {
+  const m = Math.floor(s / 60), sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
 function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, messages }: {
   message: Message;
   mine: boolean;
@@ -2382,49 +2426,89 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     ? "bg-gradient-primary text-primary-foreground rounded-br-sm shadow-glow"
     : "bg-surface-elevated text-foreground rounded-bl-sm";
 
-  // ── Call message (system event like WhatsApp) ────────────────────────────────
+  // ── Call message (WhatsApp style) ────────────────────────────────────────────
   if (m.type === "call") {
     const cd = m.call_data;
-    const isMissed = cd?.status === "missed" || cd?.status === "declined";
     const isVideo = cd?.call_type === "video";
-    const icon = isVideo ? (isMissed ? "📵" : "📹") : (isMissed ? "📵" : "📞");
-    const label = m.content ?? (isVideo ? "Video call" : "Voice call");
+    const status = cd?.status ?? "ended";
+    const isMissed = status === "missed";
+    const isDeclined = status === "declined";
+    const isEnded = status === "ended";
+    const duration = cd?.duration_seconds ?? 0;
+
+    // WhatsApp logic:
+    // - Initiator (sender_id = initiator) sees outgoing arrow
+    // - Receiver sees incoming arrow
+    // - Missed = receiver didn't answer → receiver sees "Missed call", initiator sees "No answer"
+    const isInitiator = m.sender_id === m.sender_id; // always true — we use mine prop
+    const outgoing = mine; // if mine=true, I sent this call (I'm the initiator)
+
+    // Icon: outgoing phone with arrow up-right, incoming with arrow down-left
+    const OutgoingIcon = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        {isVideo
+          ? <><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m18 2 4 4-4 4"/></>
+          : <><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6.29 6.29l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/><polyline points="16 2 22 2 22 8"/><line x1="16" y1="8" x2="22" y2="2"/></>
+        }
+      </svg>
+    );
+    const IncomingIcon = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        {isVideo
+          ? <><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m22 2-4 4 4 4"/></>
+          : <><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6.29 6.29l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/><polyline points="2 22 8 22 8 16"/><line x1="8" y1="22" x2="2" y2="16"/></>
+        }
+      </svg>
+    );
+
+    // Label logic
+    let titleText = isVideo ? "Video call" : "Voice call";
+    let subtitleText = "";
+    let iconColor = mine ? "text-white/80" : "text-foreground/80";
+    let canCallBack = false;
+
+    if (outgoing) {
+      // I initiated this call
+      if (isMissed) { titleText = isVideo ? "Video call" : "Voice call"; subtitleText = "No answer"; iconColor = mine ? "text-white/60" : "text-muted-foreground"; }
+      else if (isDeclined) { subtitleText = "Declined"; iconColor = mine ? "text-white/60" : "text-muted-foreground"; }
+      else if (isEnded && duration > 0) { subtitleText = formatDur(duration); }
+      else if (isEnded) { subtitleText = "0:00"; }
+    } else {
+      // I received this call
+      if (isMissed) { titleText = isVideo ? "Missed video call" : "Missed voice call"; subtitleText = "Tap to call back"; iconColor = "text-red-500"; canCallBack = true; }
+      else if (isDeclined) { subtitleText = "You declined"; iconColor = mine ? "text-white/60" : "text-muted-foreground"; }
+      else if (isEnded && duration > 0) { subtitleText = formatDur(duration); }
+      else if (isEnded) { subtitleText = "0:00"; }
+    }
+
     return (
       <button
-        onClick={() => {
-          // Tap missed call to call back
-          if (isMissed) {
-            const initiateCallFn = (window as any).__initiateCall;
-            if (initiateCallFn) initiateCallFn(cd?.call_type ?? "voice");
+        onPointerDown={() => {
+          if (canCallBack) {
+            const fn = (window as any).__initiateCall;
+            if (fn) fn(cd?.call_type ?? "voice");
           }
         }}
-        className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm max-w-[220px] transition-opacity ${
-          isMissed ? "active:opacity-70 cursor-pointer" : "cursor-default"
-        } ${
-          mine
-            ? "bg-gradient-primary text-primary-foreground rounded-br-sm"
-            : "bg-surface-elevated text-foreground rounded-bl-sm"
-        }`}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm min-w-[180px] max-w-[240px] transition-opacity ${
+          canCallBack ? "active:opacity-70 cursor-pointer" : "cursor-default"
+        } ${mine ? "bg-gradient-primary text-primary-foreground rounded-br-sm" : "bg-surface-elevated text-foreground rounded-bl-sm"}`}
       >
-        <span className="text-lg shrink-0">{icon}</span>
+        {/* Icon circle */}
+        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+          isMissed && !outgoing ? "bg-red-500/20" : mine ? "bg-white/20" : "bg-primary/10"
+        }`}>
+          <span className={isMissed && !outgoing ? "text-red-500" : mine ? "text-white" : "text-primary"}>
+            {outgoing ? <OutgoingIcon /> : <IncomingIcon />}
+          </span>
+        </div>
         <div className="flex-1 min-w-0 text-left">
-          <div className={`font-medium text-sm ${isMissed ? (mine ? "text-red-200" : "text-red-500") : ""}`}>{label}</div>
-          {cd?.duration_seconds && cd.duration_seconds > 0 && (
-            <div className={`text-[11px] mt-0.5 ${mine ? "text-white/60" : "text-muted-foreground"}`}>
-              {Math.floor(cd.duration_seconds / 60)}:{(cd.duration_seconds % 60).toString().padStart(2, "0")}
-            </div>
-          )}
-          {isMissed && (
-            <div className={`text-[11px] mt-0.5 font-medium ${mine ? "text-white/80" : "text-primary"}`}>
-              Tap to call back
+          <div className={`font-semibold text-sm leading-tight ${isMissed && !outgoing ? "text-red-500" : ""}`}>{titleText}</div>
+          {subtitleText && (
+            <div className={`text-[11px] mt-0.5 ${canCallBack ? "text-primary font-medium" : mine ? "text-white/60" : "text-muted-foreground"}`}>
+              {subtitleText}
             </div>
           )}
         </div>
-        {isMissed && (
-          <span className={`shrink-0 ${mine ? "text-white/70" : "text-primary"}`}>
-            {isVideo ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
-          </span>
-        )}
       </button>
     );
   }
