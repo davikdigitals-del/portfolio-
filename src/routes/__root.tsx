@@ -72,7 +72,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const [ready, setReady] = useState(false);
-  const { user } = useAuth();
 
   // Register service worker
   useEffect(() => {
@@ -81,7 +80,22 @@ function RootComponent() {
     }
   }, []);
 
-  // Global call listener — runs on EVERY page so calls work even outside dashboard
+  return (
+    <AuthProvider>
+      <GlobalCallListener />
+      {!ready && <Preloader onDone={() => setReady(true)} />}
+      <div className={ready ? "opacity-100 transition-opacity duration-500" : "opacity-0"}>
+        <Outlet />
+      </div>
+      <Toaster position="top-right" />
+    </AuthProvider>
+  );
+}
+
+// Separate component so it's inside AuthProvider and can use useAuth
+function GlobalCallListener() {
+  const { user } = useAuth();
+
   useEffect(() => {
     if (!user) return;
 
@@ -91,17 +105,16 @@ function RootComponent() {
     const convId = params.get("conv");
     if (callId && convId) {
       window.history.replaceState({}, "", window.location.pathname);
-      // Delegate to dashboard's handler if it exists, otherwise store for later
       supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(({ data: call }) => {
         if (call && call.status === "ringing") {
-          const handler = (window as any).__answerCall;
+          const handler = (window as any).__setIncomingCall ?? (window as any).__answerCall;
           if (handler) handler(call);
           else (window as any).__pendingCall = call;
         }
       });
     }
 
-    // Subscribe to incoming calls globally
+    // Subscribe to incoming calls globally (works on any page)
     const ch = supabase.channel(`root-calls-${user.id}`)
       .on("postgres_changes", {
         event: "INSERT",
@@ -112,17 +125,15 @@ function RootComponent() {
         const call = payload.new as Call;
         if (call.status !== "ringing") return;
 
-        // If dashboard handler exists, use it
         const setIncoming = (window as any).__setIncomingCall;
         if (setIncoming) {
-          setIncoming(call);
+          void setIncoming(call);
           return;
         }
 
-        // Otherwise show a push notification so user can tap to open
+        // Dashboard not mounted — show push notification
         const { data: profile } = await supabase
           .from("profiles").select("display_name").eq("user_id", call.initiator_id).maybeSingle();
-
         void sendPushNotification(
           call.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call",
           `${profile?.display_name ?? "Someone"} is calling...`,
@@ -134,13 +145,5 @@ function RootComponent() {
     return () => { void supabase.removeChannel(ch); };
   }, [user?.id]);
 
-  return (
-    <AuthProvider>
-      {!ready && <Preloader onDone={() => setReady(true)} />}
-      <div className={ready ? "opacity-100 transition-opacity duration-500" : "opacity-0"}>
-        <Outlet />
-      </div>
-      <Toaster position="top-right" />
-    </AuthProvider>
-  );
+  return null;
 }
