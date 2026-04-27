@@ -2486,70 +2486,97 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     const isInitiator = m.sender_id === m.sender_id; // always true — we use mine prop
     const outgoing = mine; // if mine=true, I sent this call (I'm the initiator)
 
-    // WhatsApp-exact phone icons with directional arrows
+    // WhatsApp-style call icons
     const PhoneOutgoing = () => (
-      // Green phone + arrow pointing up-right (outgoing / no answer)
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
-        <polyline points="16 2 22 2 22 8" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-        <line x1="22" y1="2" x2="15" y2="9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      // Phone with outgoing arrow (green)
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points="17 3 22 3 22 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <line x1="22" y1="3" x2="17" y2="8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     );
+    
     const PhoneIncomingMissed = () => (
-      // Red phone + arrow pointing down-left (missed incoming)
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
-        <polyline points="8 22 2 22 2 16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-        <line x1="2" y1="22" x2="9" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      // Phone with incoming arrow (red for missed)
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points="7 21 2 21 2 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <line x1="2" y1="21" x2="7" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     );
-    const VideoOutgoing = () => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
-        <polyline points="16 2 22 2 22 8"/><line x1="22" y1="2" x2="15" y2="9"/>
-      </svg>
-    );
-    const VideoIncomingMissed = () => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
-        <polyline points="8 22 2 22 2 16"/><line x1="2" y1="22" x2="9" y2="15"/>
-      </svg>
-    );
+    
     const PhoneAnswered = () => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
+      // Simple phone icon (answered call)
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+    
+    const VideoOutgoing = () => (
+      // Video camera with outgoing arrow
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
+        <polyline points="17 3 22 3 22 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <line x1="22" y1="3" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+    
+    const VideoIncomingMissed = () => (
+      // Video camera with incoming arrow (red for missed)
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
+        <polyline points="7 21 2 21 2 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <line x1="2" y1="21" x2="7" y2="16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+    
+    const VideoAnswered = () => (
+      // Simple video camera icon (answered call)
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
       </svg>
     );
 
     // Pick the right icon
     let IconEl: React.ReactNode;
-    if (outgoing) {
-      IconEl = isVideo ? <VideoOutgoing /> : <PhoneOutgoing />;
-    } else if (isMissed) {
-      IconEl = isVideo ? <VideoIncomingMissed /> : <PhoneIncomingMissed />;
+    if (isMissed || isDeclined) {
+      // missed/declined: outgoing = no answer arrow, incoming = missed arrow
+      IconEl = outgoing
+        ? (isVideo ? <VideoOutgoing /> : <PhoneOutgoing />)
+        : (isVideo ? <VideoIncomingMissed /> : <PhoneIncomingMissed />);
     } else {
-      IconEl = isVideo ? <VideoOutgoing /> : <PhoneAnswered />;
+      // ended/answered
+      IconEl = isVideo ? <VideoAnswered /> : <PhoneAnswered />;
     }
 
     // Label logic
     let titleText = isVideo ? "Video call" : "Voice call";
     let subtitleText = "";
-    let iconColor = mine ? "text-white/80" : "text-foreground/80";
     let canCallBack = false;
 
     if (outgoing) {
-      // I initiated this call
-      if (isMissed) { titleText = isVideo ? "Video call" : "Voice call"; subtitleText = "No answer"; iconColor = mine ? "text-white/60" : "text-muted-foreground"; }
-      else if (isDeclined) { subtitleText = "Declined"; iconColor = mine ? "text-white/60" : "text-muted-foreground"; }
+      if (isMissed)        { subtitleText = "No answer"; }
+      else if (isDeclined) { subtitleText = "Declined"; }
       else if (isEnded && duration > 0) { subtitleText = formatDur(duration); }
-      else if (isEnded) { subtitleText = "0:00"; }
+      else if (isEnded)    { subtitleText = "0:00"; }
     } else {
-      // I received this call
-      if (isMissed) { titleText = isVideo ? "Missed video call" : "Missed voice call"; subtitleText = "Tap to call back"; iconColor = "text-red-500"; canCallBack = true; }
-      else if (isDeclined) { subtitleText = "You declined"; iconColor = mine ? "text-white/60" : "text-muted-foreground"; }
+      if (isMissed)        { titleText = isVideo ? "Missed video call" : "Missed voice call"; subtitleText = "Tap to call back"; canCallBack = true; }
+      else if (isDeclined) { subtitleText = "You declined"; }
       else if (isEnded && duration > 0) { subtitleText = formatDur(duration); }
-      else if (isEnded) { subtitleText = "0:00"; }
+      else if (isEnded)    { subtitleText = "0:00"; }
     }
+
+    // Icon circle color
+    const isBad = (isMissed || isDeclined);
+    const iconBg = isBad && !outgoing
+      ? "bg-red-500/15"
+      : mine ? "bg-white/20" : "bg-green-500/15";
+    const iconFg = isBad && !outgoing
+      ? "text-red-500"
+      : mine ? "text-white" : "text-green-600";
 
     return (
       <button
@@ -2563,10 +2590,10 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
           canCallBack ? "active:opacity-70 cursor-pointer" : "cursor-default"
         } ${mine ? "bg-gradient-primary text-primary-foreground rounded-br-sm" : "bg-surface-elevated text-foreground rounded-bl-sm"}`}
       >
-        {/* Icon circle — matches WhatsApp style */}
-        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
-          isMissed && !outgoing ? "bg-red-500/15" : outgoing ? (mine ? "bg-white/20" : "bg-green-500/15") : (mine ? "bg-white/20" : "bg-primary/10")
-        }`}>
+        {/* Icon circle — WhatsApp style */}
+        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+          <span className={iconFg}>{IconEl}</span>
+        </div>
           <span className={isMissed && !outgoing ? "text-red-500" : outgoing ? (mine ? "text-white" : "text-green-600") : (mine ? "text-white" : "text-primary")}>
             {IconEl}
           </span>
