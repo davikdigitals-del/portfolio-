@@ -122,6 +122,7 @@ function DashboardLayout() {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callMinimized, setCallMinimized] = useState(false);
   const [isAppHidden, setIsAppHidden] = useState(false);
+  const [remoteVideoActive, setRemoteVideoActive] = useState(false);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -308,6 +309,17 @@ function DashboardLayout() {
           remoteVideoRef.current.srcObject = stream;
           remoteVideoRef.current.style.display = "block";
           remoteVideoRef.current.play().catch(() => {});
+          
+          // Track if remote video has active video tracks
+          const videoTracks = stream.getVideoTracks();
+          setRemoteVideoActive(videoTracks.length > 0 && videoTracks[0].enabled);
+          
+          // Listen for track enable/disable changes
+          videoTracks.forEach(track => {
+            track.addEventListener('ended', () => setRemoteVideoActive(false));
+            track.addEventListener('mute', () => setRemoteVideoActive(false));
+            track.addEventListener('unmute', () => setRemoteVideoActive(true));
+          });
         }
       };
       callManager.onCallActiveCb = () => {
@@ -392,6 +404,7 @@ function DashboardLayout() {
       setIsVideoOff(false);
       setIsSpeaker(true);
       setFacingMode("user");
+      setRemoteVideoActive(false);
       if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
       setIsScreenSharing(false);
       
@@ -514,6 +527,17 @@ function DashboardLayout() {
           remoteVideoRef.current.srcObject = stream;
           remoteVideoRef.current.style.display = "block";
           remoteVideoRef.current.play().catch(() => {});
+          
+          // Track if remote video has active video tracks
+          const videoTracks = stream.getVideoTracks();
+          setRemoteVideoActive(videoTracks.length > 0 && videoTracks[0].enabled);
+          
+          // Listen for track enable/disable changes
+          videoTracks.forEach(track => {
+            track.addEventListener('ended', () => setRemoteVideoActive(false));
+            track.addEventListener('mute', () => setRemoteVideoActive(false));
+            track.addEventListener('unmute', () => setRemoteVideoActive(true));
+          });
         }
       };
       callManager.onCallActiveCb = () => {
@@ -804,9 +828,37 @@ function DashboardLayout() {
       {/* ── ACTIVE CALL — FULLSCREEN (WhatsApp style) ────────────────────── */}
       {activeCall && !callMinimized && (
         <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
-          {/* Remote video fills screen (video call) — uses always-mounted ref */}
+          
+          {/* Video call: remote video + fallback background */}
           {activeCall.call_type === "video" && (
-            <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" style={{ display: "block" }} />
+            <>
+              {/* Fallback background when remote camera is off */}
+              {!remoteVideoActive && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-6"
+                  style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
+                  {activeProfile?.avatar_url ? (
+                    <img src={activeProfile.avatar_url} alt="Call" className="h-40 w-40 rounded-full object-cover ring-4 ring-white/20 shadow-2xl" />
+                  ) : (
+                    <div className="h-40 w-40 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-6xl font-bold ring-4 ring-white/20 shadow-2xl">
+                      {(activeProfile?.display_name?.[0] ?? "?").toUpperCase()}
+                    </div>
+                  )}
+                  <div className="text-center">
+                    <p className="text-white/60 text-sm">Camera is off</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Remote video — hidden when camera off */}
+              <video 
+                ref={remoteVideoRef} 
+                autoPlay 
+                playsInline 
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                  remoteVideoActive ? "opacity-100" : "opacity-0"
+                }`}
+              />
+            </>
           )}
 
           {/* Voice call background */}
