@@ -133,6 +133,35 @@ function DashboardLayout() {
   usePresence(user?.id);
   useViewportHeight();
 
+  // ── Clear corrupted localStorage on mount ──────────────────────────────────
+  useEffect(() => {
+    try {
+      // Check if localStorage has valid data
+      const activeCall = localStorage.getItem("activeCall");
+      const incomingCall = localStorage.getItem("incomingCall");
+      
+      if (activeCall) {
+        try {
+          JSON.parse(activeCall);
+        } catch {
+          console.warn("[Storage] Clearing corrupted activeCall data");
+          localStorage.removeItem("activeCall");
+        }
+      }
+      
+      if (incomingCall) {
+        try {
+          JSON.parse(incomingCall);
+        } catch {
+          console.warn("[Storage] Clearing corrupted incomingCall data");
+          localStorage.removeItem("incomingCall");
+        }
+      }
+    } catch (err) {
+      console.error("[Storage] Error checking localStorage:", err);
+    }
+  }, []);
+
   // ── Track app visibility for video blur effect ─────────────────────────────
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -177,35 +206,57 @@ function DashboardLayout() {
     const restoreCall = async () => {
       try {
         const savedCall = localStorage.getItem("activeCall");
-        if (savedCall) {
-          hasRestoredCallRef.current = true;
-          const { call, profile, timestamp } = JSON.parse(savedCall);
+        if (!savedCall) return;
+        
+        hasRestoredCallRef.current = true;
+        
+        let parsedData;
+        try {
+          parsedData = JSON.parse(savedCall);
+        } catch (parseErr) {
+          console.error("[CallPersist] Invalid JSON in localStorage:", parseErr);
+          localStorage.removeItem("activeCall");
+          return;
+        }
+        
+        const { call, profile, timestamp } = parsedData;
+        
+        if (!call || !call.id || !timestamp) {
+          console.error("[CallPersist] Invalid call data structure");
+          localStorage.removeItem("activeCall");
+          return;
+        }
+        
+        // Only restore if less than 5 minutes old
+        if (Date.now() - timestamp < 300000) {
+          console.log("[CallPersist] Restoring call:", call);
           
-          // Only restore if less than 5 minutes old
-          if (Date.now() - timestamp < 300000) {
-            console.log("[CallPersist] Restoring call:", call);
+          // Verify call is still active in database
+          const { data, error } = await supabase
+            .from("calls")
+            .select("*")
+            .eq("id", call.id)
+            .eq("status", "active")
+            .maybeSingle();
+          
+          if (error) {
+            console.error("[CallPersist] Database error:", error);
+            localStorage.removeItem("activeCall");
+            return;
+          }
+          
+          if (data) {
+            setActiveCall(data as Call);
+            setActiveProfile(profile);
+            toast.info("Reconnecting to call...");
             
-            // Verify call is still active in database
-            const { data } = await supabase
-              .from("calls")
-              .select("*")
-              .eq("id", call.id)
-              .eq("status", "active")
-              .maybeSingle();
-            
-            if (data) {
-              setActiveCall(data as Call);
-              setActiveProfile(profile);
-              toast.info("Reconnecting to call...");
-              
-              // Try to rejoin the call
-              void answerCall(data as Call);
-            } else {
-              localStorage.removeItem("activeCall");
-            }
+            // Try to rejoin the call
+            void answerCall(data as Call);
           } else {
             localStorage.removeItem("activeCall");
           }
+        } else {
+          localStorage.removeItem("activeCall");
         }
       } catch (err) {
         console.error("[CallPersist] Failed to restore call:", err);
@@ -232,33 +283,55 @@ function DashboardLayout() {
     const restoreIncoming = async () => {
       try {
         const savedIncoming = localStorage.getItem("incomingCall");
-        if (savedIncoming) {
-          hasRestoredIncomingRef.current = true;
-          const { call, profile, timestamp } = JSON.parse(savedIncoming);
+        if (!savedIncoming) return;
+        
+        hasRestoredIncomingRef.current = true;
+        
+        let parsedData;
+        try {
+          parsedData = JSON.parse(savedIncoming);
+        } catch (parseErr) {
+          console.error("[CallPersist] Invalid JSON in localStorage:", parseErr);
+          localStorage.removeItem("incomingCall");
+          return;
+        }
+        
+        const { call, profile, timestamp } = parsedData;
+        
+        if (!call || !call.id || !timestamp) {
+          console.error("[CallPersist] Invalid incoming call data structure");
+          localStorage.removeItem("incomingCall");
+          return;
+        }
+        
+        // Only restore if less than 1 minute old (calls ring for limited time)
+        if (Date.now() - timestamp < 60000) {
+          console.log("[CallPersist] Restoring incoming call:", call);
           
-          // Only restore if less than 1 minute old (calls ring for limited time)
-          if (Date.now() - timestamp < 60000) {
-            console.log("[CallPersist] Restoring incoming call:", call);
-            
-            // Verify call is still ringing in database
-            const { data } = await supabase
-              .from("calls")
-              .select("*")
-              .eq("id", call.id)
-              .eq("status", "ringing")
-              .maybeSingle();
-            
-            if (data) {
-              setIncomingCall(data as Call);
-              setIncomingProfile(profile);
-              startRingtone();
-              toast.info("Incoming call restored");
-            } else {
-              localStorage.removeItem("incomingCall");
-            }
+          // Verify call is still ringing in database
+          const { data, error } = await supabase
+            .from("calls")
+            .select("*")
+            .eq("id", call.id)
+            .eq("status", "ringing")
+            .maybeSingle();
+          
+          if (error) {
+            console.error("[CallPersist] Database error:", error);
+            localStorage.removeItem("incomingCall");
+            return;
+          }
+          
+          if (data) {
+            setIncomingCall(data as Call);
+            setIncomingProfile(profile);
+            startRingtone();
+            toast.info("Incoming call restored");
           } else {
             localStorage.removeItem("incomingCall");
           }
+        } else {
+          localStorage.removeItem("incomingCall");
         }
       } catch (err) {
         console.error("[CallPersist] Failed to restore incoming call:", err);
