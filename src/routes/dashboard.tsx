@@ -200,28 +200,14 @@ function DashboardLayout() {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "You have an active call. Are you sure you want to leave?";
-      
-      // Save call state to localStorage for recovery
-      try {
-        localStorage.setItem("activeCall", JSON.stringify({
-          call: activeCall,
-          profile: activeProfile,
-          timestamp: Date.now()
-        }));
-      } catch (err) {
-        console.error("[CallPersist] Failed to save call state:", err);
-      }
-      
       return e.returnValue;
     };
     
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [activeCall, activeProfile]);
+  }, [activeCall]);
 
-  // ── Restore active call on page load ───────────────────────────────────────
-  // TEMPORARILY DISABLED - causing errors
-  /*
+  // ── Restore active call on page load (FIXED VERSION) ──────────────────────
   const hasRestoredCallRef = useRef(false);
   
   useEffect(() => {
@@ -238,7 +224,7 @@ function DashboardLayout() {
         try {
           parsedData = JSON.parse(savedCall);
         } catch (parseErr) {
-          console.error("[CallPersist] Invalid JSON in localStorage:", parseErr);
+          console.error("[CallRestore] Invalid JSON in localStorage:", parseErr);
           localStorage.removeItem("activeCall");
           return;
         }
@@ -246,129 +232,98 @@ function DashboardLayout() {
         const { call, profile, timestamp } = parsedData;
         
         if (!call || !call.id || !timestamp) {
-          console.error("[CallPersist] Invalid call data structure");
+          console.error("[CallRestore] Invalid call data structure");
           localStorage.removeItem("activeCall");
           return;
         }
         
-        // Only restore if less than 5 minutes old
-        if (Date.now() - timestamp < 300000) {
-          console.log("[CallPersist] Restoring call:", call);
-          
-          // Verify call is still active in database
-          const { data, error } = await supabase
-            .from("calls")
-            .select("*")
-            .eq("id", call.id)
-            .eq("status", "active")
-            .maybeSingle();
-          
-          if (error) {
-            console.error("[CallPersist] Database error:", error);
-            localStorage.removeItem("activeCall");
-            return;
-          }
-          
-          if (data) {
-            setActiveCall(data as Call);
-            setActiveProfile(profile);
-            toast.info("Reconnecting to call...");
-            
-            // Try to rejoin the call
-            void answerCall(data as Call);
-          } else {
-            localStorage.removeItem("activeCall");
-          }
-        } else {
+        // Only restore if less than 2 minutes old (call likely still active)
+        const age = Date.now() - timestamp;
+        if (age > 120000) {
+          console.log("[CallRestore] Call too old (", Math.floor(age/1000), "s), not restoring");
           localStorage.removeItem("activeCall");
+          return;
+        }
+        
+        console.log("[CallRestore] Checking if call is still active...");
+        
+        // Verify call is still active in database
+        const { data, error } = await supabase
+          .from("calls")
+          .select("*")
+          .eq("id", call.id)
+          .maybeSingle();
+        
+        if (error) {
+          console.error("[CallRestore] Database error:", error);
+          localStorage.removeItem("activeCall");
+          return;
+        }
+        
+        if (!data) {
+          console.log("[CallRestore] Call not found in database");
+          localStorage.removeItem("activeCall");
+          return;
+        }
+        
+        if (data.status !== "active") {
+          console.log("[CallRestore] Call status is", data.status, "- not restoring");
+          localStorage.removeItem("activeCall");
+          return;
+        }
+        
+        console.log("[CallRestore] ✅ Call is still active, restoring...");
+        
+        // Set UI state
+        setActiveCall(data as Call);
+        setActiveProfile(profile);
+        setCallDuration(0);
+        setIsMuted(false);
+        setIsVideoOff(false);
+        setCallMinimized(false);
+        
+        // Show alert to user
+        alert("Reconnecting to your call...");
+        
+        // Try to rejoin the call
+        try {
+          await answerCall(data as Call);
+          console.log("[CallRestore] ✅ Successfully rejoined call");
+        } catch (rejoinErr) {
+          console.error("[CallRestore] Failed to rejoin call:", rejoinErr);
+          // Clean up on failure
+          setActiveCall(null);
+          setActiveProfile(null);
+          localStorage.removeItem("activeCall");
+          alert("Failed to reconnect to call. The call may have ended.");
         }
       } catch (err) {
-        console.error("[CallPersist] Failed to restore call:", err);
+        console.error("[CallRestore] Failed to restore call:", err);
         localStorage.removeItem("activeCall");
       }
     };
     
     void restoreCall();
   }, [user, answerCall]);
-  */
 
-  // ── Clear call state from localStorage when call ends ──────────────────────
+  // ── Save call state to localStorage when call becomes active ───────────────
   useEffect(() => {
-    if (!activeCall) {
+    if (activeCall && activeCall.status === "active") {
+      try {
+        localStorage.setItem("activeCall", JSON.stringify({
+          call: activeCall,
+          profile: activeProfile,
+          timestamp: Date.now()
+        }));
+        console.log("[CallPersist] Saved active call to localStorage");
+      } catch (err) {
+        console.error("[CallPersist] Failed to save call state:", err);
+      }
+    } else if (!activeCall) {
+      // Clear when call ends
       localStorage.removeItem("activeCall");
     }
-  }, [activeCall]);
-
-  // ── Restore incoming call on page load ─────────────────────────────────────
-  // TEMPORARILY DISABLED - causing errors
-  /*
-  const hasRestoredIncomingRef = useRef(false);
-  
-  useEffect(() => {
-    if (!user || hasRestoredIncomingRef.current) return;
-    
-    const restoreIncoming = async () => {
-      try {
-        const savedIncoming = localStorage.getItem("incomingCall");
-        if (!savedIncoming) return;
-        
-        hasRestoredIncomingRef.current = true;
-        
-        let parsedData;
-        try {
-          parsedData = JSON.parse(savedIncoming);
-        } catch (parseErr) {
-          console.error("[CallPersist] Invalid JSON in localStorage:", parseErr);
-          localStorage.removeItem("incomingCall");
-          return;
-        }
-        
-        const { call, profile, timestamp } = parsedData;
-        
-        if (!call || !call.id || !timestamp) {
-          console.error("[CallPersist] Invalid incoming call data structure");
-          localStorage.removeItem("incomingCall");
-          return;
-        }
-        
-        // Only restore if less than 1 minute old (calls ring for limited time)
-        if (Date.now() - timestamp < 60000) {
-          console.log("[CallPersist] Restoring incoming call:", call);
-          
-          // Verify call is still ringing in database
-          const { data, error } = await supabase
-            .from("calls")
-            .select("*")
-            .eq("id", call.id)
-            .eq("status", "ringing")
-            .maybeSingle();
-          
-          if (error) {
-            console.error("[CallPersist] Database error:", error);
-            localStorage.removeItem("incomingCall");
-            return;
-          }
-          
-          if (data) {
-            setIncomingCall(data as Call);
-            setIncomingProfile(profile);
-            startRingtone();
-            toast.info("Incoming call restored");
-          } else {
-            localStorage.removeItem("incomingCall");
-          }
-        } else {
-          localStorage.removeItem("incomingCall");
-        }
-      } catch (err) {
-        console.error("[CallPersist] Failed to restore incoming call:", err);
-        localStorage.removeItem("incomingCall");
-      }
-    };
-    
-    void restoreIncoming();
-  }, [user, startRingtone]);
-  */
+  }, [activeCall, activeProfile]);
 
   // ── Clear incoming call from localStorage when answered/declined ───────────
   useEffect(() => {
@@ -528,28 +483,38 @@ function DashboardLayout() {
         const call = payload.new as Call;
         console.log("[CallListener] Call UPDATE:", call.id, "status:", call.status);
         
-        // If the incoming call was cancelled/ended by caller before we answered
-        if (incomingCall && call.id === incomingCall.id && (call.status === "ended" || call.status === "declined" || call.status === "missed")) {
-          console.log("[CallListener] Incoming call cancelled by caller");
-          setIncomingCall(null);
-          setIncomingProfile(null);
-          stopRingtone();
-          if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
-        }
+        // Use current state via callback to avoid stale closure
+        setIncomingCall((currentIncoming) => {
+          // If the incoming call was cancelled/ended by caller before we answered
+          if (currentIncoming && call.id === currentIncoming.id && (call.status === "ended" || call.status === "declined" || call.status === "missed")) {
+            console.log("[CallListener] Incoming call cancelled by caller");
+            setIncomingProfile(null);
+            stopRingtone();
+            if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
+            return null; // Clear incoming call
+          }
+          return currentIncoming;
+        });
         
-        // If an active call was ended by the other party
-        if (activeCall && call.id === activeCall.id && call.status === "ended") {
-          console.log("[CallListener] Active call ended by other party");
-          void endActiveCall();
-        }
+        // Use current state via callback to avoid stale closure
+        setActiveCall((currentActive) => {
+          // If an active call was ended by the other party
+          if (currentActive && call.id === currentActive.id && call.status === "ended") {
+            console.log("[CallListener] Active call ended by other party - triggering cleanup");
+            // Trigger cleanup immediately
+            void endActiveCall();
+            return null; // Clear active call
+          }
+          return currentActive;
+        });
       })
       .subscribe((status) => {
         console.log("[CallListener] Channel status:", status);
       });
 
     return () => { void supabase.removeChannel(ch); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  // Include endActiveCall and stopRingtone in dependencies to avoid stale closures
+  }, [user?.id, endActiveCall, stopRingtone, startRingtone]);
 
   // ── Answer call ────────────────────────────────────────────────────────────
   const answerCall = useCallback(async (call: Call) => {
@@ -1111,7 +1076,13 @@ function DashboardLayout() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={(e) => { e.stopPropagation(); const next = !isMuted; callManager.toggleAudio(next); setIsMuted(next); }}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                const next = !isMuted; 
+                const success = callManager.toggleAudio(next); 
+                if (success) setIsMuted(next);
+                else console.error("[Dashboard] Minimized call: Failed to toggle audio");
+              }}
               className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${isMuted ? "bg-white/30" : "bg-white/10"}`}
             >
               {isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
@@ -1275,7 +1246,12 @@ function DashboardLayout() {
                 <button
                   onClick={() => {
                     const next = !isMuted;
-                    callManager.toggleAudio(next); // true = muted = disable tracks
+                    const success = callManager.toggleAudio(next); // true = muted = disable tracks
+                    if (!success) {
+                      console.error("[Dashboard] Failed to toggle audio - no tracks found");
+                      alert("Failed to mute/unmute. Please check your microphone.");
+                      return;
+                    }
                     setIsMuted(next);
                   }}
                   className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-white/20 text-white"}`}
@@ -1291,7 +1267,12 @@ function DashboardLayout() {
                   <button
                     onClick={() => {
                       const next = !isVideoOff;
-                      callManager.toggleVideo(next); // true = off = disable tracks
+                      const success = callManager.toggleVideo(next); // true = off = disable tracks
+                      if (!success) {
+                        console.error("[Dashboard] Failed to toggle video - no tracks found");
+                        alert("Failed to turn camera on/off. Please check your camera.");
+                        return;
+                      }
                       setIsVideoOff(next);
                     }}
                     className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-white/20 text-white"}`}
@@ -1313,20 +1294,23 @@ function DashboardLayout() {
                 <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">End</span>
               </div>
 
-              {/* More options (video only) - includes screen share */}
+              {/* More options (video only) - MOBILE ONLY for screen share */}
               {activeCall.call_type === "video" && (
-                <div className="relative flex flex-col items-center gap-1">
+                <div className="md:hidden relative flex flex-col items-center gap-1">
                   <button
-                    onClick={() => setShowCallOptions(!showCallOptions)}
-                    className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowCallOptions(!showCallOptions);
+                    }}
+                    className="h-12 w-12 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
                   >
-                    <MoreVertical className="h-5 w-5 md:h-6 md:w-6" />
+                    <MoreVertical className="h-5 w-5" />
                   </button>
-                  <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">More</span>
+                  <span className="text-white/60 text-[10px]">More</span>
                   
                   {/* Options menu */}
                   {showCallOptions && (
-                    <div className="absolute bottom-full mb-2 right-0 bg-black/90 backdrop-blur-sm rounded-2xl border border-white/20 shadow-2xl overflow-hidden min-w-[180px] animate-fade-up">
+                    <div className="absolute bottom-full mb-2 right-0 bg-black/90 backdrop-blur-sm rounded-2xl border border-white/20 shadow-2xl overflow-hidden min-w-[180px] animate-fade-up z-50">
                       <button
                         onClick={async () => {
                           setShowCallOptions(false);
@@ -1495,34 +1479,20 @@ function DashboardLayout() {
                         const audio = remoteAudioRef.current;
                         
                         // Set volume based on speaker state
-                        audio.volume = next ? 1.0 : 0.7; // Full volume for speaker, 70% for earpiece
+                        // Full volume for speaker, 50% for earpiece
+                        audio.volume = next ? 1.0 : 0.5;
                         console.log("[Speaker] Volume set to:", audio.volume);
                         
-                        // Try to set audio output device (not supported on all browsers)
+                        // Try to set audio output device (not widely supported on mobile)
                         if ((audio as any).setSinkId) {
-                          // 'default' = system default (usually earpiece on mobile)
-                          // '' or no call = also default
-                          // On mobile, we can't force loudspeaker via setSinkId
-                          // Volume control is the main way to differentiate
-                          (audio as any).setSinkId('default').catch((err: any) => {
+                          (audio as any).setSinkId('default').then(() => {
+                            console.log("[Speaker] setSinkId successful");
+                          }).catch((err: any) => {
                             console.warn("[Speaker] setSinkId not supported:", err);
                           });
                         }
-                        
-                        // For mobile: use Web Audio API to boost volume
-                        if (next) {
-                          try {
-                            const audioContext = new AudioContext();
-                            const source = audioContext.createMediaElementSource(audio);
-                            const gainNode = audioContext.createGain();
-                            gainNode.gain.value = 2.0; // Boost volume 2x for speaker mode
-                            source.connect(gainNode);
-                            gainNode.connect(audioContext.destination);
-                            console.log("[Speaker] Audio boost applied");
-                          } catch (err) {
-                            console.warn("[Speaker] Audio boost failed (may already be connected):", err);
-                          }
-                        }
+                      } else {
+                        console.error("[Speaker] remoteAudioRef.current is null!");
                       }
                     }}
                     className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isSpeaker ? "bg-white text-black" : "bg-white/20 text-white"}`}

@@ -201,18 +201,54 @@ export class CallManager {
     }
   }
 
-  toggleAudio(muted: boolean) { 
-    this.localStream?.getAudioTracks().forEach(t => { 
+  toggleAudio(muted: boolean): boolean {
+    console.log("[CM] toggleAudio called - muted:", muted);
+    console.log("[CM] localStream exists:", !!this.localStream);
+    
+    if (!this.localStream) {
+      console.error("[CM] No localStream found!");
+      return false;
+    }
+    
+    const audioTracks = this.localStream.getAudioTracks();
+    console.log("[CM] Audio tracks found:", audioTracks.length);
+    
+    if (audioTracks.length === 0) {
+      console.error("[CM] No audio tracks in localStream!");
+      return false;
+    }
+    
+    audioTracks.forEach(t => { 
       t.enabled = !muted; 
-      console.log("[CM] Audio track enabled:", !muted);
-    }); 
+      console.log("[CM] Audio track", t.id, "enabled:", t.enabled, "readyState:", t.readyState, "muted:", t.muted);
+    });
+    
+    return true;
   }
   
-  toggleVideo(off: boolean) { 
-    this.localStream?.getVideoTracks().forEach(t => { 
+  toggleVideo(off: boolean): boolean {
+    console.log("[CM] toggleVideo called - off:", off);
+    console.log("[CM] localStream exists:", !!this.localStream);
+    
+    if (!this.localStream) {
+      console.error("[CM] No localStream found!");
+      return false;
+    }
+    
+    const videoTracks = this.localStream.getVideoTracks();
+    console.log("[CM] Video tracks found:", videoTracks.length);
+    
+    if (videoTracks.length === 0) {
+      console.error("[CM] No video tracks in localStream!");
+      return false;
+    }
+    
+    videoTracks.forEach(t => { 
       t.enabled = !off; 
-      console.log("[CM] Video track enabled:", !off);
-    }); 
+      console.log("[CM] Video track", t.id, "enabled:", t.enabled, "readyState:", t.readyState, "muted:", t.muted);
+    });
+    
+    return true;
   }
   
   // Pause audio when app goes to background to prevent echo
