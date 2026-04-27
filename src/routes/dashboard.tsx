@@ -482,10 +482,6 @@ function DashboardLayout() {
         setCallDuration(0); setCallMinimized(false);
         if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
       };
-        if (callTimerRef.current) clearInterval(callTimerRef.current);
-        setCallDuration(0); setCallMinimized(false);
-        if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
-      };
 
       // Attach local video for initiator
       setTimeout(() => {
