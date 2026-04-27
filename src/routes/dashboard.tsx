@@ -252,6 +252,49 @@ function DashboardLayout() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [activeCall]);
 
+  // ── Wake Lock: keep screen/CPU alive during active call ───────────────────
+  // Prevents phone from sleeping and cutting the call
+  useEffect(() => {
+    if (!activeCall) return;
+
+    let wakeLock: any = null;
+
+    async function acquireWakeLock() {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request("screen");
+          console.log("[WakeLock] Acquired — screen will stay on during call");
+
+          // Re-acquire if released (e.g. tab hidden then visible again)
+          wakeLock.addEventListener("release", () => {
+            console.log("[WakeLock] Released — re-acquiring...");
+            if (activeCall) void acquireWakeLock();
+          });
+        }
+      } catch (err) {
+        console.warn("[WakeLock] Could not acquire:", err);
+      }
+    }
+
+    // Re-acquire when page becomes visible again (user switches back)
+    const handleVisibility = () => {
+      if (!document.hidden && activeCall && (!wakeLock || wakeLock.released)) {
+        void acquireWakeLock();
+      }
+    };
+
+    void acquireWakeLock();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (wakeLock && !wakeLock.released) {
+        wakeLock.release().catch(() => {});
+        console.log("[WakeLock] Released on call end");
+      }
+    };
+  }, [activeCall?.id]); // re-run only when call ID changes
+
   // ── Restore active call on page load (FIXED VERSION) ──────────────────────
   const hasRestoredCallRef = useRef(false);
   
@@ -1507,39 +1550,80 @@ function DashboardLayout() {
 
                 {/* Options */}
                 <div className="pb-8" style={{ borderTop: "1px solid #2a3942" }}>
-                  {/* Share screen */}
+                  {/* Share screen — VIDEO CALLS ONLY */}
+                  {activeCall.call_type === "video" && (
                   <button
                     onClick={async () => {
                       setShowCallOptions(false);
                       try {
                         if (isScreenSharing) {
+                          // Stop screen share — switch back to camera
                           const cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
                           const cameraTrack = cameraStream.getVideoTracks()[0];
                           const pc = callManager.getPeerConnection();
                           if (pc && cameraTrack) {
                             const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                            if (sender) await sender.replaceTrack(cameraTrack);
+                            if (sender) {
+                              await sender.replaceTrack(cameraTrack);
+                            } else {
+                              // No video sender yet — add the track
+                              pc.addTrack(cameraTrack, cameraStream);
+                            }
                           }
-                          if (localVideoRef.current) { localVideoRef.current.srcObject = new MediaStream([cameraTrack]); localVideoRef.current.play().catch(() => {}); }
+                          // Update local preview
+                          const localStream = callManager.getLocalStream();
+                          if (localStream) {
+                            localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
+                            localStream.addTrack(cameraTrack);
+                          }
+                          if (localVideoRef.current) {
+                            localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
+                            localVideoRef.current.play().catch(() => {});
+                          }
                           setIsScreenSharing(false);
                           toast.success("Screen sharing stopped");
                         } else {
-                          const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true, audio: false });
-                          const screenTrack = screenStream.getVideoTracks()[0];
-                          const pc = callManager.getPeerConnection();
-                          if (pc && screenTrack) {
-                            const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                            if (sender) await sender.replaceTrack(screenTrack);
+                          // Check if getDisplayMedia is supported
+                          if (!(navigator.mediaDevices as any).getDisplayMedia) {
+                            toast.error("Screen sharing is not supported on this device");
+                            return;
                           }
-                          if (localVideoRef.current) { localVideoRef.current.srcObject = new MediaStream([screenTrack]); localVideoRef.current.play().catch(() => {}); }
+                          const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({
+                            video: { cursor: "always" },
+                            audio: false,
+                          });
+                          const screenTrack = screenStream.getVideoTracks()[0];
+                          if (!screenTrack) { toast.error("Could not get screen track"); return; }
+
+                          const pc = callManager.getPeerConnection();
+                          if (pc) {
+                            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                            if (sender) {
+                              await sender.replaceTrack(screenTrack);
+                            } else {
+                              pc.addTrack(screenTrack, screenStream);
+                            }
+                          }
+                          // Update local preview
+                          if (localVideoRef.current) {
+                            localVideoRef.current.srcObject = new MediaStream([screenTrack]);
+                            localVideoRef.current.play().catch(() => {});
+                          }
+                          // Auto-stop when user clicks browser's "Stop sharing"
                           screenTrack.onended = async () => {
                             setIsScreenSharing(false);
                             try {
                               const cs = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
                               const ct = cs.getVideoTracks()[0];
                               const pc2 = callManager.getPeerConnection();
-                              if (pc2 && ct) { const s = pc2.getSenders().find(s => s.track?.kind === "video"); if (s) await s.replaceTrack(ct); }
-                              if (localVideoRef.current) { localVideoRef.current.srcObject = new MediaStream([ct]); localVideoRef.current.play().catch(() => {}); }
+                              if (pc2 && ct) {
+                                const s = pc2.getSenders().find(s => s.track?.kind === "video");
+                                if (s) await s.replaceTrack(ct);
+                              }
+                              if (localVideoRef.current) {
+                                localVideoRef.current.srcObject = new MediaStream([ct]);
+                                localVideoRef.current.play().catch(() => {});
+                              }
                             } catch { /* ignore */ }
                           };
                           setIsScreenSharing(true);
@@ -1547,6 +1631,7 @@ function DashboardLayout() {
                         }
                       } catch (err: any) {
                         if (err.name === "NotAllowedError") toast.error("Screen sharing permission denied");
+                        else if (err.name === "NotSupportedError") toast.error("Screen sharing not supported on this device");
                         else toast.error("Failed to share screen");
                       }
                     }}
@@ -1557,6 +1642,7 @@ function DashboardLayout() {
                       <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
                     </svg>
                   </button>
+                  )}
 
                   {/* Send message */}
                   <button
