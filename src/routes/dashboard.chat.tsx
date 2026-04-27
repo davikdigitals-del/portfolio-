@@ -6,7 +6,7 @@ import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
   Play, Pause, FileText, Bell, BellOff, Trash2, Pencil, Reply,
-  Phone, Video,
+  Phone, Video, Calendar, Link, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1446,6 +1446,57 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
   // Call status updates handled globally in dashboard.tsx
 
+  // ---- Schedule call ----
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleType, setScheduleType] = useState<"voice" | "video">("voice");
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduleTitle, setScheduleTitle] = useState("");
+  const [scheduledCalls, setScheduledCalls] = useState<any[]>([]);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+
+  // Load scheduled calls
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("scheduled_calls")
+      .select("*")
+      .eq("conversation_id", conversation.id)
+      .eq("status", "scheduled")
+      .order("scheduled_at", { ascending: true })
+      .then(({ data }) => setScheduledCalls(data ?? []));
+  }, [conversation.id, user]);
+
+  async function saveScheduledCall() {
+    if (!user || !scheduleDate || !scheduleTime) return;
+    setScheduleSaving(true);
+    const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+    const callLink = `${window.location.origin}/dashboard/chat?join=${crypto.randomUUID()}`;
+    const { data, error } = await supabase.from("scheduled_calls").insert({
+      conversation_id: conversation.id,
+      created_by: user.id,
+      call_type: scheduleType,
+      scheduled_at: scheduledAt,
+      title: scheduleTitle || `${scheduleType === "video" ? "Video" : "Voice"} call`,
+      call_link: callLink,
+    }).select("*").single();
+    if (!error && data) {
+      setScheduledCalls(prev => [...prev, data]);
+      toast.success("Call scheduled!");
+      setShowSchedule(false);
+      setScheduleDate(""); setScheduleTime(""); setScheduleTitle("");
+    } else {
+      toast.error("Failed to schedule call");
+    }
+    setScheduleSaving(false);
+  }
+
+  async function cancelScheduledCall(id: string) {
+    await supabase.from("scheduled_calls").update({ status: "cancelled" }).eq("id", id);
+    setScheduledCalls(prev => prev.filter(c => c.id !== id));
+    toast.success("Call cancelled");
+  }
+
   const counterpartName = isAdmin
     ? (conversation.profile?.display_name ?? conversation.profile?.email ?? "User")
     : (adminProfile?.display_name ?? "Ajibola Gbenga Joseph");
@@ -1499,6 +1550,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         >
           <Video className="h-4 w-4" />
         </button>
+        <button
+          onClick={() => setShowSchedule(true)}
+          title="Schedule a call"
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors shrink-0"
+        >
+          <Calendar className="h-4 w-4" />
+        </button>
         {isAdmin && (
           <Button
             variant="outline"
@@ -1543,6 +1601,95 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
       {/* Incoming call is now handled by the global modal in dashboard.tsx */}
       {/* Active call UI is now handled globally in dashboard.tsx */}
+
+      {/* ── Schedule Call Modal ──────────────────────────────────────────── */}
+      {showSchedule && (
+        <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center bg-black/60 p-4" onClick={() => setShowSchedule(false)}>
+          <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h3 className="font-semibold text-base">Schedule a call</h3>
+              <button onClick={() => setShowSchedule(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Call type */}
+              <div className="flex gap-2">
+                <button onClick={() => setScheduleType("voice")} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-colors ${scheduleType === "voice" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                  <Phone className="h-4 w-4" /> Voice
+                </button>
+                <button onClick={() => setScheduleType("video")} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-colors ${scheduleType === "video" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                  <Video className="h-4 w-4" /> Video
+                </button>
+              </div>
+              {/* Title */}
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Title (optional)</label>
+                <input value={scheduleTitle} onChange={e => setScheduleTitle(e.target.value)} placeholder="e.g. Project discussion" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/60" />
+              </div>
+              {/* Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Date</label>
+                  <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} min={new Date().toISOString().split("T")[0]} className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Time</label>
+                  <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/60" />
+                </div>
+              </div>
+              <button
+                onClick={saveScheduledCall}
+                disabled={!scheduleDate || !scheduleTime || scheduleSaving}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm disabled:opacity-50 hover:opacity-90 transition-opacity"
+              >
+                {scheduleSaving ? "Scheduling..." : "Schedule Call"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Scheduled calls banner ───────────────────────────────────────── */}
+      {scheduledCalls.length > 0 && (
+        <div className="border-b border-border bg-primary/5 px-4 py-2 shrink-0 space-y-1.5">
+          {scheduledCalls.map(sc => {
+            const dt = new Date(sc.scheduled_at);
+            const isToday = dt.toDateString() === new Date().toDateString();
+            const timeStr = dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            const dateStr = isToday ? "Today" : dt.toLocaleDateString([], { month: "short", day: "numeric" });
+            return (
+              <div key={sc.id} className="flex items-center gap-3">
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${sc.call_type === "video" ? "bg-blue-500/20 text-blue-500" : "bg-green-500/20 text-green-500"}`}>
+                  {sc.call_type === "video" ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold truncate">{sc.title}</div>
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> {dateStr} at {timeStr}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(sc.call_link); toast.success("Link copied!"); }}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    title="Copy call link"
+                  >
+                    <Link className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => initiateCall(sc.call_type)}
+                    className="px-2.5 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:opacity-90"
+                  >
+                    Start
+                  </button>
+                  <button onClick={() => cancelScheduledCall(sc.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive transition-colors">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Messages — flex-1 so it fills remaining space, overflow scrolls */}
       <div

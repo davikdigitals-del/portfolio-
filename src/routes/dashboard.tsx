@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import {
   Loader2, MessageCircle, Home, Users, Settings,
   FileText, LogOut, CheckSquare, ShieldCheck, Menu, X, Phone, Video, PhoneOff,
-  MicOff, Mic, VideoOff,
+  MicOff, Mic, VideoOff, Minimize2, Maximize2, SpeakerIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -117,6 +117,7 @@ function DashboardLayout() {
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [callMinimized, setCallMinimized] = useState(false);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -287,6 +288,7 @@ function DashboardLayout() {
         setActiveProfile(null);
         if (callTimerRef.current) clearInterval(callTimerRef.current);
         setCallDuration(0);
+        setCallMinimized(false);
       };
 
       // Now answer — callbacks are already set
@@ -323,13 +325,12 @@ function DashboardLayout() {
 
   // ── End active call ────────────────────────────────────────────────────────
   const endActiveCall = useCallback(async () => {
-    // callManager.endCall() updates DB + sends "end" signal to peer
     await callManager.endCall();
-    // UI cleanup (onCallEndCb also fires this, but call it directly too)
     setActiveCall(null);
     setActiveProfile(null);
     if (callTimerRef.current) clearInterval(callTimerRef.current);
     setCallDuration(0);
+    setCallMinimized(false);
   }, []);
 
   // ── Expose answer function globally so chat component can trigger it ───────
@@ -359,6 +360,7 @@ function DashboardLayout() {
         setActiveProfile(null);
         if (callTimerRef.current) clearInterval(callTimerRef.current);
         setCallDuration(0);
+        setCallMinimized(false);
       };
 
       // Attach local video for initiator
@@ -545,20 +547,15 @@ function DashboardLayout() {
       {/* ── INCOMING CALL SCREEN ─────────────────────────────────────────── */}
       {incomingCall && !activeCall && (
         <div className="fixed inset-0 z-[9999] flex flex-col" style={{ background: "linear-gradient(180deg, #1a237e 0%, #111827 100%)" }}>
-          {/* Top: call type label */}
           <div className="pt-16 pb-4 text-center">
             <p className="text-white/60 text-sm font-medium tracking-widest uppercase">
               {incomingCall.call_type === "video" ? "Incoming Video Call" : "Incoming Voice Call"}
             </p>
           </div>
-
-          {/* Center: avatar + name + pulsing rings */}
           <div className="flex-1 flex flex-col items-center justify-center gap-6">
             <div className="relative flex items-center justify-center">
-              {/* Pulsing rings */}
               <div className="absolute h-56 w-56 rounded-full bg-white/5 animate-ping" style={{ animationDuration: "2s" }} />
               <div className="absolute h-44 w-44 rounded-full bg-white/10 animate-ping" style={{ animationDuration: "2s", animationDelay: "0.5s" }} />
-              {/* Avatar */}
               {incomingProfile?.avatar_url ? (
                 <img src={incomingProfile.avatar_url} alt="Caller" className="h-36 w-36 rounded-full object-cover ring-4 ring-white/40 shadow-2xl relative z-10" />
               ) : (
@@ -570,27 +567,19 @@ function DashboardLayout() {
             <div className="text-center">
               <h1 className="text-white text-4xl font-bold">{incomingProfile?.display_name ?? (isAdmin ? "Client" : "Ajibola")}</h1>
               <p className="text-white/50 text-base mt-2">
-                {incomingCall.call_type === "video" ? "📹 Video call" : "☎️ Voice call"}
+                {incomingCall.call_type === "video" ? "📹 Incoming video call" : "☎️ Incoming voice call"}
               </p>
             </div>
           </div>
-
-          {/* Bottom: decline / answer */}
           <div className="pb-20 flex justify-center gap-20">
             <div className="flex flex-col items-center gap-3">
-              <button
-                onClick={() => declineCall(incomingCall)}
-                className="h-20 w-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
-              >
+              <button onClick={() => declineCall(incomingCall)} className="h-20 w-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform">
                 <PhoneOff className="h-9 w-9 text-white" />
               </button>
               <span className="text-white/70 text-sm">Decline</span>
             </div>
             <div className="flex flex-col items-center gap-3">
-              <button
-                onClick={() => answerCall(incomingCall)}
-                className="h-20 w-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform animate-bounce"
-              >
+              <button onClick={() => answerCall(incomingCall)} className="h-20 w-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform animate-bounce">
                 <Phone className="h-9 w-9 text-white" />
               </button>
               <span className="text-white/70 text-sm">Answer</span>
@@ -599,93 +588,168 @@ function DashboardLayout() {
         </div>
       )}
 
-      {/* ── ACTIVE CALL SCREEN ───────────────────────────────────────────── */}
-      {activeCall && (
+      {/* ── ACTIVE CALL — MINIMIZED BAR (WhatsApp style top bar) ─────────── */}
+      {activeCall && callMinimized && (
+        <div
+          className="fixed top-0 left-0 right-0 z-[9998] flex items-center gap-3 px-4 py-2 cursor-pointer"
+          style={{ background: "linear-gradient(90deg, #16a34a, #15803d)", paddingTop: "max(0.5rem, env(safe-area-inset-top, 0.5rem))" }}
+          onClick={() => setCallMinimized(false)}
+        >
+          {/* Pulsing dot */}
+          <span className="h-2.5 w-2.5 rounded-full bg-white animate-pulse shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-white text-sm font-semibold truncate">
+              {activeCall.call_type === "video" ? "📹 " : "☎️ "}{activeProfile?.display_name ?? "On a call"}
+            </span>
+            <span className="text-white/80 text-xs ml-2 font-mono">{fmtDuration(callDuration)}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); callManager.toggleAudio(isMuted); setIsMuted(m => !m); }}
+              className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${isMuted ? "bg-white/30" : "bg-white/10"}`}
+            >
+              {isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); void endActiveCall(); }}
+              className="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center"
+            >
+              <PhoneOff className="h-4 w-4 text-white" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── ACTIVE CALL — FULLSCREEN (WhatsApp style) ────────────────────── */}
+      {activeCall && !callMinimized && (
         <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
-          {/* Hidden audio element for voice calls */}
+          {/* Hidden audio for voice calls */}
           <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
 
-          {/* Video call: remote video fills screen */}
+          {/* Remote video (video call) */}
           {activeCall.call_type === "video" && (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
           )}
 
-          {/* Voice call: dark background with avatar */}
+          {/* Voice call background */}
           {activeCall.call_type === "voice" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-6" style={{ background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)" }}>
+            <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)" }} />
+          )}
+
+          {/* Top bar: minimize button + name + timer */}
+          <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-3 px-4 pt-12 pb-4"
+            style={{ background: activeCall.call_type === "video" ? "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)" : "transparent" }}
+          >
+            {/* Minimize — go back to app, call continues */}
+            <button
+              onClick={() => setCallMinimized(true)}
+              className="h-9 w-9 rounded-full bg-black/30 flex items-center justify-center active:scale-90 transition-transform"
+              title="Minimize call"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15 18-6-6 6-6"/>
+              </svg>
+            </button>
+            <div className="flex-1">
+              <h1 className="text-white text-lg font-bold leading-tight">{activeProfile?.display_name ?? "Calling..."}</h1>
+              <p className="text-green-400 text-sm font-mono">{fmtDuration(callDuration)}</p>
+            </div>
+          </div>
+
+          {/* Voice call: avatar center */}
+          {activeCall.call_type === "voice" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
               {activeProfile?.avatar_url ? (
-                <img src={activeProfile.avatar_url} alt="Call" className="h-36 w-36 rounded-full object-cover ring-4 ring-white/30 shadow-2xl" />
+                <img src={activeProfile.avatar_url} alt="Call" className="h-32 w-32 rounded-full object-cover ring-4 ring-white/20 shadow-2xl" />
               ) : (
-                <div className="h-36 w-36 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-6xl font-bold ring-4 ring-white/30 shadow-2xl">
+                <div className="h-32 w-32 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-5xl font-bold ring-4 ring-white/20 shadow-2xl">
                   {(activeProfile?.display_name?.[0] ?? "?").toUpperCase()}
                 </div>
               )}
-              <div className="text-center">
-                <h1 className="text-white text-3xl font-bold">{activeProfile?.display_name ?? "Calling..."}</h1>
-                <p className="text-green-400 text-lg mt-2 font-mono">{fmtDuration(callDuration)}</p>
-              </div>
             </div>
           )}
 
-          {/* Video call overlay: name + timer */}
-          {activeCall.call_type === "video" && (
-            <div className="absolute top-0 left-0 right-0 pt-12 pb-4 px-6 bg-gradient-to-b from-black/70 to-transparent">
-              <h1 className="text-white text-2xl font-bold">{activeProfile?.display_name ?? "Calling..."}</h1>
-              <p className="text-green-400 font-mono text-base">{fmtDuration(callDuration)}</p>
-            </div>
-          )}
-
-          {/* Local video preview (video call only) */}
+          {/* Local video preview — draggable corner (video call) */}
           {activeCall.call_type === "video" && !isVideoOff && (
             <video
               ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute bottom-28 right-4 w-28 h-40 rounded-2xl object-cover border-2 border-white/50 shadow-xl"
+              autoPlay playsInline muted
+              className="absolute bottom-32 right-4 w-28 h-40 rounded-2xl object-cover border-2 border-white/40 shadow-xl z-10"
             />
           )}
 
-          {/* Controls */}
-          <div className="absolute bottom-0 left-0 right-0 pb-12 pt-6 bg-gradient-to-t from-black/80 to-transparent">
-            <div className="flex items-center justify-center gap-6">
+          {/* Controls — floating island at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 z-10 pb-10 pt-6"
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}
+          >
+            <div className="flex items-center justify-center gap-5">
               {/* Mute */}
-              <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-1.5">
                 <button
                   onClick={() => { callManager.toggleAudio(isMuted); setIsMuted(m => !m); }}
-                  className={`h-16 w-16 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                  className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-white/20 text-white"}`}
                 >
-                  {isMuted ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
+                  {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
                 </button>
-                <span className="text-white/70 text-xs">{isMuted ? "Unmute" : "Mute"}</span>
-              </div>
-
-              {/* End call */}
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={endActiveCall}
-                  className="h-20 w-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
-                >
-                  <PhoneOff className="h-9 w-9 text-white" />
-                </button>
-                <span className="text-white/70 text-xs">End</span>
+                <span className="text-white/60 text-[11px]">{isMuted ? "Unmute" : "Mute"}</span>
               </div>
 
               {/* Video toggle (video calls only) */}
               {activeCall.call_type === "video" && (
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-1.5">
                   <button
                     onClick={() => { callManager.toggleVideo(isVideoOff); setIsVideoOff(v => !v); }}
-                    className={`h-16 w-16 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-white/20 text-white"}`}
+                    className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-white/20 text-white"}`}
                   >
-                    {isVideoOff ? <VideoOff className="h-7 w-7" /> : <Video className="h-7 w-7" />}
+                    {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
                   </button>
-                  <span className="text-white/70 text-xs">{isVideoOff ? "Camera on" : "Camera off"}</span>
+                  <span className="text-white/60 text-[11px]">{isVideoOff ? "Camera on" : "Camera off"}</span>
+                </div>
+              )}
+
+              {/* End call */}
+              <div className="flex flex-col items-center gap-1.5">
+                <button
+                  onClick={endActiveCall}
+                  className="h-16 w-16 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
+                >
+                  <PhoneOff className="h-7 w-7 text-white" />
+                </button>
+                <span className="text-white/60 text-[11px]">End</span>
+              </div>
+
+              {/* Switch camera (video only) */}
+              {activeCall.call_type === "video" && (
+                <div className="flex flex-col items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      // Switch front/back camera
+                      const stream = callManager.getLocalStream();
+                      if (stream) {
+                        stream.getVideoTracks().forEach(t => t.stop());
+                      }
+                    }}
+                    className="h-14 w-14 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/><path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/><circle cx="12" cy="12" r="3"/><path d="m18 22-3-3 3-3"/><path d="m6 2 3 3-3 3"/>
+                    </svg>
+                  </button>
+                  <span className="text-white/60 text-[11px]">Flip</span>
+                </div>
+              )}
+
+              {/* Speaker (voice only) */}
+              {activeCall.call_type === "voice" && (
+                <div className="flex flex-col items-center gap-1.5">
+                  <button
+                    className="h-14 w-14 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                    </svg>
+                  </button>
+                  <span className="text-white/60 text-[11px]">Speaker</span>
                 </div>
               )}
             </div>
