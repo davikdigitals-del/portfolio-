@@ -6,7 +6,6 @@ import { Preloader } from "@/components/preloader";
 import { InstallPrompt } from "@/components/install-prompt";
 import { supabase } from "@/integrations/supabase/client";
 import { sendPushNotification } from "@/lib/notifications";
-import { initializeNativeApp, isNativeApp } from "@/lib/native";
 import type { Call } from "@/lib/calls";
 
 import appCss from "../styles.css?url";
@@ -81,11 +80,19 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const [ready, setReady] = useState(false);
 
-  // Initialize native app features
+  // Initialize native app features only if running as native
   useEffect(() => {
-    if (isNativeApp) {
+    // Check if Capacitor is available
+    const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor;
+    
+    if (isCapacitor) {
       console.log('[App] Running as native mobile app');
-      void initializeNativeApp();
+      // Dynamically import to avoid circular dependency
+      import('@/lib/native').then(({ initializeNativeApp }) => {
+        void initializeNativeApp();
+      }).catch((err) => {
+        console.error('[App] Failed to initialize native app:', err);
+      });
     } else {
       console.log('[App] Running as web app');
     }

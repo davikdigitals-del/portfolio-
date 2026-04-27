@@ -118,6 +118,7 @@ export async function initializePushNotifications() {
 async function savePushToken(token: string) {
   // Save token to your backend/Supabase
   try {
+    // Dynamic import to avoid circular dependency
     const { supabase } = await import('@/integrations/supabase/client');
     const { data: { user } } = await supabase.auth.getUser();
     
