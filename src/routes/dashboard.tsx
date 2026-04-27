@@ -172,9 +172,13 @@ function DashboardLayout() {
   useEffect(() => {
     if (!user) return;
     
+    // Only run once on mount
+    let hasRestored = false;
+    
     try {
       const savedCall = localStorage.getItem("activeCall");
-      if (savedCall) {
+      if (savedCall && !hasRestored) {
+        hasRestored = true;
         const { call, profile, timestamp } = JSON.parse(savedCall);
         
         // Only restore if less than 5 minutes old
@@ -208,7 +212,8 @@ function DashboardLayout() {
       console.error("[CallPersist] Failed to restore call:", err);
       localStorage.removeItem("activeCall");
     }
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]); // Only run when user changes (on mount)
 
   // ── Clear call state from localStorage when call ends ──────────────────────
   useEffect(() => {
@@ -221,9 +226,13 @@ function DashboardLayout() {
   useEffect(() => {
     if (!user) return;
     
+    // Only run once on mount
+    let hasRestored = false;
+    
     try {
       const savedIncoming = localStorage.getItem("incomingCall");
-      if (savedIncoming) {
+      if (savedIncoming && !hasRestored) {
+        hasRestored = true;
         const { call, profile, timestamp } = JSON.parse(savedIncoming);
         
         // Only restore if less than 1 minute old (calls ring for limited time)
@@ -255,7 +264,8 @@ function DashboardLayout() {
       console.error("[CallPersist] Failed to restore incoming call:", err);
       localStorage.removeItem("incomingCall");
     }
-  }, [user, startRingtone]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]); // Only run when user changes (on mount)
 
   // ── Clear incoming call from localStorage when answered/declined ───────────
   useEffect(() => {
