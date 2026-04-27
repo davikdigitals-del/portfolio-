@@ -252,19 +252,36 @@ export class CallManager {
       throw new Error("Your browser doesn't support video/audio calls. Please use a modern browser.");
     }
     
+    // CRITICAL: Always use echo cancellation to prevent hearing own voice
+    const audioConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      sampleRate: 48000,
+    };
+    
     // Start with very basic constraints for mobile
     if (isMobile) {
       // Try simplest possible constraints first
       try {
-        console.log("[CM] Trying absolute minimum mobile settings (no constraints)...");
+        console.log("[CM] Trying absolute minimum mobile settings with echo cancellation...");
         const constraints = callType === "video" 
-          ? { audio: true, video: true } 
-          : { audio: true, video: false };
+          ? { audio: audioConstraints, video: true } 
+          : { audio: audioConstraints, video: false };
         console.log("[CM] Constraints:", JSON.stringify(constraints));
         
         this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log("[CM] ✅ Mobile media acquired successfully!");
         console.log("[CM] Tracks:", this.localStream.getTracks().map(t => `${t.kind} - enabled:${t.enabled} - readyState:${t.readyState}`));
+        
+        // Verify echo cancellation is enabled
+        const audioTrack = this.localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          const settings = audioTrack.getSettings();
+          console.log("[CM] Audio settings:", settings);
+          console.log("[CM] Echo cancellation:", settings.echoCancellation);
+        }
+        
         return;
       } catch (minErr: any) {
         console.error("[CM] ❌ Minimum mobile failed:", minErr);
@@ -288,18 +305,13 @@ export class CallManager {
       }
     }
     
-    // Desktop - try high quality
+    // Desktop - try high quality with echo cancellation
     try {
-      console.log("[CM] Trying desktop high quality...");
+      console.log("[CM] Trying desktop high quality with echo cancellation...");
       this.localStream = await navigator.mediaDevices.getUserMedia(
         callType === "video"
           ? { 
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                sampleRate: 48000
-              }, 
+              audio: audioConstraints, 
               video: { 
                 width: { ideal: 3840, max: 3840 }, 
                 height: { ideal: 2160, max: 2160 }, 
@@ -308,16 +320,19 @@ export class CallManager {
               } 
             }
           : { 
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                sampleRate: 48000
-              }, 
+              audio: audioConstraints, 
               video: false 
             }
       );
       console.log("[CM] Desktop high quality acquired");
+      
+      // Verify echo cancellation
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        const settings = audioTrack.getSettings();
+        console.log("[CM] Audio settings:", settings);
+        console.log("[CM] Echo cancellation:", settings.echoCancellation);
+      }
     } catch (err) {
       console.error("[CM] Desktop high quality failed, trying 1080p:", err);
       // Fallback to 1080p
@@ -325,7 +340,7 @@ export class CallManager {
         this.localStream = await navigator.mediaDevices.getUserMedia(
           callType === "video"
             ? { 
-                audio: true,
+                audio: audioConstraints,
                 video: { 
                   width: { ideal: 1920 }, 
                   height: { ideal: 1080 }, 
@@ -333,7 +348,7 @@ export class CallManager {
                   facingMode: "user" 
                 } 
               }
-            : { audio: true, video: false }
+            : { audio: audioConstraints, video: false }
         );
         console.log("[CM] Desktop 1080p acquired");
       } catch (fallbackErr) {

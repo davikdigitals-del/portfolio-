@@ -526,12 +526,21 @@ function DashboardLayout() {
         table: "calls",
       }, (payload) => {
         const call = payload.new as Call;
+        console.log("[CallListener] Call UPDATE:", call.id, "status:", call.status);
+        
         // If the incoming call was cancelled/ended by caller before we answered
         if (incomingCall && call.id === incomingCall.id && (call.status === "ended" || call.status === "declined" || call.status === "missed")) {
+          console.log("[CallListener] Incoming call cancelled by caller");
           setIncomingCall(null);
           setIncomingProfile(null);
           stopRingtone();
           if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
+        }
+        
+        // If an active call was ended by the other party
+        if (activeCall && call.id === activeCall.id && call.status === "ended") {
+          console.log("[CallListener] Active call ended by other party");
+          void endActiveCall();
         }
       })
       .subscribe((status) => {
