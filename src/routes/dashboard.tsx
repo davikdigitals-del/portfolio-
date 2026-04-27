@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import {
   Loader2, MessageCircle, Home, Users, Settings,
   FileText, LogOut, CheckSquare, ShieldCheck, Menu, X, Phone, Video, PhoneOff,
-  MicOff, Mic, VideoOff, Minimize2, Maximize2, SpeakerIcon, Pause,
+  MicOff, Mic, VideoOff, Minimize2, Maximize2, SpeakerIcon, Pause, MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -122,6 +122,7 @@ function DashboardLayout() {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callMinimized, setCallMinimized] = useState(false);
   const [isAppHidden, setIsAppHidden] = useState(false);
+  const [showCallOptions, setShowCallOptions] = useState(false);
   const [remoteVideoActive, setRemoteVideoActive] = useState(false);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,14 +163,35 @@ function DashboardLayout() {
     }
   }, []);
 
-  // ── Track app visibility for video blur effect ─────────────────────────────
+  // ── Track app visibility for video blur effect and audio pause ────────────
   useEffect(() => {
     const handleVisibilityChange = () => {
-      setIsAppHidden(document.hidden);
+      const hidden = document.hidden;
+      setIsAppHidden(hidden);
+      
+      // Pause audio when app goes to background to prevent echo
+      // Resume when app comes back to foreground
+      if (activeCall) {
+        if (hidden) {
+          console.log("[Dashboard] App hidden, pausing audio to prevent echo");
+          callManager.pauseAudio();
+        } else {
+          console.log("[Dashboard] App visible, resuming audio");
+          callManager.resumeAudio(isMuted);
+        }
+      }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
+  }, [activeCall, isMuted]);
+
+  // ── Close call options menu when clicking outside ──────────────────────────
+  useEffect(() => {
+    if (!showCallOptions) return;
+    const handleClick = () => setShowCallOptions(false);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [showCallOptions]);
 
   // ── Prevent refresh/close during active call ───────────────────────────────
   useEffect(() => {
@@ -1082,6 +1104,29 @@ function DashboardLayout() {
                   )}
                   <div className="text-center">
                     <p className="text-white/60 text-sm">Camera is off</p>
+                    {isAppHidden && (
+                      <p className="text-white/80 text-base font-semibold mt-2">Video call paused</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Remote video — always render, just hide when inactive */}
+              <video
+                ref={remoteVideoRef}
+                autoPlay playsInline
+                className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${
+                  remoteVideoActive ? "opacity-100" : "opacity-0"
+                } ${isAppHidden ? "blur-lg scale-110" : ""}`}
+              />
+              
+              {/* App hidden overlay on remote video */}
+              {remoteVideoActive && isAppHidden && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <Pause className="h-12 w-12 text-white" />
+                    <p className="text-white text-xl font-semibold">Video call paused</p>
+                    <p className="text-white/60 text-sm">Return to app to resume</p>
                   </div>
                 </div>
               )}
@@ -1226,87 +1271,29 @@ function DashboardLayout() {
                 <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">End</span>
               </div>
 
-              {/* Screen share (video only, desktop/tablet only) */}
+              {/* More options (video only) - includes screen share */}
               {activeCall.call_type === "video" && (
-                <div className="hidden md:flex flex-col items-center gap-1">
+                <div className="relative flex flex-col items-center gap-1">
                   <button
-                    onClick={async () => {
-                      try {
-                        console.log("[ScreenShare] Current state:", isScreenSharing);
-                        
-                        if (isScreenSharing) {
-                          console.log("[ScreenShare] Stopping screen share, switching to camera");
-                          // Stop screen share — switch back to camera
-                          const cameraStream = await navigator.mediaDevices.getUserMedia({ 
-                            video: { 
-                              facingMode: facingMode, 
-                              width: { ideal: 1920, max: 1920 }, 
-                              height: { ideal: 1080, max: 1080 },
-                              frameRate: { ideal: 30, max: 30 }
-                            } 
-                          });
-                          const cameraTrack = cameraStream.getVideoTracks()[0];
-                          
-                          if (!cameraTrack) {
-                            throw new Error("Could not get camera track");
-                          }
-                          
-                          const pc = callManager.getPeerConnection();
-                          if (pc && cameraTrack) {
-                            const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                            if (sender) {
-                              await sender.replaceTrack(cameraTrack);
-                              console.log("[ScreenShare] Replaced screen track with camera track");
-                            }
-                          }
-                          
-                          if (localVideoRef.current) {
-                            localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
-                            localVideoRef.current.play().catch(() => {});
-                          }
-                          
-                          setIsScreenSharing(false);
-                          toast.success("Screen sharing stopped");
-                        } else {
-                          console.log("[ScreenShare] Starting screen share");
-                          // Start screen share with high quality
-                          const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ 
-                            video: { 
-                              cursor: "always",
-                              displaySurface: "monitor",
-                              width: { ideal: 1920, max: 1920 },
-                              height: { ideal: 1080, max: 1080 },
-                              frameRate: { ideal: 30, max: 30 }
-                            }, 
-                            audio: false 
-                          });
-                          const screenTrack = screenStream.getVideoTracks()[0];
-                          
-                          if (!screenTrack) {
-                            throw new Error("Could not get screen track");
-                          }
-                          
-                          const pc = callManager.getPeerConnection();
-                          if (pc && screenTrack) {
-                            const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                            if (sender) {
-                              await sender.replaceTrack(screenTrack);
-                              console.log("[ScreenShare] Replaced camera track with screen track");
-                            }
-                          }
-                          
-                          if (localVideoRef.current) {
-                            localVideoRef.current.srcObject = new MediaStream([screenTrack]);
-                            localVideoRef.current.play().catch(() => {});
-                          }
-                          
-                          // Auto-stop when user ends screen share via browser UI
-                          screenTrack.onended = async () => {
-                            console.log("[ScreenShare] Screen share ended by user");
-                            setIsScreenSharing(false);
+                    onClick={() => setShowCallOptions(!showCallOptions)}
+                    className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
+                  >
+                    <MoreVertical className="h-5 w-5 md:h-6 md:w-6" />
+                  </button>
+                  <span className="text-white/60 text-[10px] md:text-[11px] hidden md:block">More</span>
+                  
+                  {/* Options menu */}
+                  {showCallOptions && (
+                    <div className="absolute bottom-full mb-2 right-0 bg-black/90 backdrop-blur-sm rounded-2xl border border-white/20 shadow-2xl overflow-hidden min-w-[180px] animate-fade-up">
+                      <button
+                        onClick={async () => {
+                          setShowCallOptions(false);
+                          try {
+                            console.log("[ScreenShare] Current state:", isScreenSharing);
                             
-                            // Switch back to camera automatically
-                            try {
+                            if (isScreenSharing) {
+                              console.log("[ScreenShare] Stopping screen share, switching to camera");
+                              // Stop screen share — switch back to camera
                               const cameraStream = await navigator.mediaDevices.getUserMedia({ 
                                 video: { 
                                   facingMode: facingMode, 
@@ -1317,11 +1304,16 @@ function DashboardLayout() {
                               });
                               const cameraTrack = cameraStream.getVideoTracks()[0];
                               
+                              if (!cameraTrack) {
+                                throw new Error("Could not get camera track");
+                              }
+                              
                               const pc = callManager.getPeerConnection();
                               if (pc && cameraTrack) {
                                 const sender = pc.getSenders().find(s => s.track?.kind === "video");
                                 if (sender) {
                                   await sender.replaceTrack(cameraTrack);
+                                  console.log("[ScreenShare] Replaced screen track with camera track");
                                 }
                               }
                               
@@ -1329,35 +1321,102 @@ function DashboardLayout() {
                                 localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
                                 localVideoRef.current.play().catch(() => {});
                               }
-                            } catch (err) {
-                              console.error("[ScreenShare] Failed to switch back to camera:", err);
+                              
+                              setIsScreenSharing(false);
+                              toast.success("Screen sharing stopped");
+                            } else {
+                              console.log("[ScreenShare] Starting screen share");
+                              // Start screen share with high quality
+                              const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ 
+                                video: { 
+                                  cursor: "always",
+                                  displaySurface: "monitor",
+                                  width: { ideal: 1920, max: 1920 },
+                                  height: { ideal: 1080, max: 1080 },
+                                  frameRate: { ideal: 30, max: 30 }
+                                }, 
+                                audio: false 
+                              });
+                              const screenTrack = screenStream.getVideoTracks()[0];
+                              
+                              if (!screenTrack) {
+                                throw new Error("Could not get screen track");
+                              }
+                              
+                              const pc = callManager.getPeerConnection();
+                              if (pc && screenTrack) {
+                                const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                                if (sender) {
+                                  await sender.replaceTrack(screenTrack);
+                                  console.log("[ScreenShare] Replaced camera track with screen track");
+                                }
+                              }
+                              
+                              if (localVideoRef.current) {
+                                localVideoRef.current.srcObject = new MediaStream([screenTrack]);
+                                localVideoRef.current.play().catch(() => {});
+                              }
+                              
+                              // Auto-stop when user ends screen share via browser UI
+                              screenTrack.onended = async () => {
+                                console.log("[ScreenShare] Screen share ended by user");
+                                setIsScreenSharing(false);
+                                
+                                // Switch back to camera automatically
+                                try {
+                                  const cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                                    video: { 
+                                      facingMode: facingMode, 
+                                      width: { ideal: 1920, max: 1920 }, 
+                                      height: { ideal: 1080, max: 1080 },
+                                      frameRate: { ideal: 30, max: 30 }
+                                    } 
+                                  });
+                                  const cameraTrack = cameraStream.getVideoTracks()[0];
+                                  
+                                  const pc = callManager.getPeerConnection();
+                                  if (pc && cameraTrack) {
+                                    const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                                    if (sender) {
+                                      await sender.replaceTrack(cameraTrack);
+                                    }
+                                  }
+                                  
+                                  if (localVideoRef.current) {
+                                    localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
+                                    localVideoRef.current.play().catch(() => {});
+                                  }
+                                } catch (err) {
+                                  console.error("[ScreenShare] Failed to switch back to camera:", err);
+                                }
+                                
+                                toast.info("Screen sharing stopped");
+                              };
+                              
+                              setIsScreenSharing(true);
+                              toast.success("Screen sharing started");
                             }
-                            
-                            toast.info("Screen sharing stopped");
-                          };
-                          
-                          setIsScreenSharing(true);
-                          toast.success("Screen sharing started");
-                        }
-                      } catch (err: any) {
-                        console.error("[ScreenShare] Error:", err);
-                        if (err.name === "NotAllowedError") {
-                          toast.error("Screen sharing permission denied");
-                        } else if (err.name === "NotFoundError") {
-                          toast.error("No screen available to share");
-                        } else {
-                          toast.error("Failed to share screen: " + (err.message || "Unknown error"));
-                        }
-                      }
-                    }}
-                    className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isScreenSharing ? "bg-white text-black" : "bg-white/20 text-white"}`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-                      {isScreenSharing && <path d="M9 9l3-3 3 3"/>}
-                    </svg>
-                  </button>
-                  <span className="text-white/60 text-[11px]">{isScreenSharing ? "Stop share" : "Share"}</span>
+                          } catch (err: any) {
+                            console.error("[ScreenShare] Error:", err);
+                            if (err.name === "NotAllowedError") {
+                              toast.error("Screen sharing permission denied");
+                            } else if (err.name === "NotFoundError") {
+                              toast.error("No screen available to share");
+                            } else {
+                              toast.error("Failed to share screen: " + (err.message || "Unknown error"));
+                            }
+                          }
+                        }}
+                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-white/10 active:bg-white/10 transition-colors text-left text-white"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                          {isScreenSharing && <path d="M9 9l3-3 3 3"/>}
+                        </svg>
+                        <span>{isScreenSharing ? "Stop sharing" : "Share screen"}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

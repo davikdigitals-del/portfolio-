@@ -411,15 +411,16 @@ function ChatPage() {
         // Mark messages sent TO me (not by me) as delivered.
         // This tells the sender their message reached my device.
         if (updated.id && user) {
+          console.log("[MessageStatus] Marking messages as delivered for conversation:", updated.id);
           void supabase
             .from("messages")
             .update({ status: "delivered" })
             .eq("conversation_id", updated.id)
             .neq("sender_id", user.id)  // messages sent by the OTHER person
             .eq("status", "sent")       // only sent → delivered, never downgrade seen
-            .then(({ error }) => {
-              if (error) console.error("Delivered update error:", error);
-              else console.log("Marked messages as delivered");
+            .then(({ data, error }) => {
+              if (error) console.error("[MessageStatus] Delivered update error:", error);
+              else console.log("[MessageStatus] Marked messages as delivered:", data);
             });
         }
 
@@ -858,10 +859,15 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
         if (msg.sender_id !== user.id) {
           // I received a message while the chat is open → mark as SEEN immediately
+          console.log("[MessageStatus] Marking message as seen:", msg.id);
           const updates = isAdmin ? { unread_admin: 0 } : { unread_user: 0 };
           void supabase.from("conversations").update(updates).eq("id", conversation.id);
-          void supabase.from("messages").update({ status: "seen" }).eq("id", msg.id).then(() => {
-            setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "seen" } : m));
+          void supabase.from("messages").update({ status: "seen" }).eq("id", msg.id).then(({ error }) => {
+            if (error) console.error("[MessageStatus] Seen update error:", error);
+            else {
+              console.log("[MessageStatus] Message marked as seen:", msg.id);
+              setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: "seen" } : m));
+            }
           });
         }
         // Note: sender's own messages start as "sent" from the DB insert
@@ -869,6 +875,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversation.id}` }, (payload) => {
         const msg = payload.new as Message;
+        console.log("[MessageStatus] UPDATE received:", msg.id, "status:", msg.status);
         setMessages((prev) => prev.map((m) => m.id === msg.id ? msg : m));
       })
       .on("broadcast", { event: "typing" }, (payload) => {
@@ -1420,6 +1427,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       sender_id: user.id,
       content,
       type: "text",
+      status: "sent",  // Explicitly set initial status
       replied_to_id: repliedToId,
     }).select("*").single();
 

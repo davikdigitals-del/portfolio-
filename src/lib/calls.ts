@@ -177,8 +177,38 @@ export class CallManager {
     }
   }
 
-  toggleAudio(muted: boolean) { this.localStream?.getAudioTracks().forEach(t => { t.enabled = !muted; }); }
-  toggleVideo(off: boolean) { this.localStream?.getVideoTracks().forEach(t => { t.enabled = !off; }); }
+  toggleAudio(muted: boolean) { 
+    this.localStream?.getAudioTracks().forEach(t => { 
+      t.enabled = !muted; 
+      console.log("[CM] Audio track enabled:", !muted);
+    }); 
+  }
+  
+  toggleVideo(off: boolean) { 
+    this.localStream?.getVideoTracks().forEach(t => { 
+      t.enabled = !off; 
+      console.log("[CM] Video track enabled:", !off);
+    }); 
+  }
+  
+  // Pause audio when app goes to background to prevent echo
+  pauseAudio() {
+    this.localStream?.getAudioTracks().forEach(t => {
+      t.enabled = false;
+      console.log("[CM] Audio paused (app hidden)");
+    });
+  }
+  
+  // Resume audio when app comes back to foreground
+  resumeAudio(isMuted: boolean) {
+    if (!isMuted) {
+      this.localStream?.getAudioTracks().forEach(t => {
+        t.enabled = true;
+        console.log("[CM] Audio resumed (app visible)");
+      });
+    }
+  }
+  
   getLocalStream() { return this.localStream; }
   getCallType() { return this.callType; }
   getCallId() { return this.callId; }
