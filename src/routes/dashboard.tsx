@@ -117,6 +117,8 @@ function DashboardLayout() {
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isSpeaker, setIsSpeaker] = useState(true);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const [callMinimized, setCallMinimized] = useState(false);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -338,7 +340,43 @@ function DashboardLayout() {
     if (callTimerRef.current) clearInterval(callTimerRef.current);
     setCallDuration(0);
     setCallMinimized(false);
+    setIsMuted(false);
+    setIsVideoOff(false);
+    setIsSpeaker(true);
+    setFacingMode("user");
   }, []);
+  const flipCamera = useCallback(async () => {
+    const newFacing = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newFacing);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { facingMode: newFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      const pc = (callManager as any).pc as RTCPeerConnection | null;
+      if (pc) {
+        const sender = pc.getSenders().find(s => s.track?.kind === "video");
+        if (sender && newVideoTrack) {
+          await sender.replaceTrack(newVideoTrack);
+        }
+      }
+      // Replace local stream video track
+      const localStream = callManager.getLocalStream();
+      if (localStream) {
+        localStream.getVideoTracks().forEach(t => t.stop());
+        localStream.removeTrack(localStream.getVideoTracks()[0]);
+        localStream.addTrack(newVideoTrack);
+      }
+      // Update local preview
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = newStream;
+        localVideoRef.current.play().catch(() => {});
+      }
+    } catch (err) {
+      console.error("[Dashboard] Flip camera failed:", err);
+    }
+  }, [facingMode]);
 
   // ── Expose answer function globally so chat component can trigger it ───────
   useEffect(() => {
@@ -612,7 +650,7 @@ function DashboardLayout() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={(e) => { e.stopPropagation(); callManager.toggleAudio(isMuted); setIsMuted(m => !m); }}
+              onClick={(e) => { e.stopPropagation(); const next = !isMuted; callManager.toggleAudio(next); setIsMuted(next); }}
               className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${isMuted ? "bg-white/30" : "bg-white/10"}`}
             >
               {isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
@@ -690,10 +728,15 @@ function DashboardLayout() {
             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}
           >
             <div className="flex items-center justify-center gap-5">
-              {/* Mute */}
+
+              {/* Mute / Unmute */}
               <div className="flex flex-col items-center gap-1.5">
                 <button
-                  onClick={() => { callManager.toggleAudio(isMuted); setIsMuted(m => !m); }}
+                  onClick={() => {
+                    const next = !isMuted;
+                    callManager.toggleAudio(next); // true = muted = disable tracks
+                    setIsMuted(next);
+                  }}
                   className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-white/20 text-white"}`}
                 >
                   {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
@@ -701,11 +744,15 @@ function DashboardLayout() {
                 <span className="text-white/60 text-[11px]">{isMuted ? "Unmute" : "Mute"}</span>
               </div>
 
-              {/* Video toggle (video calls only) */}
+              {/* Camera off / on (video only) */}
               {activeCall.call_type === "video" && (
                 <div className="flex flex-col items-center gap-1.5">
                   <button
-                    onClick={() => { callManager.toggleVideo(isVideoOff); setIsVideoOff(v => !v); }}
+                    onClick={() => {
+                      const next = !isVideoOff;
+                      callManager.toggleVideo(next); // true = off = disable tracks
+                      setIsVideoOff(next);
+                    }}
                     className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isVideoOff ? "bg-white text-black" : "bg-white/20 text-white"}`}
                   >
                     {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
@@ -717,7 +764,7 @@ function DashboardLayout() {
               {/* End call */}
               <div className="flex flex-col items-center gap-1.5">
                 <button
-                  onClick={endActiveCall}
+                  onClick={() => void endActiveCall()}
                   className="h-16 w-16 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
                 >
                   <PhoneOff className="h-7 w-7 text-white" />
@@ -725,34 +772,57 @@ function DashboardLayout() {
                 <span className="text-white/60 text-[11px]">End</span>
               </div>
 
-              {/* Switch camera (video only) */}
+              {/* Flip camera (video only) */}
               {activeCall.call_type === "video" && (
                 <div className="flex flex-col items-center gap-1.5">
                   <button
-                    onClick={() => {
-                      // Switch front/back camera
-                      const stream = callManager.getLocalStream();
-                      if (stream) {
-                        stream.getVideoTracks().forEach(t => t.stop());
-                      }
-                    }}
+                    onClick={() => void flipCamera()}
                     className="h-14 w-14 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/><path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/><circle cx="12" cy="12" r="3"/><path d="m18 22-3-3 3-3"/><path d="m6 2 3 3-3 3"/>
+                      <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>
+                      <path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="m18 22-3-3 3-3"/>
+                      <path d="m6 2 3 3-3 3"/>
                     </svg>
                   </button>
                   <span className="text-white/60 text-[11px]">Flip</span>
                 </div>
               )}
 
-              {/* Speaker (voice only) */}
+              {/* Speaker toggle (voice only) */}
               {activeCall.call_type === "voice" && (
                 <div className="flex flex-col items-center gap-1.5">
                   <button
-                    className="h-14 w-14 rounded-full bg-white/20 text-white flex items-center justify-center transition-all active:scale-90"
+                    onClick={() => {
+                      const next = !isSpeaker;
+                      setIsSpeaker(next);
+                      // Set audio output to speaker or earpiece
+                      if (remoteAudioRef.current) {
+                        const audio = remoteAudioRef.current as any;
+                        if (audio.setSinkId) {
+                          // setSinkId('') = default (earpiece on mobile), 'speaker' = loudspeaker
+                          audio.setSinkId(next ? "" : "").catch(() => {});
+                        }
+                      }
+                    }}
+                    className={`h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isSpeaker ? "bg-white/20 text-white" : "bg-white text-black"}`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                    </svg>
+                  </button>
+                  <span className="text-white/60 text-[11px]">{isSpeaker ? "Speaker" : "Earpiece"}</span>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
                     </svg>
                   </button>
