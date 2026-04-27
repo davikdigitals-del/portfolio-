@@ -1,13 +1,13 @@
 ﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { ArrowRight, GraduationCap, Briefcase, Heart, Target, Eye, Star } from "lucide-react";
+import { ArrowRight, GraduationCap, Briefcase, Heart, Target, Eye, Star, Globe, Users, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "About â€” Ajibola Gbenga Joseph" },
+      { title: "About — Ajibola Gbenga Joseph" },
       { name: "description", content: "Website Designer & Software Developer | Co-Founder, Edgebrook AI Solutions. 5+ years creating scalable digital experiences." },
     ],
   }),
@@ -34,6 +34,7 @@ function AboutPage() {
       <AboutHero />
       <StatsSection />
       <BioSection />
+      <GlobalExpansionSection />
       <MVVSection />
       <EducationSection />
       <CTABanner />
@@ -67,15 +68,15 @@ function AboutHero() {
               Co-Founder, Edgebrook AI Solutions
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              I create digital experiences that are visually stunning, responsive, and performance-driven,
-              delivering measurable results for clients worldwide. With over 5 years of hands-on experience,
-              I combine strategic thinking with technical excellence to build products that truly perform.
+              I create digital experiences that are visually stunning, responsive, and performance-driven—delivering 
+              measurable results for clients worldwide. With over 5 years of hands-on experience, I combine strategic 
+              thinking with technical excellence to build products that truly perform.
             </p>
             <div className="flex flex-wrap gap-3 pt-2">
               {[
                 { icon: Briefcase, label: "5+ Years Experience" },
                 { icon: GraduationCap, label: "ND Computer Science" },
-                { icon: Star, label: "Nigeria" },
+                { icon: Star, label: "Age: 21" },
               ].map((b) => (
                 <div key={b.label} className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm">
                   <b.icon className="h-4 w-4 text-primary" />
@@ -94,14 +95,14 @@ function AboutHero() {
             <div className="relative">
               <div className="absolute inset-0 rounded-3xl bg-gradient-primary opacity-15 blur-2xl scale-110" />
               <div className="relative w-72 h-80 md:w-80 md:h-96 rounded-3xl overflow-hidden border border-border/60 shadow-elevated">
-              <img
-                src="/me.webp"
-                alt="Ajibola Gbenga Joseph"
-                className="w-full h-full object-cover object-top"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-              <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background/60 to-transparent" />
-            </div>
+                <img
+                  src="/me.webp"
+                  alt="Ajibola Gbenga Joseph"
+                  className="w-full h-full object-cover object-top"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background/60 to-transparent" />
+              </div>
               {/* Decorative ring */}
               <div className="absolute -inset-4 rounded-3xl border border-primary/10 animate-spin-slow" />
             </div>
@@ -114,10 +115,10 @@ function AboutHero() {
 
 function StatsSection() {
   const stats = [
-    { value: "5+", label: "Years of Experience", desc: "Building digital products" },
+    { value: "5+", label: "Years Experience", desc: "Building digital products" },
     { value: "50+", label: "Projects Completed", desc: "Across multiple industries" },
     { value: "100%", label: "Client Satisfaction", desc: "Repeat clients & referrals" },
-    { value: "3+", label: "Countries Served", desc: "Global client base" },
+    { value: "3+", label: "Countries Served", desc: "Growing global client base" },
   ];
   return (
     <section className="container mx-auto px-6 py-16 section-reveal">
@@ -145,25 +146,123 @@ function BioSection() {
         <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6">My Story</h2>
         <div className="space-y-4 text-muted-foreground leading-relaxed">
           <p>
-            I'm Ajibola Gbenga Joseph â€” a passionate Website Designer and Software Developer based in Nigeria,
-            with a National Diploma in Computer Science and over 5 years of professional experience building digital solutions
-            that drive real business results.
+            I'm Ajibola Gbenga Joseph — a 21-year-old Website Designer and Software Developer based in Nigeria, 
+            with a National Diploma in Computer Science (2025) and over 5 years of practical experience building 
+            digital solutions that deliver real business results.
           </p>
           <p>
-            As Co-Founder of <span className="text-foreground font-medium">Edgebrook AI Solutions</span>, I lead
-            the design and development of innovative digital products, combining cutting-edge AI capabilities with
-            beautiful, user-centered design. My work spans startups, established businesses, and personal brands
-            across multiple industries.
+            My journey into tech started with curiosity, but it quickly became something deeper—a commitment to 
+            building a future through skill, consistency, and real-world impact. Without access to many opportunities 
+            early on, I focused on learning by doing: building websites, solving problems, and improving every single day.
           </p>
           <p>
-            I believe great design is invisible â€” it just works. Every project I take on is approached with a
-            strategy-first mindset: understanding the business goals, the target audience, and the competitive
-            landscape before writing a single line of code or placing a single pixel.
+            <span className="text-foreground font-medium">From 2022 to 2025</span>, I pursued my National Diploma 
+            in Computer Science, gaining a strong foundation in software engineering, algorithms, and system design. 
+            At the same time, I was actively working in the field—bridging theory with hands-on execution.
           </p>
           <p>
-            When I'm not building, I'm learning â€” staying ahead of the curve in web technologies, AI integration,
-            and digital marketing so my clients always get the most modern, effective solutions available.
+            Since 2019, I've worked as a Freelance Web Designer and Developer, delivering over 50 projects for 
+            startups, businesses, and personal brands. This experience shaped my ability to create not just visually 
+            appealing platforms, but systems that perform, convert, and scale.
           </p>
+          <p>
+            In 2025, I co-founded <span className="text-foreground font-medium">Edgebrook AI Solutions</span>, where 
+            I serve as Lead Developer—building AI-powered digital products and leading full-cycle development from 
+            concept to deployment.
+          </p>
+          <p>
+            As I worked with clients beyond my immediate environment, my vision expanded. I began to see clearly that 
+            countries like the United Kingdom and the United States offer the kind of ecosystem where innovation moves 
+            faster, collaboration is stronger, and impact is amplified.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GlobalExpansionSection() {
+  return (
+    <section className="container mx-auto px-6 py-16 section-reveal">
+      <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-surface p-8 md:p-12">
+        <div className="absolute inset-0 bg-gradient-hero opacity-40 pointer-events-none" />
+        <div className="relative max-w-3xl">
+          <div className="flex items-center gap-3 mb-6">
+            <Globe className="h-8 w-8 text-primary" />
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Global Expansion & Sponsorship Opportunities (UK / US) 🌍
+            </h2>
+          </div>
+          
+          <div className="space-y-4 text-muted-foreground leading-relaxed">
+            <p>
+              As part of my next phase of growth, I am actively seeking genuine sponsorship or relocation opportunities 
+              specifically to the <span className="text-foreground font-semibold">United Kingdom</span> or the{" "}
+              <span className="text-foreground font-semibold">United States</span>.
+            </p>
+            <p className="text-foreground font-medium">
+              This is a serious and intentional step—not a casual request.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 mt-8">
+            <div className="rounded-xl border border-border bg-card/50 p-6">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                I'm looking to connect with:
+              </h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>Companies seeking a skilled Website Designer / Developer</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>Organizations open to international talent sponsorship</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>Individuals or partners interested in supporting global tech growth</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card/50 p-6">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Award className="h-5 w-5 text-primary" />
+                In return, I bring:
+              </h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>Proven hands-on experience (5+ years)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>Real project delivery across industries</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>Strong technical and problem-solving skills</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>A mindset focused on results, growth, and long-term value</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-6 p-4 rounded-xl bg-primary/10 border border-primary/20">
+            <p className="text-sm text-foreground leading-relaxed">
+              My goal is not just to relocate, but to contribute meaningfully, collaborate at a higher level, and build 
+              impactful digital solutions within a more advanced ecosystem.
+            </p>
+            <p className="text-sm text-foreground font-semibold mt-3">
+              If you are in a position to support, sponsor, or connect me to the right opportunity in the UK or US, 
+              I am open to serious discussions.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -183,14 +282,14 @@ const mvv = [
     color: "text-blue-400",
     bg: "bg-blue-400/10",
     title: "Vision",
-    desc: "To become a leading digital creator, known for innovative solutions and exceptional user experiences worldwide.",
+    desc: "To become a globally recognized digital creator known for innovative solutions and exceptional user experiences.",
   },
   {
     icon: Heart,
     color: "text-primary",
     bg: "bg-primary/10",
-    title: "Values",
-    desc: "Innovation, Integrity, Excellence, and Client Success are the core values guiding every project I undertake.",
+    title: "Core Values",
+    desc: "Innovation • Integrity • Excellence • Client Success",
   },
 ];
 
@@ -220,22 +319,22 @@ function MVVSection() {
 function EducationSection() {
   const items = [
     {
-      year: "2019 â€“ 2023",
+      year: "2022 — 2025",
       title: "National Diploma in Computer Science",
       org: "Polytechnic (Nigeria)",
-      desc: "Graduated with a strong foundation in software engineering, algorithms, and systems design.",
+      desc: "Graduated with a strong foundation in software engineering, algorithms, and system design.",
     },
     {
-      year: "2023 â€“ Present",
+      year: "2025 — Present",
       title: "Co-Founder & Lead Developer",
       org: "Edgebrook AI Solutions",
-      desc: "Building AI-powered digital products and leading a team of designers and developers.",
+      desc: "Building AI-powered digital products and leading full-cycle development from concept to deployment.",
     },
     {
-      year: "2019 â€“ Present",
+      year: "2019 — Present",
       title: "Freelance Web Designer & Developer",
       org: "Independent",
-      desc: "Delivered 50+ projects for clients across startups, businesses, and personal brands worldwide.",
+      desc: "Delivered 50+ projects for startups, businesses, and personal brands. Creating systems that perform, convert, and scale.",
     },
   ];
 
@@ -274,11 +373,12 @@ function CTABanner() {
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
             Let's Build Something <span className="shimmer-text">Exceptional Together</span>
           </h2>
-          <p className="mt-3 text-muted-foreground max-w-md mx-auto">
-            Ready to take your digital presence to the next level? Let's talk.
+          <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
+            Whether you're looking to build a high-performing website, collaborate on a project, or explore 
+            sponsorship opportunities—let's connect and create something impactful.
           </p>
           <Button asChild size="lg" className="mt-8 h-12 px-8 bg-gradient-primary hover:opacity-90 shadow-glow">
-            <Link to="/contact">Start a Project <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            <Link to="/contact">Start a Conversation <ArrowRight className="ml-2 h-4 w-4" /></Link>
           </Button>
         </div>
       </div>

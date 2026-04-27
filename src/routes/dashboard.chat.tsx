@@ -1261,23 +1261,32 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const [editText, setEditText] = useState("");
 
   async function saveEdit(msgId: string) {
+    console.log("[Edit] Starting edit for message:", msgId, "New text:", editText);
+    
     if (!editText.trim()) {
       console.log("[Edit] Empty text, canceling");
+      setEditingId(null);
+      return;
+    }
+    
+    if (!msgId) {
+      console.error("[Edit] No message ID provided");
+      toast.error("Cannot edit message: Invalid ID");
       return;
     }
     
     try {
-      console.log("[Edit] Saving edit for message:", msgId);
+      console.log("[Edit] Calling Supabase update...");
       const { error } = await supabase
         .from("messages")
         .update({ content: editText.trim() })
         .eq("id", msgId);
       
       if (error) {
-        console.error("[Edit] Error:", error);
+        console.error("[Edit] Supabase error:", error);
         toast.error(`Failed to edit message: ${error.message}`);
       } else {
-        console.log("[Edit] Message edited successfully");
+        console.log("[Edit] Message edited successfully in database");
         setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, content: editText.trim() } : m));
         setEditingId(null);
         toast.success("Message edited");
@@ -1295,6 +1304,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const ctxMenuJustOpenedRef = useRef(false);
 
   function openCtxMenu(x: number, y: number, msg: Message, mine: boolean) {
+    console.log("[ContextMenu] Opening menu for message:", msg.id, "Type:", msg.type, "Mine:", mine);
     const menuW = 180, menuH = 160;
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
     const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
@@ -1302,6 +1312,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     y = Math.max(8, Math.min(y, viewportHeight - menuH - 8));
     ctxMenuJustOpenedRef.current = true;
     setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
+    console.log("[ContextMenu] Menu state set:", { msgId: msg.id, x, y, mine, type: msg.type });
     // Clear the "just opened" flag after a short delay
     setTimeout(() => { ctxMenuJustOpenedRef.current = false; }, 300);
   }
@@ -1345,26 +1356,32 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
   // ---- Delete message ----
   async function deleteMessage(msgId: string) {
+    console.log("[Delete] Starting delete for message:", msgId);
+    
+    if (!msgId) {
+      console.error("[Delete] No message ID provided");
+      toast.error("Cannot delete message: Invalid ID");
+      return;
+    }
+
     try {
-      console.log("[Delete] Deleting message:", msgId);
+      console.log("[Delete] Calling Supabase update...");
       const { error } = await supabase
         .from("messages")
         .update({ deleted_at: new Date().toISOString(), content: "This message was deleted" })
         .eq("id", msgId);
       
       if (error) {
-        console.error("[Delete] Error:", error);
+        console.error("[Delete] Supabase error:", error);
         toast.error(`Failed to delete message: ${error.message}`);
       } else {
-        console.log("[Delete] Message deleted successfully");
+        console.log("[Delete] Message deleted successfully in database");
         setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted_at: new Date().toISOString(), content: "This message was deleted" } : m));
         toast.success("Message deleted");
       }
     } catch (err) {
       console.error("[Delete] Exception:", err);
       toast.error("Failed to delete message");
-    } finally {
-      setCtxMenu(null);
     }
   }
 
@@ -1996,7 +2013,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
           onTouchEnd={(e) => e.stopPropagation()}
         >
           <button
-            onPointerDown={(e) => {
+            onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               const msg = messages.find((m) => m.id === ctxMenu.msgId);
               if (msg) setReplyingTo(msg);
@@ -2009,10 +2027,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
           </button>
           {ctxMenu.mine && ctxMenu.type === "text" && (
             <button
-              onPointerDown={(e) => {
+              onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 const msg = messages.find((m) => m.id === ctxMenu.msgId);
-                if (msg) { setEditText(msg.content ?? ""); setEditingId(msg.id); }
+                if (msg) { 
+                  setEditText(msg.content ?? ""); 
+                  setEditingId(msg.id); 
+                }
                 setCtxMenu(null);
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-accent active:bg-accent transition-colors text-left"
@@ -2023,7 +2045,13 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
           )}
           {(ctxMenu.mine || isAdmin) && (
             <button
-              onPointerDown={(e) => { e.stopPropagation(); deleteMessage(ctxMenu.msgId); }}
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation(); 
+                setCtxMenu(null);
+                // Execute delete after menu closes to prevent event conflicts
+                setTimeout(() => deleteMessage(ctxMenu.msgId), 50);
+              }}
               className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-destructive/10 active:bg-destructive/10 text-destructive transition-colors text-left"
             >
               <Trash2 className="h-4 w-4 shrink-0" />
