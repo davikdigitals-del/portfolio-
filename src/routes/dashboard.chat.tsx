@@ -26,6 +26,23 @@ import { callManager, type Call, type CallType } from "@/lib/calls";
 export const Route = createFileRoute("/dashboard/chat")({
   head: () => ({ meta: [{ title: "Chat - Pulse" }] }),
   component: ChatPage,
+  errorComponent: ({ error }) => {
+    console.error("[ChatPage] Error:", error);
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
+          <p className="text-muted-foreground mb-4">{error?.message || "An unexpected error occurred"}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  },
 });
 
 interface Conversation {
