@@ -280,6 +280,7 @@ function DashboardLayout() {
       setIsMuted(false);
       setIsVideoOff(false);
       setCallMinimized(false);
+      if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
       callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
 
       // Set callbacks BEFORE answerCall so ontrack fires correctly
@@ -397,9 +398,10 @@ function DashboardLayout() {
       }, 30_000);
     };
     (window as any).__setActiveCall = (call: Call, profile: any) => {
-      // Stop any ringtone that might be playing
+      // Clear existing timers before starting new ones
       stopRingtone();
       if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
+      if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
 
       setActiveCall(call);
       setActiveProfile(profile);
