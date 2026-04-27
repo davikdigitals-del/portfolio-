@@ -218,6 +218,8 @@ function DashboardLayout() {
           { tag: `call-${call.id}`, requireInteraction: true }
         );
 
+        // Clear any existing missed timer before setting a new one
+        if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
         missedTimerRef.current = setTimeout(async () => {
           await supabase.from("calls").update({ status: "missed", ended_at: new Date().toISOString() }).eq("id", call.id).eq("status", "ringing");
           // Insert missed call message in chat
@@ -260,68 +262,55 @@ function DashboardLayout() {
   // ── Answer call ────────────────────────────────────────────────────────────
   const answerCall = useCallback(async (call: Call) => {
     if (!user) return;
+
+    // Stop ringtone and clear missed timer IMMEDIATELY (synchronous)
     stopRingtone();
-    if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
+    if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
     setIncomingCall(null);
+    setIncomingProfile(null);
 
     try {
-      // Fetch the caller's profile
       const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name, avatar_url")
-        .eq("user_id", call.initiator_id)
-        .maybeSingle();
+        .from("profiles").select("display_name, avatar_url")
+        .eq("user_id", call.initiator_id).maybeSingle();
 
-      // Set up UI state first
       setActiveCall(call);
       setActiveProfile(profile ?? incomingProfile);
       setCallDuration(0);
       setIsMuted(false);
       setIsVideoOff(false);
+      setCallMinimized(false);
       callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
 
       // Set callbacks BEFORE answerCall so ontrack fires correctly
       callManager.onRemoteStreamCb = (stream) => {
         console.log("[Dashboard] Remote stream, tracks:", stream.getTracks().map(t => t.kind));
-        // Attach to audio element (always mounted)
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-          remoteAudioRef.current.play().catch(() => {});
-        }
-        // Attach to video element (always mounted, shown when call is fullscreen)
+        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.play().catch(() => {}); }
         if (call.call_type === "video" && remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
           remoteVideoRef.current.style.display = "block";
           remoteVideoRef.current.play().catch(() => {});
         }
       };
-
       callManager.onCallEndCb = () => {
-        setActiveCall(null);
-        setActiveProfile(null);
+        setActiveCall(null); setActiveProfile(null);
         if (callTimerRef.current) clearInterval(callTimerRef.current);
-        setCallDuration(0);
-        setCallMinimized(false);
+        setCallDuration(0); setCallMinimized(false);
+        if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
       };
 
-      // Now answer — callbacks are already set
       await callManager.answerCall(call, user.id);
 
-      // Attach local video after a short delay
       setTimeout(() => {
         if (call.call_type === "video" && localVideoRef.current) {
           const ls = callManager.getLocalStream();
-          if (ls) {
-            localVideoRef.current.srcObject = ls;
-            localVideoRef.current.play().catch(() => {});
-          }
+          if (ls) { localVideoRef.current.srcObject = ls; localVideoRef.current.play().catch(() => {}); }
         }
       }, 500);
 
     } catch (err: any) {
       console.error("[Dashboard] Answer failed:", err);
-      setActiveCall(null);
-      setActiveProfile(null);
+      setActiveCall(null); setActiveProfile(null);
       if (callTimerRef.current) clearInterval(callTimerRef.current);
       alert(err?.message ?? "Failed to answer call");
     }
@@ -386,6 +375,9 @@ function DashboardLayout() {
   useEffect(() => {
     (window as any).__answerCall = answerCall;
     (window as any).__setIncomingCall = async (call: Call) => {
+      // Clear any existing missed timer before setting a new one
+      if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
+      stopRingtone(); // stop any existing ringtone first
       const { data: profile } = await supabase
         .from("profiles").select("display_name, avatar_url")
         .eq("user_id", call.initiator_id).maybeSingle();
@@ -401,18 +393,31 @@ function DashboardLayout() {
           type: "call", call_data: { call_type: call.call_type, status: "missed", duration_seconds: 0 },
         }).catch(() => {});
         setIncomingCall(null); setIncomingProfile(null); stopRingtone();
+        missedTimerRef.current = null;
       }, 30_000);
     };
     (window as any).__setActiveCall = (call: Call, profile: any) => {
+      // Stop any ringtone that might be playing
+      stopRingtone();
+      if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
+
       setActiveCall(call);
       setActiveProfile(profile);
       setCallDuration(0);
       setIsMuted(false);
       setIsVideoOff(false);
+      setCallMinimized(false);
       callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+
+      // Set callbacks — callManager.initiateCall already ran so these won't be wiped
       callManager.onRemoteStreamCb = (stream) => {
+        console.log("[Dashboard] Remote stream, tracks:", stream.getTracks().map(t => t.kind));
         if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.play().catch(() => {}); }
-        if (call.call_type === "video" && remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; remoteVideoRef.current.style.display = "block"; remoteVideoRef.current.play().catch(() => {}); }
+        if (call.call_type === "video" && remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+          remoteVideoRef.current.style.display = "block";
+          remoteVideoRef.current.play().catch(() => {});
+        }
       };
       callManager.onCallEndCb = () => {
         setActiveCall(null); setActiveProfile(null);
@@ -420,6 +425,8 @@ function DashboardLayout() {
         setCallDuration(0); setCallMinimized(false);
         if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
       };
+
+      // Attach local video for initiator
       setTimeout(() => {
         if (call.call_type === "video" && localVideoRef.current) {
           const ls = callManager.getLocalStream();

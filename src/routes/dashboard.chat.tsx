@@ -1396,18 +1396,12 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         .eq("user_id", receiverId)
         .maybeSingle();
 
-      // Set up global active call screen BEFORE initiating
-      // so onRemoteStreamCb is ready when the answer arrives
-      const setActiveCallGlobal = (window as any).__setActiveCall;
-      if (setActiveCallGlobal) {
-        // This sets the callbacks on callManager
-        setActiveCallGlobal({ call_type: callType, id: "pending" } as any, profile);
-      }
-
+      // Initiate the call — this acquires media and opens signaling
       const call = await callManager.initiateCall(conversation.id, receiverId, callType, user.id);
       toast.dismiss("call-toast");
 
-      // Update with real call object
+      // NOW set up the active call screen (after callManager is ready)
+      const setActiveCallGlobal = (window as any).__setActiveCall;
       if (setActiveCallGlobal) {
         setActiveCallGlobal(call, profile);
       }

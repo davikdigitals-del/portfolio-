@@ -107,14 +107,14 @@ function GlobalCallListener() {
       window.history.replaceState({}, "", window.location.pathname);
       supabase.from("calls").select("*").eq("id", callId).maybeSingle().then(({ data: call }) => {
         if (call && call.status === "ringing") {
-          const handler = (window as any).__setIncomingCall ?? (window as any).__answerCall;
-          if (handler) handler(call);
-          else (window as any).__pendingCall = call;
+          // Store for dashboard to pick up — don't try to answer here
+          (window as any).__pendingCall = call;
         }
       });
     }
 
-    // Subscribe to incoming calls globally (works on any page)
+    // Subscribe to incoming calls — ONLY fires if dashboard listener isn't active
+    // Dashboard sets window.__setIncomingCall when it mounts
     const ch = supabase.channel(`root-calls-${user.id}`)
       .on("postgres_changes", {
         event: "INSERT",
@@ -125,13 +125,10 @@ function GlobalCallListener() {
         const call = payload.new as Call;
         if (call.status !== "ringing") return;
 
-        const setIncoming = (window as any).__setIncomingCall;
-        if (setIncoming) {
-          void setIncoming(call);
-          return;
-        }
+        // If dashboard is mounted, it handles everything — skip
+        if ((window as any).__setIncomingCall) return;
 
-        // Dashboard not mounted — show push notification
+        // Dashboard not mounted — show push notification so user can tap to open
         const { data: profile } = await supabase
           .from("profiles").select("display_name").eq("user_id", call.initiator_id).maybeSingle();
         void sendPushNotification(
