@@ -123,21 +123,58 @@ export class CallManager {
   }
 
   async declineCall(callId: string): Promise<void> {
-    await supabase.from("calls").update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", callId);
-    await this.sendSignal({ type: "declined" });
-    this.cleanup();
+    console.log("[CM] Declining call:", callId);
+    try {
+      // Send signal first so the other party knows immediately
+      await this.sendSignal({ type: "declined" });
+      
+      // Update database
+      await supabase
+        .from("calls")
+        .update({ status: "declined", ended_at: new Date().toISOString() })
+        .eq("id", callId);
+      
+      console.log("[CM] Call declined successfully");
+    } catch (err) {
+      console.error("[CM] Error declining call:", err);
+    } finally {
+      // Always cleanup
+      this.cleanup();
+    }
   }
 
   async endCall(): Promise<void> {
+    console.log("[CM] Ending call");
     const endCb = this.onCallEndCb;
-    if (this.callId) {
-      const duration = this.startTime ? Math.floor((Date.now() - this.startTime) / 1000) : 0;
-      await supabase.from("calls").update({ status: "ended", ended_at: new Date().toISOString(), duration_seconds: duration }).eq("id", this.callId);
-      await this.insertCallMessage("ended", duration);
+    try {
+      if (this.callId) {
+        const duration = this.startTime ? Math.floor((Date.now() - this.startTime) / 1000) : 0;
+        
+        // Send signal first so the other party knows immediately
+        await this.sendSignal({ type: "end" });
+        
+        // Update database
+        await supabase
+          .from("calls")
+          .update({ 
+            status: "ended", 
+            ended_at: new Date().toISOString(), 
+            duration_seconds: duration 
+          })
+          .eq("id", this.callId);
+        
+        // Insert call message
+        await this.insertCallMessage("ended", duration);
+        
+        console.log("[CM] Call ended successfully, duration:", duration);
+      }
+    } catch (err) {
+      console.error("[CM] Error ending call:", err);
+    } finally {
+      // Always cleanup
+      this.cleanup();
+      endCb?.();
     }
-    await this.sendSignal({ type: "end" });
-    this.cleanup();
-    endCb?.();
   }
 
   toggleAudio(muted: boolean) { this.localStream?.getAudioTracks().forEach(t => { t.enabled = !muted; }); }

@@ -341,27 +341,64 @@ function DashboardLayout() {
 
   // ── Decline call ───────────────────────────────────────────────────────────
   const declineCall = useCallback(async (call: Call) => {
-    stopRingtone();
-    if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
-    setIncomingCall(null);
-    setIncomingProfile(null);
-    await supabase.from("calls").update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", call.id);
+    try {
+      console.log("[Dashboard] Declining call:", call.id);
+      stopRingtone();
+      if (missedTimerRef.current) clearTimeout(missedTimerRef.current);
+      
+      // Update database first
+      const { error } = await supabase
+        .from("calls")
+        .update({ status: "declined", ended_at: new Date().toISOString() })
+        .eq("id", call.id);
+      
+      if (error) {
+        console.error("[Dashboard] Error declining call in DB:", error);
+      } else {
+        console.log("[Dashboard] Call declined in DB successfully");
+      }
+      
+      // Signal the other party via callManager
+      await callManager.declineCall(call.id);
+      
+      // Clear UI state
+      setIncomingCall(null);
+      setIncomingProfile(null);
+      
+      console.log("[Dashboard] Call decline complete");
+    } catch (err) {
+      console.error("[Dashboard] Error in declineCall:", err);
+    }
   }, [stopRingtone]);
 
   // ── End active call ────────────────────────────────────────────────────────
   const endActiveCall = useCallback(async () => {
-    await callManager.endCall();
-    setActiveCall(null);
-    setActiveProfile(null);
-    if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
-    setCallDuration(0);
-    setCallMinimized(false);
-    setIsMuted(false);
-    setIsVideoOff(false);
-    setIsSpeaker(true);
-    setFacingMode("user");
-    if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
-    setIsScreenSharing(false);
+    try {
+      console.log("[Dashboard] Ending active call");
+      
+      // End call via callManager (handles DB update and signaling)
+      await callManager.endCall();
+      
+      // Clear UI state
+      setActiveCall(null);
+      setActiveProfile(null);
+      if (callTimerRef.current) { 
+        clearInterval(callTimerRef.current); 
+        callTimerRef.current = null; 
+      }
+      setCallDuration(0);
+      setCallMinimized(false);
+      setIsMuted(false);
+      setIsVideoOff(false);
+      setIsSpeaker(true);
+      setFacingMode("user");
+      if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
+      setIsScreenSharing(false);
+      
+      console.log("[Dashboard] Active call ended successfully");
+    } catch (err) {
+      console.error("[Dashboard] Error ending active call:", err);
+    }
   }, []);
   const flipCamera = useCallback(async () => {
     const newFacing = facingMode === "user" ? "environment" : "user";
