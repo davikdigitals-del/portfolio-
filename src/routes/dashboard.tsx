@@ -807,38 +807,58 @@ function DashboardLayout() {
   }, [stopRingtone]);
   const flipCamera = useCallback(async () => {
     const newFacing = facingMode === "user" ? "environment" : "user";
-    setFacingMode(newFacing);
+
     try {
-      // Use simple facingMode without 'exact' — more compatible on Android
-      const newVideoStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: newFacing },
-      });
-      const newVideoTrack = newVideoStream.getVideoTracks()[0];
-      if (!newVideoTrack) throw new Error("No video track");
+      // Stop current video tracks FIRST — Android can't open two cameras at once
+      const localStream = callManager.getLocalStream();
+      if (localStream) {
+        localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
+      }
+
+      // Try with exact first, fall back to ideal
+      let newVideoTrack: MediaStreamTrack | null = null;
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: newFacing } } });
+        newVideoTrack = s.getVideoTracks()[0] ?? null;
+      } catch {
+        // exact not supported — try without
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: newFacing } });
+          newVideoTrack = s.getVideoTracks()[0] ?? null;
+        } catch {
+          // last resort — any camera
+          const s = await navigator.mediaDevices.getUserMedia({ video: true });
+          newVideoTrack = s.getVideoTracks()[0] ?? null;
+        }
+      }
+
+      if (!newVideoTrack) throw new Error("No video track returned");
 
       // Replace track in peer connection so other party sees the flip
       const pc = callManager.getPeerConnection();
       if (pc) {
         const sender = pc.getSenders().find(s => s.track?.kind === "video");
-        if (sender) await sender.replaceTrack(newVideoTrack);
+        if (sender) {
+          await sender.replaceTrack(newVideoTrack);
+        } else {
+          pc.addTrack(newVideoTrack, localStream ?? new MediaStream([newVideoTrack]));
+        }
       }
 
-      // Stop old video tracks and update local stream
-      const localStream = callManager.getLocalStream();
-      if (localStream) {
-        localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
-        localStream.addTrack(newVideoTrack);
-      }
+      // Add new track to local stream
+      if (localStream) localStream.addTrack(newVideoTrack);
 
       // Update local preview
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = new MediaStream([newVideoTrack]);
         localVideoRef.current.play().catch(() => {});
       }
+
+      setFacingMode(newFacing);
+      console.log("[Dashboard] Camera flipped to:", newFacing);
     } catch (err: any) {
       console.error("[Dashboard] Flip camera failed:", err);
-      toast.error("Could not flip camera");
-      setFacingMode(facingMode); // revert
+      toast.error("Could not flip camera — device may not support it");
     }
   }, [facingMode]);
 
