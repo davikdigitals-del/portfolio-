@@ -47,7 +47,8 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew clean
+          ./gradlew assembleDebug --no-daemon --refresh-dependencies
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
 
