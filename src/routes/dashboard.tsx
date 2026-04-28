@@ -1432,7 +1432,8 @@ function DashboardLayout() {
           >
             <div className="flex items-center justify-center gap-4 md:gap-6 px-4">
 
-              {/* More options (...) */}
+              {/* More options (...) — VIDEO CALLS ONLY (has screen share) */}
+              {activeCall.call_type === "video" && (
               <div className="flex flex-col items-center gap-1.5 relative">
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowCallOptions(v => !v); }}
@@ -1442,6 +1443,7 @@ function DashboardLayout() {
                 </button>
                 <span className="text-[#8696a0] text-[10px] md:text-[11px]">More</span>
               </div>
+              )}
 
               {/* Camera off / on (video only) */}
               {activeCall.call_type === "video" && (
