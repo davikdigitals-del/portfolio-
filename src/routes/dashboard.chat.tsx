@@ -727,7 +727,7 @@ function ChatPage() {
 
                 // CLIENT view: show admin's avatar, name, online status
                 if (!isAdmin) {
-                  const adminOnline = false;
+                  const adminOnline = adminProfile?.status === "online";
                   const adminName = adminProfile?.display_name ?? "Ajibola Gbenga Joseph";
                   const adminInitial = adminName[0].toUpperCase();
                   return (
@@ -986,7 +986,15 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     // 2. Mark all messages FROM me that are still "sent" as DELIVERED
     //    (because the counterpart is connected — they have a realtime subscription)
     void (async () => {
-      const counterpartId = isAdmin ? conversation.user_id : adminProfile?.user_id ?? null;
+      // For clients: adminProfile may not be loaded yet — fall back to RPC
+      let counterpartId: string | null = isAdmin
+        ? conversation.user_id
+        : (adminProfile?.user_id ?? null);
+
+      if (!counterpartId && !isAdmin) {
+        const { data } = await supabase.rpc("get_admin_user_id");
+        counterpartId = data ?? null;
+      }
 
       // Mark counterpart's messages as seen
       if (counterpartId) {
@@ -1027,7 +1035,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     })();
 
     return () => { void supabase.removeChannel(ch); typingChannelRef.current = null; };
-  }, [conversation.id, user, isAdmin, adminProfile]);
+  }, [conversation.id, user, isAdmin]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
