@@ -386,10 +386,11 @@ export class CallManager {
           ? { 
               audio: audioConstraints, 
               video: { 
-                width: { ideal: 3840, max: 3840 }, 
-                height: { ideal: 2160, max: 2160 }, 
-                frameRate: { ideal: 60, max: 60 },
-                facingMode: "user"
+                width: { ideal: 1920, max: 1920 }, 
+                height: { ideal: 1080, max: 1080 }, 
+                frameRate: { ideal: 30, max: 60 },
+                facingMode: "user",
+                aspectRatio: { ideal: 16/9 }
               } 
             }
           : { 
@@ -415,10 +416,11 @@ export class CallManager {
             ? { 
                 audio: audioConstraints,
                 video: { 
-                  width: { ideal: 1920 }, 
-                  height: { ideal: 1080 }, 
+                  width: { ideal: 1280 }, 
+                  height: { ideal: 720 }, 
                   frameRate: { ideal: 30 },
-                  facingMode: "user" 
+                  facingMode: "user",
+                  aspectRatio: { ideal: 16/9 }
                 } 
               }
             : { audio: audioConstraints, video: false }
@@ -455,8 +457,9 @@ export class CallManager {
         if (track.kind === "video") {
           const params = sender.getParameters();
           if (!params.encodings) params.encodings = [{}];
-          params.encodings[0].maxBitrate = 8000000; // 8 Mbps for 4K
+          params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps for 1080p
           params.encodings[0].priority = "high";
+          params.encodings[0].networkPriority = "high";
           sender.setParameters(params).catch(e => console.warn("[CM] Failed to set bitrate:", e));
         }
       });

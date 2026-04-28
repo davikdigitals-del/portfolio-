@@ -1224,47 +1224,83 @@ function DashboardLayout() {
         </div>
       )}
 
-      {/* ── ACTIVE CALL — MINIMIZED BAR (WhatsApp style top bar) ─────────── */}
+      {/* ── ACTIVE CALL — MINIMIZED FLOATING PiP (WhatsApp style) ──────── */}
       {activeCall && callMinimized && (
         <div
-          className="fixed top-0 left-0 right-0 z-[9998] flex items-center gap-3 px-4 py-2 cursor-pointer"
-          style={{ background: "#005c4b", paddingTop: "max(0.5rem, env(safe-area-inset-top, 0.5rem))", borderBottom: "1px solid #00a884" }}
+          className="fixed z-[9998] shadow-2xl rounded-2xl overflow-hidden cursor-pointer select-none"
+          style={{
+            // Bottom-right on desktop, bottom-center on mobile
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)",
+            right: "16px",
+            width: activeCall.call_type === "video" ? "160px" : "220px",
+            background: activeCall.call_type === "video" ? "#000" : "#005c4b",
+            border: "2px solid #00a884",
+          }}
           onClick={() => setCallMinimized(false)}
         >
-          {/* Pulsing dot */}
-          <span className="h-2.5 w-2.5 rounded-full bg-white animate-pulse shrink-0" />
-          <div className="flex-1 min-w-0">
-            <span className="text-white text-sm font-semibold truncate">
-              {activeCall.call_type === "video" ? "📹 " : "☎️ "}{activeProfile?.display_name ?? "On a call"}
-            </span>
-            <span className="text-white/80 text-xs ml-2 font-mono">{fmtDuration(callDuration)}</span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                const next = !isMuted; 
-                const success = callManager.toggleAudio(next); 
-                if (success) setIsMuted(next);
-                else console.error("[Dashboard] Minimized call: Failed to toggle audio");
-              }}
-              className={`h-8 w-8 rounded-full flex items-center justify-center transition-all ${isMuted ? "bg-white/30" : "bg-white/10"}`}
-            >
-              {isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); void endActiveCall(); }}
-              className="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center"
-            >
-              <PhoneOff className="h-4 w-4 text-white" />
-            </button>
-          </div>
+          {/* Video PiP: show remote video thumbnail */}
+          {activeCall.call_type === "video" && (
+            <div className="relative" style={{ aspectRatio: "9/16", maxHeight: "240px" }}>
+              <video
+                autoPlay playsInline
+                ref={remoteVideoRef}
+                className="w-full h-full object-cover"
+              />
+              {/* Overlay: name + timer */}
+              <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5"
+                style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}>
+                <p className="text-white text-[11px] font-semibold truncate">{activeProfile?.display_name ?? "Video call"}</p>
+                <p className="text-[#25d366] text-[10px] font-mono">{fmtDuration(callDuration)}</p>
+              </div>
+              {/* Expand icon */}
+              <div className="absolute top-2 right-2 h-6 w-6 rounded-full bg-black/50 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              </div>
+              {/* End call button */}
+              <button
+                onClick={(e) => { e.stopPropagation(); void endActiveCall(); }}
+                className="absolute top-2 left-2 h-7 w-7 rounded-full bg-[#f15c6d] flex items-center justify-center shadow-lg"
+              >
+                <PhoneOff className="h-3.5 w-3.5 text-white" />
+              </button>
+            </div>
+          )}
+
+          {/* Voice PiP: compact bar */}
+          {activeCall.call_type === "voice" && (
+            <div className="flex items-center gap-2.5 px-3 py-2.5">
+              <span className="h-2 w-2 rounded-full bg-[#25d366] animate-pulse shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-xs font-semibold truncate">{activeProfile?.display_name ?? "Voice call"}</p>
+                <p className="text-[#25d366] text-[10px] font-mono">{fmtDuration(callDuration)}</p>
+              </div>
+              {/* Mute */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const next = !isMuted;
+                  const ok = callManager.toggleAudio(next);
+                  if (ok) setIsMuted(next);
+                }}
+                className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${isMuted ? "bg-white/30" : "bg-white/10"}`}
+              >
+                {isMuted ? <MicOff className="h-3.5 w-3.5 text-white" /> : <Mic className="h-3.5 w-3.5 text-white" />}
+              </button>
+              {/* End */}
+              <button
+                onClick={(e) => { e.stopPropagation(); void endActiveCall(); }}
+                className="h-7 w-7 rounded-full bg-[#f15c6d] flex items-center justify-center shrink-0"
+              >
+                <PhoneOff className="h-3.5 w-3.5 text-white" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── ACTIVE CALL — FULLSCREEN (WhatsApp style) ────────────────────── */}
+      {/* ── ACTIVE CALL — WhatsApp Desktop/Mobile style ───────────────────── */}
       {activeCall && !callMinimized && (
-        <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+        <div className="fixed inset-0 z-[9999] flex flex-col md:flex-row bg-black">
           
           {/* Video call: remote video + fallback background */}
           {activeCall.call_type === "video" && (
@@ -1310,15 +1346,6 @@ function DashboardLayout() {
                 </div>
               )}
               
-              {/* Remote video — hidden when camera off */}
-              <video 
-                ref={remoteVideoRef} 
-                autoPlay 
-                playsInline 
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
-                  remoteVideoActive ? "opacity-100" : "opacity-0"
-                }`}
-              />
             </>
           )}
 
