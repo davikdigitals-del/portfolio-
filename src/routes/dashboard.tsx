@@ -809,61 +809,36 @@ function DashboardLayout() {
     const newFacing = facingMode === "user" ? "environment" : "user";
     setFacingMode(newFacing);
     try {
-      // Only request video — don't touch the existing audio track
+      // Use simple facingMode without 'exact' — more compatible on Android
       const newVideoStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: { exact: newFacing }, 
-          width: { ideal: 1920, max: 1920 }, 
-          height: { ideal: 1080, max: 1080 },
-          frameRate: { ideal: 30, max: 30 }
-        },
+        video: { facingMode: newFacing },
       });
       const newVideoTrack = newVideoStream.getVideoTracks()[0];
-      if (!newVideoTrack) return;
+      if (!newVideoTrack) throw new Error("No video track");
 
-      // Replace the video track in the peer connection
+      // Replace track in peer connection so other party sees the flip
       const pc = callManager.getPeerConnection();
       if (pc) {
         const sender = pc.getSenders().find(s => s.track?.kind === "video");
         if (sender) await sender.replaceTrack(newVideoTrack);
       }
 
-      // Stop old video track and update local stream
+      // Stop old video tracks and update local stream
       const localStream = callManager.getLocalStream();
       if (localStream) {
-        localStream.getVideoTracks().forEach(t => t.stop());
-        // Remove old video tracks and add new one
-        const oldTracks = localStream.getVideoTracks();
-        oldTracks.forEach(t => localStream.removeTrack(t));
+        localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
         localStream.addTrack(newVideoTrack);
       }
 
       // Update local preview
       if (localVideoRef.current) {
-        // Create a new stream with the new video + existing audio for preview
-        const previewStream = new MediaStream();
-        previewStream.addTrack(newVideoTrack);
-        localVideoRef.current.srcObject = previewStream;
+        localVideoRef.current.srcObject = new MediaStream([newVideoTrack]);
         localVideoRef.current.play().catch(() => {});
       }
     } catch (err: any) {
       console.error("[Dashboard] Flip camera failed:", err);
-      // If exact facingMode not supported, try without exact
-      try {
-        const fallbackStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: newFacing },
-        });
-        const track = fallbackStream.getVideoTracks()[0];
-        const pc = callManager.getPeerConnection();
-        if (pc && track) {
-          const sender = pc.getSenders().find(s => s.track?.kind === "video");
-          if (sender) await sender.replaceTrack(track);
-        }
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = new MediaStream([track]);
-          localVideoRef.current.play().catch(() => {});
-        }
-      } catch { /* device may not support camera flip */ }
+      toast.error("Could not flip camera");
+      setFacingMode(facingMode); // revert
     }
   }, [facingMode]);
 
@@ -1430,6 +1405,24 @@ function DashboardLayout() {
                 </div>
               )}
 
+              {/* Flip camera button — top-right of local preview, mobile only */}
+              {!isVideoOff && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); void flipCamera(); }}
+                  className="absolute top-1 right-1 h-7 w-7 rounded-full flex items-center justify-center active:scale-90 transition-transform md:hidden"
+                  style={{ background: "rgba(0,0,0,0.55)" }}
+                  title="Flip camera"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>
+                    <path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="m18 22-3-3 3-3"/>
+                    <path d="m6 2 3 3-3 3"/>
+                  </svg>
+                </button>
+              )}
+
             </div>
           )}
 
@@ -1521,9 +1514,9 @@ function DashboardLayout() {
                 <span className="text-[#8696a0] text-[10px] md:text-[11px]">{isMuted ? "Unmute" : "Mute"}</span>
               </div>
 
-              {/* Flip camera (video only) */}
+              {/* Flip camera — desktop only (mobile has it on the preview thumbnail) */}
               {activeCall.call_type === "video" && (
-                <div className="flex flex-col items-center gap-1.5">
+                <div className="hidden md:flex flex-col items-center gap-1.5">
                   <button
                     onClick={() => void flipCamera()}
                     className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-[#1f2c34] text-white flex items-center justify-center transition-all active:scale-90"
