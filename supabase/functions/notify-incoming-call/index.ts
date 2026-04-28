@@ -1,8 +1,9 @@
 // Edge function triggered by DB webhook on calls INSERT
-// Sends a Web Push notification to the receiver so their phone rings
-// even when the browser/app is completely backgrounded or closed
+// Sends push notification to the receiver so their phone rings
+// Uses FCM v1 API (Service Account) for native apps, Web Push for browsers
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendFCMNotification } from "../_shared/fcm.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -168,60 +169,29 @@ Deno.serve(async (req) => {
     
     for (const sub of subs) {
       try {
-        // Native app with FCM token - use Firebase Cloud Messaging
-        if (sub.fcm_token && FCM_SERVER_KEY) {
-          console.log("Sending FCM notification to:", sub.platform);
-          
-          const fcmPayload = {
-            to: sub.fcm_token,
-            priority: "high",
-            notification: {
-              title: isVideo ? "📹 Incoming Video Call" : "☎️ Incoming Voice Call",
-              body: `${callerName} is calling you...`,
-              sound: "default",
-              badge: 1,
-              click_action: "FLUTTER_NOTIFICATION_CLICK",
-            },
-            data: {
-              call_id,
-              call_type,
-              conversation_id,
+        // Native app with FCM token - use Firebase Cloud Messaging v1 API
+        if (sub.fcm_token) {
+          const result = await sendFCMNotification(
+            sub.fcm_token,
+            isVideo ? "📹 Incoming Video Call" : "☎️ Incoming Voice Call",
+            `${callerName} is calling you...`,
+            {
+              call_id: call_id ?? "",
+              call_type: call_type ?? "",
+              conversation_id: conversation_id ?? "",
               caller_name: callerName,
               type: "call",
+              url: `/dashboard/chat?conv=${conversation_id}&call=${call_id}`,
             },
-            android: {
-              priority: "high",
-              notification: {
-                channel_id: "calls",
-                sound: "default",
-                priority: "max",
-              },
-            },
-          };
-          
-          const fcmRes = await fetch("https://fcm.googleapis.com/fcm/send", {
-            method: "POST",
-            headers: {
-              "Authorization": `key=${FCM_SERVER_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(fcmPayload),
-          });
-          
-          if (fcmRes.ok) {
+            "calls"
+          );
+          if (result.success) {
             sent++;
-            console.log("FCM notification sent successfully");
-          } else {
-            const errorText = await fcmRes.text();
-            console.error("FCM failed:", fcmRes.status, errorText);
-            
-            // Remove invalid token
-            if (fcmRes.status === 404 || errorText.includes("NotRegistered")) {
-              await supabase.from("push_subscriptions").delete().eq("fcm_token", sub.fcm_token);
-            }
+          } else if (result.error?.includes("UNREGISTERED") || result.error?.includes("NOT_FOUND")) {
+            await supabase.from("push_subscriptions").delete().eq("fcm_token", sub.fcm_token);
           }
-        } 
-        // Web app - use Web Push
+        }
+        // Web browser - use Web Push
         else if (sub.endpoint && sub.p256dh && sub.auth) {
           console.log("Sending Web Push notification");
           const res = await sendOnePush(sub, pushPayload);

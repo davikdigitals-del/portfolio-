@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendFCMNotification } from "../_shared/fcm.ts";
 
-// Web Push via VAPID — sends real push notifications that wake the phone
-// even when the browser is closed
+// Web Push via VAPID — for browser clients
 
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
@@ -186,66 +186,31 @@ Deno.serve(async (req) => {
     }
 
     const payload = JSON.stringify({ title, body, url: url ?? "/dashboard/chat" });
-    const FCM_SERVER_KEY = Deno.env.get("FCM_SERVER_KEY");
     let sent = 0;
 
     for (const sub of subs) {
       try {
-        // Native app with FCM token - use Firebase Cloud Messaging
-        if (sub.fcm_token && FCM_SERVER_KEY) {
-          console.log("Sending FCM notification to:", sub.platform);
-          
-          const fcmPayload = {
-            to: sub.fcm_token,
-            priority: "high",
-            notification: {
-              title,
-              body,
-              sound: "default",
-              badge: 1,
-            },
-            data: {
-              url: url ?? "/dashboard/chat",
-              type: "message",
-            },
-            android: {
-              priority: "high",
-              notification: {
-                channel_id: "messages",
-                sound: "default",
-              },
-            },
-          };
-          
-          const fcmRes = await fetch("https://fcm.googleapis.com/fcm/send", {
-            method: "POST",
-            headers: {
-              "Authorization": `key=${FCM_SERVER_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(fcmPayload),
-          });
-          
-          if (fcmRes.ok) {
+        // Native app — use FCM v1 API
+        if (sub.fcm_token) {
+          const result = await sendFCMNotification(
+            sub.fcm_token,
+            title,
+            body,
+            { url: url ?? "/dashboard/chat", type: "message" },
+            "messages"
+          );
+          if (result.success) {
             sent++;
-          } else {
-            const errorText = await fcmRes.text();
-            console.error("FCM failed:", fcmRes.status, errorText);
-            
-            // Remove invalid token
-            if (fcmRes.status === 404 || errorText.includes("NotRegistered")) {
-              await supabase.from("push_subscriptions").delete().eq("fcm_token", sub.fcm_token);
-            }
+          } else if (result.error?.includes("UNREGISTERED") || result.error?.includes("NOT_FOUND")) {
+            await supabase.from("push_subscriptions").delete().eq("fcm_token", sub.fcm_token);
           }
         }
-        // Web app - use Web Push
+        // Web browser — use Web Push
         else if (sub.endpoint && sub.p256dh && sub.auth) {
           const origin = new URL(sub.endpoint).origin;
           const jwt = await buildVapidJwt(origin);
           const vapidHeader = `vapid t=${jwt},k=${VAPID_PUBLIC}`;
-
           const { ciphertext, salt, serverPublicKey } = await encryptPayload(sub, payload);
-
           const res = await fetch(sub.endpoint, {
             method: "POST",
             headers: {
@@ -258,11 +223,8 @@ Deno.serve(async (req) => {
             },
             body: ciphertext,
           });
-
           if (res.status === 410 || res.status === 404) {
-            // Subscription expired — remove it
-            await supabase.from("push_subscriptions").delete()
-              .eq("endpoint", sub.endpoint);
+            await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
           } else if (res.ok || res.status === 201) {
             sent++;
           }
