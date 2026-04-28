@@ -2344,7 +2344,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                 rows={1}
                 placeholder={filePreviews.length > 0 ? `${filePreviews.length} file(s) ready...` : "Message"}
                 disabled={filePreviews.length > 0}
-                className="chat-textarea flex-1 resize-none bg-transparent outline-none py-2 max-h-32 text-[#e9edef] placeholder:text-[#8696a0] disabled:opacity-50 text-sm"
+                className="chat-textarea flex-1 resize-none bg-transparent outline-none py-2 max-h-32 text-[#e9edef] placeholder:text-[#8696a0] disabled:opacity-50 text-base"
+                style={{ fontSize: "16px" }} // Prevent iOS zoom on focus
               />
             </div>
             {/* Mic / Send button */}

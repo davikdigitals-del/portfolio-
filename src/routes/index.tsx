@@ -54,7 +54,7 @@ function HeroSection() {
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
       </div>
 
-      <div className="container mx-auto px-6 py-24 grid md:grid-cols-2 gap-16 items-center relative z-10">
+      <div className="container mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-10 md:gap-16 items-center relative z-10">
         {/* Left — text */}
         <div className="space-y-7">
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary animate-fade-in">
@@ -323,6 +323,7 @@ function FloatingChat() {
       to="/auth"
       search={{ mode: "register" } as never}
       className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-gradient-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-glow hover:opacity-90 transition-all hover:scale-105 animate-float"
+      style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))", right: "calc(1.5rem + env(safe-area-inset-right, 0px))" }}
     >
       <MessageCircle className="h-4 w-4" />
       <span className="hidden sm:inline">Message me</span>
