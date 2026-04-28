@@ -3,12 +3,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.ajibolagbenga.pulsechat',
   appName: 'Pulse Chat',
-  webDir: 'dist',
+  webDir: 'dist/client',
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
-    hostname: 'app.pulsechat.com',
-    cleartext: true
+    url: 'https://ajibola-gbenga-joseph.onrender.com',
+    cleartext: false
   },
   plugins: {
     SplashScreen: {
