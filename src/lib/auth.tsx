@@ -23,8 +23,7 @@ function getCachedRole(userId: string): Role | null {
   try {
     const uid = localStorage.getItem(ROLE_CACHE_UID_KEY);
     const cached = localStorage.getItem(ROLE_CACHE_KEY);
-    if (uid === userId && cached === "admin") return "admin";
-    if (uid === userId && cached === "user") return "user";
+    if (uid === userId && (cached === "admin" || cached === "user")) return cached as Role;
   } catch { /* ignore */ }
   return null;
 }
@@ -43,83 +42,84 @@ function clearCachedRole() {
   } catch { /* ignore */ }
 }
 
+// Fetch role with a hard 4-second timeout so loading never hangs forever
+async function fetchRole(userId: string): Promise<Role> {
+  // Return cached role immediately if available
+  const cached = getCachedRole(userId);
+
+  const fetchPromise = supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .then(({ data, error }) => {
+      if (error || !data) return cached ?? ("user" as Role);
+      const isAdmin = data.some((r) => r.role === "admin");
+      const resolved: Role = isAdmin ? "admin" : "user";
+      setCachedRole(userId, resolved);
+      return resolved;
+    })
+    .catch(() => cached ?? ("user" as Role));
+
+  // Hard 4s timeout — never block the UI longer than this
+  const timeoutPromise = new Promise<Role>((resolve) =>
+    setTimeout(() => resolve(cached ?? "user"), 4000)
+  );
+
+  return Promise.race([fetchPromise, timeoutPromise]);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch role with retry — keeps loading=true until role is resolved
-  async function fetchRole(userId: string, retries = 3): Promise<void> {
-    // Apply cached role immediately so UI doesn't flash client view
-    const cached = getCachedRole(userId);
-    if (cached) {
-      setRole(cached);
-    }
-
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        const { data, error } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId);
-
-        if (error) {
-          console.warn(`[Auth] Role fetch attempt ${attempt} failed:`, error.message);
-          if (attempt < retries) {
-            await new Promise(r => setTimeout(r, 500 * attempt)); // back-off
-            continue;
-          }
-          // All retries failed — keep cached or fall back to user
-          if (!cached) setRole("user");
-          return;
-        }
-
-        const isAdmin = (data ?? []).some((r) => r.role === "admin");
-        const resolved: Role = isAdmin ? "admin" : "user";
-        setRole(resolved);
-        setCachedRole(userId, resolved);
-        return;
-      } catch (err) {
-        console.warn(`[Auth] Role fetch attempt ${attempt} threw:`, err);
-        if (attempt < retries) {
-          await new Promise(r => setTimeout(r, 500 * attempt));
-        }
-      }
-    }
-
-    // Exhausted retries — keep cached or fall back
-    if (!cached) setRole("user");
-  }
-
   useEffect(() => {
     let mounted = true;
 
-    // Set up auth state listener FIRST
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      if (!mounted) return;
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-
-      if (newSession?.user) {
-        await fetchRole(newSession.user.id);
-      } else {
-        setRole(null);
-        clearCachedRole();
-      }
-    });
-
-    // Then check existing session — keep loading=true until role resolved
+    // Bootstrap: get existing session once, resolve role, then set loading=false
     supabase.auth.getSession().then(async ({ data: { session: existing } }) => {
       if (!mounted) return;
+
       setSession(existing);
       setUser(existing?.user ?? null);
 
       if (existing?.user) {
-        await fetchRole(existing.user.id);
+        // Apply cached role instantly so UI doesn't wait
+        const cached = getCachedRole(existing.user.id);
+        if (cached) setRole(cached);
+
+        // Fetch fresh role (with timeout)
+        const resolved = await fetchRole(existing.user.id);
+        if (mounted) setRole(resolved);
       }
 
-      setLoading(false);
+      if (mounted) setLoading(false);
+    }).catch(() => {
+      // getSession itself failed — unblock the UI
+      if (mounted) setLoading(false);
+    });
+
+    // Listen for auth changes (sign in / sign out / token refresh)
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (!mounted) return;
+
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+
+      if (newSession?.user) {
+        const cached = getCachedRole(newSession.user.id);
+        if (cached) setRole(cached);
+
+        const resolved = await fetchRole(newSession.user.id);
+        if (mounted) setRole(resolved);
+      } else {
+        setRole(null);
+        clearCachedRole();
+      }
+
+      // Ensure loading is cleared on any auth event
+      if (mounted) setLoading(false);
     });
 
     return () => {
