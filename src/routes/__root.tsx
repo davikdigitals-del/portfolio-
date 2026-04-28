@@ -82,20 +82,20 @@ function RootComponent() {
 
   // Initialize native app features only if running as native
   useEffect(() => {
-    // Check if Capacitor is available
-    const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor;
-    
-    if (isCapacitor) {
-      console.log('[App] Running as native mobile app');
-      // Dynamically import to avoid circular dependency
-      import('@/lib/native').then(({ initializeNativeApp }) => {
-        void initializeNativeApp();
-      }).catch((err) => {
-        console.error('[App] Failed to initialize native app:', err);
-      });
-    } else {
-      console.log('[App] Running as web app');
-    }
+    // Use Capacitor.isNativePlatform() — reliable check for actual native app
+    // window.Capacitor exists even in browser (JS bundle), so don't use that
+    import('@capacitor/core').then(({ Capacitor }) => {
+      if (Capacitor.isNativePlatform()) {
+        console.log('[App] Running as native mobile app on', Capacitor.getPlatform());
+        import('@/lib/native').then(({ initializeNativeApp }) => {
+          void initializeNativeApp();
+        }).catch((err) => {
+          console.error('[App] Failed to initialize native app:', err);
+        });
+      } else {
+        console.log('[App] Running as web app');
+      }
+    });
   }, []);
 
   // Register service worker
