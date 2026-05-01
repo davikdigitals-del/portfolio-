@@ -61,8 +61,20 @@ export class CallManager {
   private conversationId: string | null = null;
   private initiatorId: string | null = null;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private _bufferedRemoteStream: MediaStream | null = null; // buffer stream if cb not set yet
 
-  onRemoteStreamCb: ((stream: MediaStream) => void) | null = null;
+  private _onRemoteStreamCb: ((stream: MediaStream) => void) | null = null;
+  get onRemoteStreamCb() { return this._onRemoteStreamCb; }
+  set onRemoteStreamCb(cb: ((stream: MediaStream) => void) | null) {
+    this._onRemoteStreamCb = cb;
+    // Replay buffered stream immediately if it arrived before the callback was set
+    if (cb && this._bufferedRemoteStream) {
+      console.log("[CM] Replaying buffered remote stream to newly set callback");
+      cb(this._bufferedRemoteStream);
+      this._bufferedRemoteStream = null;
+    }
+  }
+
   onCallEndCb: (() => void) | null = null;
   onCallActiveCb: (() => void) | null = null;
 
@@ -470,8 +482,17 @@ export class CallManager {
       console.log("[CM] Remote track:", track.kind);
       const stream = streams[0];
       if (!stream) return;
-      this.onRemoteStreamCb?.(stream);
-      track.onunmute = () => this.onRemoteStreamCb?.(stream);
+      if (this._onRemoteStreamCb) {
+        this._onRemoteStreamCb(stream);
+      } else {
+        // Callback not set yet (race condition) — buffer the stream
+        console.log("[CM] onRemoteStreamCb not set yet, buffering stream");
+        this._bufferedRemoteStream = stream;
+      }
+      track.onunmute = () => {
+        if (this._onRemoteStreamCb) this._onRemoteStreamCb(stream);
+        else this._bufferedRemoteStream = stream;
+      };
     };
 
     // ICE candidates
@@ -617,6 +638,7 @@ export class CallManager {
     this.stopHeartbeat();
     this.localStream?.getTracks().forEach(t => t.stop());
     this.localStream = null;
+    this._bufferedRemoteStream = null;
     if (this.pc) {
       this.pc.ontrack = null;
       this.pc.onicecandidate = null;

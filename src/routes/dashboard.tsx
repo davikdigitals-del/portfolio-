@@ -124,6 +124,7 @@ function DashboardLayout() {
   const [isAppHidden, setIsAppHidden] = useState(false);
   const [showCallOptions, setShowCallOptions] = useState(false);
   const [remoteVideoActive, setRemoteVideoActive] = useState(false);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const missedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -242,6 +243,24 @@ function DashboardLayout() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [activeCall]);
+
+  // ── Sync remoteStream to whichever video element is currently rendered ──────
+  // This fixes the ref-stealing bug: the hidden <video> element was stealing
+  // remoteVideoRef, so the visible element never received the stream.
+  // Now we store the stream in state and sync it via useEffect.
+  useEffect(() => {
+    if (!remoteStream) return;
+    const el = remoteVideoRef.current;
+    if (!el) return;
+    el.srcObject = remoteStream;
+    el.play().catch((err) => {
+      if (err.name === "NotAllowedError") {
+        const retry = () => { el.play().catch(() => {}); };
+        document.addEventListener("click", retry, { once: true });
+        document.addEventListener("touchstart", retry, { once: true });
+      }
+    });
+  }, [remoteStream, callMinimized]);
 
   // ── Wake Lock: keep screen/CPU alive during active call ───────────────────
   // Prevents phone from sleeping and cutting the call
@@ -682,17 +701,20 @@ function DashboardLayout() {
       // Set callbacks BEFORE answerCall so ontrack fires correctly
       callManager.onRemoteStreamCb = (stream) => {
         console.log("[Dashboard] Remote stream, tracks:", stream.getTracks().map(t => t.kind));
-        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.play().catch(() => {}); }
-        if (call.call_type === "video" && remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          remoteVideoRef.current.style.display = "block";
-          remoteVideoRef.current.play().catch(() => {});
-          
-          // Track if remote video has active video tracks
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.play().catch((err) => {
+            if (err.name === "NotAllowedError") {
+              const retry = () => { remoteAudioRef.current?.play().catch(() => {}); };
+              document.addEventListener("click", retry, { once: true });
+              document.addEventListener("touchstart", retry, { once: true });
+            }
+          });
+        }
+        if (call.call_type === "video") {
+          setRemoteStream(stream);
           const videoTracks = stream.getVideoTracks();
           setRemoteVideoActive(videoTracks.length > 0 && videoTracks[0].enabled);
-          
-          // Listen for track enable/disable changes
           videoTracks.forEach(track => {
             track.addEventListener('ended', () => setRemoteVideoActive(false));
             track.addEventListener('mute', () => setRemoteVideoActive(false));
@@ -709,7 +731,7 @@ function DashboardLayout() {
         setActiveCall(null); setActiveProfile(null);
         if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
         setCallDuration(0); setCallMinimized(false);
-        if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
+        setRemoteStream(null);
       };
 
       await callManager.answerCall(call, user.id);
@@ -795,7 +817,7 @@ function DashboardLayout() {
       setIsSpeaker(true);
       setFacingMode("user");
       setRemoteVideoActive(false);
-      if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
+      setRemoteStream(null);
       setIsScreenSharing(false);
       localStorage.removeItem("activeCall");
       localStorage.removeItem("incomingCall");
@@ -916,19 +938,23 @@ function DashboardLayout() {
       // Don't start timer here — start it when connection is established
 
       // Set callbacks — callManager.initiateCall already ran so these won't be wiped
+      // The buffering mechanism in CallManager ensures the stream is replayed if it arrived early
       callManager.onRemoteStreamCb = (stream) => {
         console.log("[Dashboard] Remote stream, tracks:", stream.getTracks().map(t => t.kind));
-        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.play().catch(() => {}); }
-        if (call.call_type === "video" && remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          remoteVideoRef.current.style.display = "block";
-          remoteVideoRef.current.play().catch(() => {});
-          
-          // Track if remote video has active video tracks
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.play().catch((err) => {
+            if (err.name === "NotAllowedError") {
+              const retry = () => { remoteAudioRef.current?.play().catch(() => {}); };
+              document.addEventListener("click", retry, { once: true });
+              document.addEventListener("touchstart", retry, { once: true });
+            }
+          });
+        }
+        if (call.call_type === "video") {
+          setRemoteStream(stream);
           const videoTracks = stream.getVideoTracks();
           setRemoteVideoActive(videoTracks.length > 0 && videoTracks[0].enabled);
-          
-          // Listen for track enable/disable changes
           videoTracks.forEach(track => {
             track.addEventListener('ended', () => setRemoteVideoActive(false));
             track.addEventListener('mute', () => setRemoteVideoActive(false));
@@ -944,7 +970,7 @@ function DashboardLayout() {
         setActiveCall(null); setActiveProfile(null);
         if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
         setCallDuration(0); setCallMinimized(false);
-        if (remoteVideoRef.current) remoteVideoRef.current.style.display = "none";
+        setRemoteStream(null);
       };
 
       // Attach local video for initiator
@@ -1167,9 +1193,9 @@ function DashboardLayout() {
         <Outlet />
       </main>
 
-      {/* Always-mounted media elements — must exist even when call is minimized */}
+      {/* Always-mounted audio element — must exist even when call is minimized */}
       <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
-      <video ref={remoteVideoRef} autoPlay playsInline style={{ display: "none", position: "absolute", width: 0, height: 0 }} />
+      {/* Note: no hidden video element — remoteStream state + useEffect syncs to the visible element */}
 
       {/* ── INCOMING CALL SCREEN ─────────────────────────────────────────── */}
       {incomingCall && !activeCall && (
