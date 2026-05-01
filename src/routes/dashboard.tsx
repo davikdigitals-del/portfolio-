@@ -1274,8 +1274,8 @@ function DashboardLayout() {
                 onClick={(e) => {
                   e.stopPropagation();
                   const next = !isMuted;
-                  const ok = callManager.toggleAudio(next);
-                  if (ok) setIsMuted(next);
+                  callManager.toggleAudio(next);
+                  setIsMuted(next);
                 }}
                 className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${isMuted ? "bg-white/30" : "bg-white/10"}`}
               >
@@ -1297,7 +1297,44 @@ function DashboardLayout() {
       {activeCall && !callMinimized && (
         <div className="fixed inset-0 z-[9999] flex flex-col md:flex-row bg-black">
           
-          {/* Video call: remote video + fallback background */}
+          {/* ── SCREEN SHARING OVERLAY (WhatsApp style) ─────────────────────── */}
+          {isScreenSharing && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90">
+              <p className="text-white text-lg font-semibold mb-4">You're sharing your screen</p>
+              <button
+                onClick={async () => {
+                  // Stop screen share — switch back to camera
+                  try {
+                    const cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
+                    const cameraTrack = cameraStream.getVideoTracks()[0];
+                    const pc = callManager.getPeerConnection();
+                    if (pc && cameraTrack) {
+                      const sender = pc.getSenders().find(s => s.track?.kind === "video");
+                      if (sender) await sender.replaceTrack(cameraTrack);
+                    }
+                    const localStream = callManager.getLocalStream();
+                    if (localStream) {
+                      localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
+                      localStream.addTrack(cameraTrack);
+                    }
+                    if (localVideoRef.current) {
+                      localVideoRef.current.srcObject = new MediaStream([cameraTrack]);
+                      localVideoRef.current.play().catch(() => {});
+                    }
+                  } catch { /* ignore */ }
+                  setIsScreenSharing(false);
+                }}
+                className="px-6 py-3 rounded-full bg-[#f15c6d] text-white font-semibold text-sm active:scale-95 transition-transform"
+              >
+                Stop sharing
+              </button>
+              {/* Small local preview in corner */}
+              <div className="absolute bottom-28 left-4 w-20 h-28 rounded-xl overflow-hidden border-2 border-white/30">
+                <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                <div className="absolute bottom-1 left-0 right-0 text-center text-white text-[10px] font-medium">You</div>
+              </div>
+            </div>
+          )}
           {activeCall.call_type === "video" && (
             <>
               {/* Fallback background when remote camera is off */}
@@ -1525,9 +1562,19 @@ function DashboardLayout() {
                 <button
                   onClick={() => {
                     const next = !isMuted;
-                    const success = callManager.toggleAudio(next);
-                    if (!success) { alert("Failed to mute/unmute."); return; }
+                    // Optimistically update UI so button feels responsive
                     setIsMuted(next);
+                    const success = callManager.toggleAudio(next);
+                    if (!success) {
+                      // localStream may not be ready yet on mobile — retry after 300ms
+                      setTimeout(() => {
+                        const ok = callManager.toggleAudio(next);
+                        if (!ok) {
+                          // Revert UI if still failing
+                          setIsMuted(!next);
+                        }
+                      }, 300);
+                    }
                   }}
                   className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center transition-all active:scale-90 ${isMuted ? "bg-white text-black" : "bg-[#1f2c34] text-white"}`}
                 >
@@ -1596,14 +1643,9 @@ function DashboardLayout() {
                           const pc = callManager.getPeerConnection();
                           if (pc && cameraTrack) {
                             const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                            if (sender) {
-                              await sender.replaceTrack(cameraTrack);
-                            } else {
-                              // No video sender yet — add the track
-                              pc.addTrack(cameraTrack, cameraStream);
-                            }
+                            if (sender) await sender.replaceTrack(cameraTrack);
+                            else pc.addTrack(cameraTrack, cameraStream);
                           }
-                          // Update local preview
                           const localStream = callManager.getLocalStream();
                           if (localStream) {
                             localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
@@ -1614,11 +1656,11 @@ function DashboardLayout() {
                             localVideoRef.current.play().catch(() => {});
                           }
                           setIsScreenSharing(false);
-                          toast.success("Screen sharing stopped");
                         } else {
-                          // Check if getDisplayMedia is supported
-                          if (!(navigator.mediaDevices as any).getDisplayMedia) {
-                            toast.error("Screen sharing is not supported on this device");
+                          // getDisplayMedia — works on Android Chrome 94+ and desktop
+                          const gdm = (navigator.mediaDevices as any).getDisplayMedia;
+                          if (!gdm) {
+                            toast.error("Screen sharing is not supported on this device/browser");
                             return;
                           }
                           const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({
@@ -1631,18 +1673,16 @@ function DashboardLayout() {
                           const pc = callManager.getPeerConnection();
                           if (pc) {
                             const sender = pc.getSenders().find(s => s.track?.kind === "video");
-                            if (sender) {
-                              await sender.replaceTrack(screenTrack);
-                            } else {
-                              pc.addTrack(screenTrack, screenStream);
-                            }
+                            if (sender) await sender.replaceTrack(screenTrack);
+                            else pc.addTrack(screenTrack, screenStream);
                           }
-                          // Update local preview
                           if (localVideoRef.current) {
                             localVideoRef.current.srcObject = new MediaStream([screenTrack]);
                             localVideoRef.current.play().catch(() => {});
                           }
-                          // Auto-stop when user clicks browser's "Stop sharing"
+                          setIsScreenSharing(true);
+
+                          // Auto-stop when user stops sharing from browser/OS UI
                           screenTrack.onended = async () => {
                             setIsScreenSharing(false);
                             try {
@@ -1659,8 +1699,6 @@ function DashboardLayout() {
                               }
                             } catch { /* ignore */ }
                           };
-                          setIsScreenSharing(true);
-                          toast.success("Screen sharing started");
                         }
                       } catch (err: any) {
                         if (err.name === "NotAllowedError") toast.error("Screen sharing permission denied");

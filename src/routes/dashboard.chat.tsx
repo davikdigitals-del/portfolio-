@@ -70,6 +70,7 @@ interface Message {
   pinned: boolean;
   deleted_at: string | null;
   replied_to_id: string | null;
+  reactions?: Record<string, string[]> | null; // { "👍": ["user_id_1"], "❤️": ["user_id_2"] }
   call_data?: {
     call_type: "voice" | "video";
     status: "ended" | "missed" | "declined";
@@ -1431,8 +1432,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         const { msg, mine, x, y } = longPressDataRef.current;
         openCtxMenu(x, y, msg, mine);
         if ("vibrate" in navigator) navigator.vibrate(50);
+        longPressDataRef.current = null; // prevent cancel from clearing after open
       }
-    }, 500);
+    }, 600);
   }
 
   function cancelLongPress() {
@@ -1449,10 +1451,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       setReactionsMenu(null);
     };
     document.addEventListener("click", close);
-    document.addEventListener("touchend", close);
+    // Don't add touchend here — it fires immediately after long press opens the menu
     return () => {
       document.removeEventListener("click", close);
-      document.removeEventListener("touchend", close);
     };
   }, [ctxMenu]);
 
@@ -2127,6 +2128,39 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                         : <Check className="h-3 w-3 text-[#8696a0]" />
                   )}
                 </div>
+                {/* Reactions display */}
+                {m.reactions && Object.keys(m.reactions).length > 0 && (
+                  <div className={`flex flex-wrap gap-1 mt-1 ${mine ? "justify-end" : "justify-start"}`}>
+                    {Object.entries(m.reactions).map(([emoji, userIds]) =>
+                      userIds.length > 0 ? (
+                        <button
+                          key={emoji}
+                          onClick={async () => {
+                            if (!user) return;
+                            const current: Record<string, string[]> = m.reactions ?? {};
+                            const users = current[emoji] ?? [];
+                            const alreadyReacted = users.includes(user.id);
+                            const updated = {
+                              ...current,
+                              [emoji]: alreadyReacted
+                                ? users.filter(id => id !== user.id)
+                                : [...users, user.id],
+                            };
+                            if (updated[emoji].length === 0) delete updated[emoji];
+                            setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, reactions: updated } : msg));
+                            await supabase.from("messages").update({ reactions: updated }).eq("id", m.id);
+                          }}
+                          className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs transition-colors ${
+                            userIds.includes(user?.id ?? "") ? "bg-[#00a884]/30 border border-[#00a884]" : "bg-[#1f2c34] border border-[#2a3942]"
+                          }`}
+                        >
+                          <span>{emoji}</span>
+                          {userIds.length > 1 && <span className="text-[#8696a0] text-[10px]">{userIds.length}</span>}
+                        </button>
+                      ) : null
+                    )}
+                  </div>
+                )}
               </div>
               </div>{/* end message row flex */}
             </div>
@@ -2156,7 +2190,29 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
           {["👍","❤️","😂","😮","😢","🙏","🧍"].map((emoji) => (
             <button
               key={emoji}
-              onClick={() => { setReactionsMenu(null); setCtxMenu(null); }}
+              onClick={async () => {
+                if (!user || !reactionsMenu) return;
+                const msgId = reactionsMenu.msgId;
+                const msg = messages.find(m => m.id === msgId);
+                if (!msg) return;
+                // Toggle reaction: add if not present, remove if already reacted
+                const current: Record<string, string[]> = msg.reactions ?? {};
+                const users = current[emoji] ?? [];
+                const alreadyReacted = users.includes(user.id);
+                const updated = {
+                  ...current,
+                  [emoji]: alreadyReacted
+                    ? users.filter(id => id !== user.id)
+                    : [...users, user.id],
+                };
+                // Remove emoji key if no users left
+                if (updated[emoji].length === 0) delete updated[emoji];
+                // Optimistic update
+                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: updated } : m));
+                await supabase.from("messages").update({ reactions: updated }).eq("id", msgId);
+                setReactionsMenu(null);
+                setCtxMenu(null);
+              }}
               className="text-xl hover:scale-125 transition-transform active:scale-110 p-0.5"
             >
               {emoji}
