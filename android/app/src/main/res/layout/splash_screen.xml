@@ -4,6 +4,19 @@
     android:layout_height="match_parent"
     android:background="#0a0a0a">
 
+    <!-- "from" text at top -->
+    <TextView
+        android:id="@+id/from_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="48dp"
+        android:text="from"
+        android:textColor="#888888"
+        android:textSize="12sp"
+        android:fontFamily="sans-serif" />
+
     <!-- App Logo/Icon -->
     <ImageView
         android:id="@+id/splash_icon"
@@ -27,7 +40,7 @@
         android:textStyle="bold"
         android:fontFamily="sans-serif-medium" />
 
-    <!-- Edgebrook Solutions Text -->
+    <!-- Edgebrook Solutions Text at bottom -->
     <TextView
         android:id="@+id/company_name"
         android:layout_width="wrap_content"
@@ -35,7 +48,7 @@
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
         android:layout_marginBottom="48dp"
-        android:text="from Edgebrook Solutions"
+        android:text="Edgebrook Solutions"
         android:textColor="#888888"
         android:textSize="14sp"
         android:fontFamily="sans-serif" />
