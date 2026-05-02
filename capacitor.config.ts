@@ -12,13 +12,15 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
-      backgroundColor: '#000000',
+      launchShowDuration: 2500,
+      backgroundColor: '#0a0a0a',
       showSpinner: false,
       androidSpinnerStyle: 'small',
       iosSpinnerStyle: 'small',
       splashFullScreen: true,
-      splashImmersive: true
+      splashImmersive: true,
+      layoutName: 'splash_screen',
+      useDialog: true
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
