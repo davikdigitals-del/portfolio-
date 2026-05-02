@@ -176,6 +176,18 @@ const projects = [
     image: "/portfolio8.png",
     featured: false,
   },
+  {
+    id: 9,
+    title: "Classic 57 Auto Detailing",
+    category: "Website Design",
+    tags: ["Automotive", "Business", "Local SEO"],
+    desc: "Professional auto detailing website showcasing premium services, pricing packages, and online booking. Designed to attract local customers and build trust.",
+    result: "Local Authority",
+    color: "from-red-500 to-orange-600",
+    link: "http://classic57autodetailing.ca/",
+    image: "/portfolio 9.png",
+    featured: false,
+  },
 ];
 
 const categories = ["All", "Website Design", "Web Development"];
