@@ -87,10 +87,26 @@ function RootComponent() {
     import('@capacitor/core').then(({ Capacitor }) => {
       if (Capacitor.isNativePlatform()) {
         console.log('[App] Running as native mobile app on', Capacitor.getPlatform());
+        
+        // Fallback: hide splash screen after 5 seconds no matter what
+        const splashTimeout = setTimeout(() => {
+          console.warn('[App] Splash screen timeout - forcing hide');
+          import('@capacitor/splash-screen').then(({ SplashScreen }) => {
+            SplashScreen.hide().catch(() => {});
+          });
+        }, 5000);
+        
         import('@/lib/native').then(({ initializeNativeApp }) => {
-          void initializeNativeApp();
+          void initializeNativeApp().finally(() => {
+            clearTimeout(splashTimeout);
+          });
         }).catch((err) => {
           console.error('[App] Failed to initialize native app:', err);
+          clearTimeout(splashTimeout);
+          // Hide splash screen even if initialization fails
+          import('@capacitor/splash-screen').then(({ SplashScreen }) => {
+            SplashScreen.hide().catch(() => {});
+          });
         });
       } else {
         console.log('[App] Running as web app');

@@ -26,10 +26,7 @@ export async function initializeNativeApp() {
   console.log('[Native] Initializing native app on', platform);
 
   try {
-    // Hide splash screen after app loads
-    await SplashScreen.hide();
-
-    // Configure status bar
+    // Configure status bar first (before hiding splash)
     if (platform === 'ios' || platform === 'android') {
       await StatusBar.setStyle({ style: Style.Dark });
       if (platform === 'android') {
@@ -39,6 +36,10 @@ export async function initializeNativeApp() {
 
     // Initialize push notifications
     await initializePushNotifications();
+
+    // Hide splash screen after everything is initialized
+    await SplashScreen.hide();
+    console.log('[Native] Splash screen hidden');
 
     // Listen for app state changes
     App.addListener('appStateChange', ({ isActive }) => {
