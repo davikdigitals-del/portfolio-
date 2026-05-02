@@ -164,6 +164,18 @@ const projects = [
     image: "/portfolio7.png",
     featured: false,
   },
+  {
+    id: 8,
+    title: "CourseVia",
+    category: "Web Development",
+    tags: ["Education", "Platform", "E-Learning"],
+    desc: "Modern e-learning platform with course management, student dashboard, and interactive learning tools. Built for scalability and user engagement.",
+    result: "Learning Hub",
+    color: "from-green-500 to-emerald-600",
+    link: "https://coursevia.site/",
+    image: "/portfolio8.png",
+    featured: false,
+  },
 ];
 
 const categories = ["All", "Website Design", "Web Development"];

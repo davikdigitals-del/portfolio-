@@ -1,0 +1,83 @@
+name: Build Desktop Apps
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'electron/**'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        working-directory: electron
+        run: npm install
+        
+      - name: Build Windows installer
+        working-directory: electron
+        run: npm run build:win
+        
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v3
+        with:
+          name: PulseChat-Windows
+          path: electron/dist/*.exe
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        working-directory: electron
+        run: npm install
+        
+      - name: Build Mac installer
+        working-directory: electron
+        run: npm run build:mac
+        
+      - name: Upload Mac installer
+        uses: actions/upload-artifact@v3
+        with:
+          name: PulseChat-Mac
+          path: electron/dist/*.dmg
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        working-directory: electron
+        run: npm install
+        
+      - name: Build Linux installers
+        working-directory: electron
+        run: npm run build:linux
+        
+      - name: Upload Linux installers
+        uses: actions/upload-artifact@v3
+        with:
+          name: PulseChat-Linux
+          path: |
+            electron/dist/*.AppImage
+            electron/dist/*.deb
