@@ -1,0 +1,39 @@
+═══════════════════════════════════════════════════════════════
+  DOWNLOAD NEW APK - QUICK GUIDE
+═══════════════════════════════════════════════════════════════
+
+STEP 1: Go to GitHub Actions
+────────────────────────────────────────────────────────────────
+Open this URL in your browser:
+https://github.com/davikdigitals-del/portfolio-/actions
+
+Look for "Build Android APK" workflow (most recent run)
+
+
+STEP 2: Download the APK
+────────────────────────────────────────────────────────────────
+1. Click on the workflow run with green checkmark ✅
+2. Scroll to bottom → "Artifacts" section
+3. Click "PulseChat-Android" to download
+4. Extract the ZIP file
+5. Find "app-debug.apk" inside
+
+
+STEP 3: Replace Old APK
+────────────────────────────────────────────────────────────────
+Open PowerShell and run these commands:
+
+# Copy the new APK (adjust path if needed)
+Copy-Item "C:\Users\EMMAX\Downloads\app-debug.apk" -Destination "public\pulsechat.apk" -Force
+
+# Commit and push
+git add public\pulsechat.apk
+git commit -m "Update PulseChat APK with fixes"
+git push origin main
+
+
+DONE! ✅
+────────────────────────────────────────────────────────────────
+The download button on your website will now serve the new APK.
+
+═══════════════════════════════════════════════════════════════
