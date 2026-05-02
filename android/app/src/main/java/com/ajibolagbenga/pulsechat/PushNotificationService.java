@@ -110,26 +110,45 @@ public class PushNotificationService extends FirebaseMessagingService {
             .setDefaults(NotificationCompat.DEFAULT_ALL);
 
         if (CHANNEL_CALLS.equals(channelId)) {
+            // Use custom layout for incoming calls
+            android.widget.RemoteViews customView = new android.widget.RemoteViews(
+                context.getPackageName(),
+                R.layout.notification_incoming_call
+            );
+            
+            // Set caller name
+            customView.setTextViewText(R.id.caller_name, title);
+            
+            // Set call type based on data
+            String callType = "voice call";
+            if (data != null && "video".equals(data.get("callType"))) {
+                callType = "video call";
+            }
+            customView.setTextViewText(R.id.call_type, "PulseChat " + callType);
+
             // Answer action
             Intent answerIntent = new Intent(context, CallActionReceiver.class);
             answerIntent.setAction("ANSWER_CALL");
             if (data != null) for (Map.Entry<String, String> e : data.entrySet()) answerIntent.putExtra(e.getKey(), e.getValue());
             PendingIntent answerPI = PendingIntent.getBroadcast(context, 1, answerIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            customView.setOnClickPendingIntent(R.id.answer_button, answerPI);
 
             // Decline action
             Intent declineIntent = new Intent(context, CallActionReceiver.class);
             declineIntent.setAction("DECLINE_CALL");
             if (data != null) for (Map.Entry<String, String> e : data.entrySet()) declineIntent.putExtra(e.getKey(), e.getValue());
             PendingIntent declinePI = PendingIntent.getBroadcast(context, 2, declineIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            customView.setOnClickPendingIntent(R.id.decline_button, declinePI);
 
-            builder.setPriority(NotificationCompat.PRIORITY_MAX)
+            builder.setCustomContentView(customView)
+                .setCustomBigContentView(customView)
+                .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
+                .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setFullScreenIntent(pendingIntent, true)
                 .setOngoing(true)
                 .setTimeoutAfter(30000)
-                .setVibrate(new long[]{0, 1000, 500, 1000, 500, 1000})
-                .addAction(R.mipmap.ic_launcher, "Decline", declinePI)
-                .addAction(R.mipmap.ic_launcher, "Answer", answerPI);
+                .setVibrate(new long[]{0, 1000, 500, 1000, 500, 1000});
         }
 
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
