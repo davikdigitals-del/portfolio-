@@ -42,8 +42,15 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
       
+      - name: Verify APK exists
+        run: |
+          ls -la android/app/build/outputs/apk/debug/
+          echo "APK file details:"
+          file android/app/build/outputs/apk/debug/app-debug.apk || echo "APK not found!"
+      
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: PulseChat-Android
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
