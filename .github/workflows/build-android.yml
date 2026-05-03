@@ -32,7 +32,19 @@ jobs:
         run: npm ci
       
       - name: Build web assets
-        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://gcckwqkzjoxraikosash.supabase.co' }}
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'gcckwqkzjoxraikosash' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjY2t3cWt6am94cmFpa29zYXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzA4MzQsImV4cCI6MjA5Mjc0NjgzNH0.BCjatcjeUane_yN9IAyI3iNdyyesq85pevZSH9LO-6E' }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY || 'BKGlXPZHtSBjI7x0jhlRvfKSJDYCejXooO_wy8fA-faicY9hHAEgA0GjGV9HWVFQHIXqiWOxvtisvnhVKoWB764' }}
+        run: |
+          npm run build
+          echo "Build completed, checking dist/client..."
+          ls -la dist/client || echo "dist/client not found!"
+          if [ ! -f "dist/client/index.html" ]; then
+            echo "ERROR: index.html not found in dist/client"
+            exit 1
+          fi
       
       - name: Create assets directory
         run: mkdir -p android/app/src/main/assets
