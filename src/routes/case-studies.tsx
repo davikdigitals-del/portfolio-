@@ -185,7 +185,7 @@ const projects = [
     result: "Local Authority",
     color: "from-red-500 to-orange-600",
     link: "http://classic57autodetailing.ca/",
-    image: "/portfolio 9.png",
+    image: "/portfolio9.png",
     featured: false,
   },
 ];
