@@ -1,7 +1,10 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Pulse Chat</string>
-    <string name="title_activity_main">Pulse Chat</string>
+    <string name="app_name">PulseChat</string>
+    <string name="title_activity_main">PulseChat</string>
     <string name="package_name">com.ajibolagbenga.pulsechat</string>
     <string name="custom_url_scheme">com.ajibolagbenga.pulsechat</string>
+    <string name="splash_app_name">PulseChat</string>
+    <string name="splash_from_text">from</string>
+    <string name="splash_company_name">Edgebrook Solutions</string>
 </resources>
