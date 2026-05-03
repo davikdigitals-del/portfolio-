@@ -40,11 +40,35 @@ jobs:
         run: |
           npm run build
           echo "Build completed, checking dist/client..."
-          ls -la dist/client || echo "dist/client not found!"
-          if [ ! -f "dist/client/index.html" ]; then
-            echo "ERROR: index.html not found in dist/client"
-            exit 1
-          fi
+          ls -la dist/client
+          
+          # Find the main JS and CSS files
+          CSS_FILE=$(ls dist/client/assets/styles-*.css | head -1 | sed 's|dist/client/||')
+          JS_FILE=$(ls dist/client/assets/index-*.js | head -1 | sed 's|dist/client/||')
+          
+          echo "CSS file: $CSS_FILE"
+          echo "JS file: $JS_FILE"
+          
+          # Create index.html with the correct asset references
+          cat > dist/client/index.html << EOF
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <meta name="theme-color" content="#000000">
+            <title>PulseChat</title>
+            <link rel="stylesheet" href="/$CSS_FILE">
+          </head>
+          <body>
+            <div id="root"></div>
+            <script type="module" src="/$JS_FILE"></script>
+          </body>
+          </html>
+          EOF
+          
+          echo "Created index.html"
+          cat dist/client/index.html
       
       - name: Create assets directory
         run: mkdir -p android/app/src/main/assets
