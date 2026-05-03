@@ -146,34 +146,35 @@ function BioSection() {
         <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6">My Story</h2>
         <div className="space-y-4 text-muted-foreground leading-relaxed">
           <p>
-            I'm Ajibola Gbenga Joseph — a 21-year-old Website Designer and Software Developer based in Nigeria, 
-            with a National Diploma in Computer Science (2025) and over 5 years of practical experience building 
-            digital solutions that deliver real business results.
+            I am reaching out with sincerity because I am looking for a genuine opportunity to relocate to the 
+            United Kingdom or the United States through sponsorship, employment, or meaningful professional support.
           </p>
           <p>
-            My journey into tech started with curiosity, but it quickly became something deeper—a commitment to 
-            building a future through skill, consistency, and real-world impact. Without access to many opportunities 
-            early on, I focused on learning by doing: building websites, solving problems, and improving every single day.
+            For years, I have worked hard to build myself as a website designer and developer. I have spent more 
+            than five years learning, building projects, improving my skills, and doing everything I can to grow. 
+            I have stayed committed even when opportunities were limited.
           </p>
           <p>
-            <span className="text-foreground font-medium">From 2022 to 2025</span>, I pursued my National Diploma 
-            in Computer Science, gaining a strong foundation in software engineering, algorithms, and system design. 
-            At the same time, I was actively working in the field—bridging theory with hands-on execution.
+            I believe I have more to offer, but I also know that sometimes talent alone is not enough without 
+            access to the right environment and the right people.
+          </p>
+          <p className="text-foreground font-medium">
+            That is why I am asking sincerely.
           </p>
           <p>
-            Since 2019, I've worked as a Freelance Web Designer and Developer, delivering over 50 projects for 
-            startups, businesses, and personal brands. This experience shaped my ability to create not just visually 
-            appealing platforms, but systems that perform, convert, and scale.
+            I am looking for someone willing to give me a real opportunity — a company that needs a committed 
+            developer, an organization open to international talent, or a person who can help connect me to the 
+            right path.
           </p>
           <p>
-            In 2025, I co-founded <span className="text-foreground font-medium">Edgebrook AI Solutions</span>, where 
-            I serve as Lead Developer—building AI-powered digital products and leading full-cycle development from 
-            concept to deployment.
+            I am ready to work hard, learn fast, adapt quickly, and contribute real value. I am not looking for 
+            charity. I am asking for a chance — a chance to prove myself, grow professionally, and build something 
+            meaningful.
           </p>
-          <p>
-            As I worked with clients beyond my immediate environment, my vision expanded. I began to see clearly that 
-            countries like the United Kingdom and the United States offer the kind of ecosystem where innovation moves 
-            faster, collaboration is stronger, and impact is amplified.
+          <p className="text-foreground font-semibold">
+            If you can sponsor, employ, support, or connect me to an opportunity in the United Kingdom or United 
+            States, I would be truly grateful for the conversation. One genuine opportunity can change everything 
+            for me.
           </p>
         </div>
       </div>
