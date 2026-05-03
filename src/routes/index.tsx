@@ -82,12 +82,6 @@ function HeroSection() {
             <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base">
               <Link to="/case-studies">See My Work</Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base gap-2 border-primary/30 hover:bg-primary/10">
-              <a href="/pulsechat.apk" download="PulseChat.apk">
-                <Download className="h-4 w-4" />
-                Download App
-              </a>
-            </Button>
           </div>
 
           <div className="flex gap-8 pt-2 animate-fade-up [animation-delay:360ms] opacity-0">

@@ -7,9 +7,7 @@ const config: CapacitorConfig = {
   webDir: 'dist/client',
   server: {
     androidScheme: 'https',
-    iosScheme: 'https',
-    url: 'https://ajibola-gbenga-joseph.onrender.com/auth',
-    cleartext: false
+    iosScheme: 'https'
   },
   plugins: {
     SplashScreen: {
