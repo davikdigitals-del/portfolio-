@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { ArrowRight, Code2, Palette, Search, Layers, Cpu, Globe, ChevronDown, MessageCircle, Download } from "lucide-react";
+import { ArrowRight, Code2, Palette, Search, Layers, Cpu, Globe, ChevronDown, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
@@ -81,12 +81,6 @@ function HeroSection() {
             </Button>
             <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base">
               <Link to="/case-studies">See My Work</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base gap-2 border-primary/30 hover:bg-primary/10">
-              <a href="/pulsechat.apk" download="PulseChat.apk">
-                <Download className="h-4 w-4" />
-                Download App
-              </a>
             </Button>
           </div>
 
