@@ -27,6 +27,12 @@ jobs:
         with:
           node-version: '20'
       
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Sync Capacitor
+        run: npx cap sync android
+      
       - name: Build Android APK
         working-directory: android
         run: |
