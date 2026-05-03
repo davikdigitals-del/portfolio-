@@ -1,5 +1,6 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+// PulseChat Mobile App Configuration
 const config: CapacitorConfig = {
   appId: 'com.ajibolagbenga.pulsechat',
   appName: 'PulseChat',

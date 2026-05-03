@@ -1,0 +1,73 @@
+═══════════════════════════════════════════════════════════════
+  DOWNLOAD LATEST APK WITH SPLASH SCREEN
+═══════════════════════════════════════════════════════════════
+
+STEP 1: Go to GitHub Actions
+────────────────────────────────────────────────────────────────
+Open this URL in your browser:
+https://github.com/davikdigitals-del/portfolio-/actions
+
+Look for "Build Android APK" workflow runs
+
+
+STEP 2: Find the Latest Build
+────────────────────────────────────────────────────────────────
+Look for the most recent workflow run that has:
+- ✅ Green checkmark (completed successfully)
+- Recent timestamp (today's date)
+
+The latest commits that should have triggered builds:
+- "Fix splash screen to not block notifications..."
+- "Add native permissions for camera, microphone..."
+
+
+STEP 3: Download the APK
+────────────────────────────────────────────────────────────────
+1. Click on the completed workflow run
+2. Scroll to bottom → "Artifacts" section
+3. Click "PulseChat-Android" to download
+4. Extract the ZIP file
+5. Find "app-debug.apk" inside
+
+
+STEP 4: Test the APK First
+────────────────────────────────────────────────────────────────
+Before replacing on website, install on your phone to verify:
+- Splash screen shows (PulseChat logo + "from Edgebrook Solutions")
+- App opens to /auth page
+- Permissions work (camera, mic, storage)
+
+
+STEP 5: Replace APK on Website
+────────────────────────────────────────────────────────────────
+Once verified, run these commands:
+
+# Copy the new APK (adjust path where you downloaded it)
+Copy-Item "C:\Users\EMMAX\Downloads\app-debug.apk" -Destination "public\pulsechat.apk" -Force
+
+# Commit and push
+git add public\pulsechat.apk
+git commit -m "Update PulseChat APK with splash screen and permissions"
+git push origin main
+
+
+WHAT'S IN THE LATEST APK?
+────────────────────────────────────────────────────────────────
+✅ Custom splash screen with logo and "from Edgebrook Solutions"
+✅ Opens directly to /auth (chat login)
+✅ Native permissions (camera, mic, storage)
+✅ Fixed notification support
+✅ Proper splash screen timing
+
+
+IF BUILD IS STILL RUNNING:
+────────────────────────────────────────────────────────────────
+Wait 5-10 minutes and refresh the Actions page.
+The build takes time because it compiles the entire app.
+
+
+IF NO BUILD FOUND:
+────────────────────────────────────────────────────────────────
+Let me know and I'll trigger a new build manually.
+
+═══════════════════════════════════════════════════════════════
