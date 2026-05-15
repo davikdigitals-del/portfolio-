@@ -8,7 +8,7 @@ export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
       { title: "About — Ajibola Gbenga Joseph" },
-      { name: "description", content: "Website Designer & Software Developer | Co-Founder, Edgebrook AI Solutions. 5+ years creating scalable digital experiences." },
+      { name: "description", content: "Website Designer & tech advisor, Full-stack developer | Co-Founder, Edgebrook AI Solutions. 5+ years creating scalable digital experiences." },
     ],
   }),
   component: AboutPage,
@@ -63,7 +63,7 @@ function AboutHero() {
               <span className="shimmer-text">Joseph</span>
             </h1>
             <p className="text-lg text-primary font-semibold">
-              Website Designer &amp; Software Developer
+              Website Designer &amp; tech advisor, Full-stack developer
               <br />
               Co-Founder, Edgebrook AI Solutions
             </p>
@@ -146,35 +146,33 @@ function BioSection() {
         <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6">My Story</h2>
         <div className="space-y-4 text-muted-foreground leading-relaxed">
           <p>
-            I am reaching out with sincerity because I am looking for a genuine opportunity to relocate to the 
-            United Kingdom or the United States through sponsorship, employment, or meaningful professional support.
+            My name is Ajibola Gbenga Joseph, and my journey into technology started with curiosity, passion, and 
+            the desire to create something meaningful. From a young age, I was always interested in how websites, 
+            apps, and digital platforms worked. What started as simple curiosity slowly turned into a dream I became 
+            determined to achieve.
           </p>
           <p>
-            For years, I have worked hard to build myself as a website designer and developer. I have spent more 
-            than five years learning, building projects, improving my skills, and doing everything I can to grow. 
-            I have stayed committed even when opportunities were limited.
+            I began learning website design and development with limited resources but a strong mindset to grow. 
+            Along the way, I faced challenges, moments of doubt, and times when things didn't go as planned, but I 
+            never allowed those moments to stop me. Instead, they pushed me to learn more, improve my skills, and 
+            stay focused on my goals.
           </p>
           <p>
-            I believe I have more to offer, but I also know that sometimes talent alone is not enough without 
-            access to the right environment and the right people.
-          </p>
-          <p className="text-foreground font-medium">
-            That is why I am asking sincerely.
-          </p>
-          <p>
-            I am looking for someone willing to give me a real opportunity — a company that needs a committed 
-            developer, an organization open to international talent, or a person who can help connect me to the 
-            right path.
+            Today, I am a website designer, developer, tech advisor, and full-stack developer with a National Diploma 
+            certification. I specialize in building modern, responsive, and professional digital solutions that help 
+            businesses and individuals establish a strong online presence. Every project I work on represents my 
+            creativity, dedication, and passion for technology.
           </p>
           <p>
-            I am ready to work hard, learn fast, adapt quickly, and contribute real value. I am not looking for 
-            charity. I am asking for a chance — a chance to prove myself, grow professionally, and build something 
-            meaningful.
+            My vision is bigger than where I am today. I want to become a globally recognized tech professional, work 
+            with international clients and companies, and build innovative solutions that create real impact. I am 
+            constantly learning, improving my skills, and exploring new areas in technology including advanced web 
+            development, cybersecurity, AI-powered solutions, and scalable applications.
           </p>
           <p className="text-foreground font-semibold">
-            If you can sponsor, employ, support, or connect me to an opportunity in the United Kingdom or United 
-            States, I would be truly grateful for the conversation. One genuine opportunity can change everything 
-            for me.
+            My story is still being written, and I believe the future holds greater opportunities, success, and 
+            achievements. No matter how difficult the journey becomes, I remain committed to growth, excellence, and 
+            becoming the best version of myself in the tech industry.
           </p>
         </div>
       </div>
