@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Mail, MapPin, Clock, MessageCircle, ArrowRight, Github, Linkedin, Twitter } from "lucide-react";
+import { Mail, MapPin, Clock, MessageCircle, ArrowRight, MapPinned, Youtube, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
@@ -107,9 +107,9 @@ function ContactPage() {
             <p className="text-sm text-muted-foreground mb-8">Connect with me on social media or check out my work.</p>
             <div className="flex flex-wrap items-center justify-center gap-4">
               {[
-                { icon: Github, label: "GitHub", href: "https://github.com/ajibolagbengajoseph", color: "hover:border-white/40" },
-                { icon: Linkedin, label: "LinkedIn", href: "https://linkedin.com/in/ajibolagbengajoseph", color: "hover:border-blue-400/40" },
-                { icon: Twitter, label: "Twitter / X", href: "https://twitter.com/ajibolagbenga", color: "hover:border-sky-400/40" },
+                { icon: MapPinned, label: "Google My Business", href: "https://share.google/aXjcfG6DMAOnPqXk4", color: "hover:border-red-400/40" },
+                { icon: Video, label: "TikTok", href: "https://www.tiktok.com/@joseph_4124", color: "hover:border-pink-400/40" },
+                { icon: Youtube, label: "YouTube", href: "https://www.youtube.com/@AjibolaGbengaJoseph1", color: "hover:border-red-500/40" },
                 { icon: Mail, label: "Email", href: "mailto:ajibolagbengajoseph@gmail.com", color: "hover:border-primary/40" },
               ].map((s) => (
                 <a
