@@ -68,9 +68,11 @@ function AboutHero() {
               Co-Founder, Edgebrook AI Solutions
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              I create digital experiences that are visually stunning, responsive, and performance-driven—delivering 
-              measurable results for clients worldwide. With over 5 years of hands-on experience, I combine strategic 
-              thinking with technical excellence to build products that truly perform.
+              Step into the future of digital design with Ajibola Gbenga Joseph, a visionary web designer who began 
+              his journey in 2022. As a dedicated full-stack developer and co-founder of Edgebrook AI Solutions, he 
+              brings a unique blend of creativity and technical expertise to every project. Whether you're a burgeoning 
+              startup or an established enterprise, Ajibola Gbenga Joseph crafts dynamic and engaging online experiences 
+              tailored to your needs. Discover how a passion for innovation can transform your digital presence.
             </p>
             <div className="flex flex-wrap gap-3 pt-2">
               {[
