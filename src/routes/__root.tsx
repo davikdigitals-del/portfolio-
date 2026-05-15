@@ -35,6 +35,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
+      { name: "google-site-verification", content: "DH3NzpT-c8lOBYg4rmgEODmIUkpSw9gDOZSqEocS7XM" },
       { title: "Pulse — Premium real-time chat for clients" },
       { name: "description", content: "Premium real-time chat platform connecting you with your clients. Smart tagging, AI summaries, and lightning-fast messaging." },
       { name: "author", content: "Pulse" },
@@ -53,11 +54,8 @@ export const Route = createRootRoute({
       { rel: "icon", type: "image/webp", href: "/me.webp" },
       { rel: "apple-touch-icon", href: "/me.webp" },
       { rel: "manifest", href: "/manifest.json" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "dns-prefetch", href: "https://gcckwqkzjoxraikosash.supabase.co" },
-      { rel: "preload", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", as: "style" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", media: "print", onLoad: "this.media='all'" },
+      { rel: "preconnect", href: "https://gcckwqkzjoxraikosash.supabase.co" },
     ],
   }),
   shellComponent: RootShell,
@@ -110,8 +108,6 @@ function RootComponent() {
             SplashScreen.hide().catch(() => {});
           });
         });
-      } else {
-        console.log('[App] Running as web app');
       }
     });
   }, []);

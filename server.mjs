@@ -6,6 +6,9 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createGzip } from "node:zlib";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -16,11 +19,11 @@ const fetchHandler = typeof app === 'function' ? app : (app.fetch || app.default
 
 // MIME types for static files
 const MIME = {
-  ".html": "text/html",
-  ".js": "application/javascript",
-  ".mjs": "application/javascript",
-  ".css": "text/css",
-  ".json": "application/json",
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -38,10 +41,27 @@ const getCacheControl = (pathname) => {
   if (pathname.startsWith("/assets/")) {
     return "public, max-age=31536000, immutable";
   }
-  if (/\.(jpg|jpeg|png|webp|svg|ico|woff|woff2|ttf|css|js)$/.test(pathname)) {
+  if (/\.(jpg|jpeg|png|webp|svg|ico|woff|woff2|ttf)$/.test(pathname)) {
     return "public, max-age=31536000, immutable";
   }
+  if (/\.(css|js|mjs)$/.test(pathname)) {
+    return "public, max-age=31536000, immutable";
+  }
+  if (pathname === "/" || pathname.endsWith(".html")) {
+    return "public, max-age=0, must-revalidate";
+  }
   return "public, max-age=3600, must-revalidate";
+};
+
+// Check if client accepts gzip
+const acceptsGzip = (req) => {
+  const encoding = req.headers['accept-encoding'];
+  return encoding && encoding.includes('gzip');
+};
+
+// Should compress this file type?
+const shouldCompress = (pathname) => {
+  return /\.(html|css|js|mjs|json|svg|xml|txt)$/.test(pathname);
 };
 
 const CLIENT_DIR = join(__dirname, "dist/client");
@@ -56,11 +76,21 @@ const server = createServer(async (req, res) => {
     try {
       const data = await readFile(staticPath);
       const ext = extname(staticPath);
-      res.writeHead(200, {
+      const headers = {
         "Content-Type": MIME[ext] || "application/octet-stream",
         "Cache-Control": getCacheControl(url.pathname),
-      });
-      res.end(data);
+      };
+
+      // Compress if supported and beneficial
+      if (acceptsGzip(req) && shouldCompress(url.pathname) && data.length > 1024) {
+        headers["Content-Encoding"] = "gzip";
+        headers["Vary"] = "Accept-Encoding";
+        res.writeHead(200, headers);
+        await pipeline(Readable.from(data), createGzip(), res);
+      } else {
+        res.writeHead(200, headers);
+        res.end(data);
+      }
       return;
     } catch {
       // fall through to SSR
