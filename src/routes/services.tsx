@@ -8,7 +8,7 @@ export const Route = createFileRoute("/services")({
   head: () => ({
     meta: [
       { title: "Services — Ajibola Gbenga Joseph" },
-      { name: "description", content: "Website design and development, software development, and tech advisory services by Ajibola Gbenga Joseph." },
+      { name: "description", content: "Website design and development, full stack development, and tech advisory services by Ajibola Gbenga Joseph." },
     ],
   }),
   component: ServicesPage,
@@ -39,7 +39,7 @@ const services = [
   },
   {
     icon: Code2,
-    title: "Software Development",
+    title: "Full Stack Development",
     tagline: "Clean code, blazing performance",
     desc: "I build custom software solutions tailored to your business needs. Whether it's a web application, mobile app, or enterprise system, I deliver scalable, maintainable code using modern technologies and industry best practices.",
     features: ["Custom Web Applications", "Mobile App Development", "Enterprise Software Solutions", "Database Design & Integration", "Cloud Deployment", "Agile Development Process"],

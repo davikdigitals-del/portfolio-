@@ -81,7 +81,7 @@ function ContactPage() {
       <section className="container mx-auto px-6 pb-20 section-reveal">
         <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-5">
           {[
-            { icon: Mail, label: "Email", value: "ajibolagbengajoseph@gmail.com", href: "mailto:ajibolagbengajoseph@gmail.com", color: "bg-primary/10 text-primary" },
+            { icon: Mail, label: "Email", value: "gbengajosephajibola@gmail.com", href: "mailto:gbengajosephajibola@gmail.com", color: "bg-primary/10 text-primary" },
             { icon: MapPin, label: "Location", value: "Nigeria · Available Worldwide", href: null, color: "bg-success/10 text-success" },
             { icon: Clock, label: "Response Time", value: "Within 24 hours", href: null, color: "bg-warning/10 text-warning" },
           ].map((item) => (
@@ -111,7 +111,7 @@ function ContactPage() {
                 { icon: MapPinned, label: "Google My Business", href: "https://share.google/aXjcfG6DMAOnPqXk4", color: "hover:border-red-400/40" },
                 { icon: FaTiktok, label: "TikTok", href: "https://www.tiktok.com/@joseph_4124", color: "hover:border-pink-400/40" },
                 { icon: Youtube, label: "YouTube", href: "https://www.youtube.com/@AjibolaGbengaJoseph1", color: "hover:border-red-500/40" },
-                { icon: Mail, label: "Email", href: "mailto:ajibolagbengajoseph@gmail.com", color: "hover:border-primary/40" },
+                { icon: Mail, label: "Email", href: "mailto:gbengajosephajibola@gmail.com", color: "hover:border-primary/40" },
               ].map((s) => (
                 <a
                   key={s.label}
