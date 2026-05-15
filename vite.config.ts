@@ -1,20 +1,13 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-import { compression } from 'vite-plugin-compression';
 
 // This app targets Cloudflare Workers (default preset)
 // Deploy via: wrangler pages deploy dist/client
 // Or connect GitHub to Cloudflare Pages dashboard
 export default defineConfig({
   build: {
-    // Enable minification
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // Remove console.logs in production
-        drop_debugger: true
-      }
-    },
-    // Code splitting
+    // Enable minification with esbuild (faster and built-in, no extra dependencies)
+    minify: 'esbuild',
+    // Code splitting for better caching
     rollupOptions: {
       output: {
         manualChunks: {
@@ -25,10 +18,17 @@ export default defineConfig({
       }
     },
     // Chunk size warnings
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1000,
+    // Target modern browsers for smaller bundles
+    target: 'es2020'
   },
-  // Image optimization
+  // Optimize dependencies
   optimizeDeps: {
-    include: ['react', 'react-dom']
+    include: ['react', 'react-dom', '@tanstack/react-router']
+  },
+  // Drop console logs and debugger in production
+  esbuild: {
+    drop: ['console', 'debugger'],
+    legalComments: 'none'
   }
 });
