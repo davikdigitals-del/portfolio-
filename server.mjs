@@ -33,6 +33,17 @@ const MIME = {
   ".map": "application/json",
 };
 
+// Cache durations
+const getCacheControl = (pathname) => {
+  if (pathname.startsWith("/assets/")) {
+    return "public, max-age=31536000, immutable";
+  }
+  if (/\.(jpg|jpeg|png|webp|svg|ico|woff|woff2|ttf|css|js)$/.test(pathname)) {
+    return "public, max-age=31536000, immutable";
+  }
+  return "public, max-age=3600, must-revalidate";
+};
+
 const CLIENT_DIR = join(__dirname, "dist/client");
 const PORT = process.env.PORT || 3000;
 
@@ -47,9 +58,7 @@ const server = createServer(async (req, res) => {
       const ext = extname(staticPath);
       res.writeHead(200, {
         "Content-Type": MIME[ext] || "application/octet-stream",
-        "Cache-Control": url.pathname.startsWith("/assets/")
-          ? "public, max-age=31536000, immutable"
-          : "public, max-age=3600",
+        "Cache-Control": getCacheControl(url.pathname),
       });
       res.end(data);
       return;
