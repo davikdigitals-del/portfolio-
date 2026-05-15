@@ -82,6 +82,12 @@ function HeroSection() {
             <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base">
               <Link to="/case-studies">See My Work</Link>
             </Button>
+            <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base gap-2">
+              <a href="/pulsechat.apk" download>
+                <Download className="h-4 w-4" />
+                Download App
+              </a>
+            </Button>
           </div>
 
           <div className="flex gap-8 pt-2 animate-fade-up [animation-delay:360ms] opacity-0">
@@ -309,6 +315,12 @@ function CTASection() {
             </Button>
             <Button asChild variant="outline" size="lg" className="h-12 px-8">
               <Link to="/case-studies">View My Work</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="h-12 px-8 gap-2">
+              <a href="/pulsechat.apk" download>
+                <Download className="h-4 w-4" />
+                Download App
+              </a>
             </Button>
           </div>
         </div>
