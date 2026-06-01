@@ -122,12 +122,36 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
 
-    // Support both direct call and DB webhook payload
-    const record = body.record ?? body;
-    const { id: call_id, receiver_id, initiator_id, call_type, conversation_id } = record;
+    console.log("[notify-incoming-call] Raw body:", JSON.stringify(body));
+
+    // Supabase DB webhook wraps the row in body.record
+    // Direct invocation may pass the row directly or under body.record
+    // Also handle body.new (some webhook configs use this key)
+    const record = body.record ?? body.new ?? body;
+
+    console.log("[notify-incoming-call] Resolved record:", JSON.stringify(record));
+
+    const {
+      id: call_id,
+      receiver_id,
+      initiator_id,
+      call_type,
+      conversation_id,
+      status,
+    } = record;
+
+    // Only process ringing calls — ignore updates/other statuses
+    if (status && status !== "ringing") {
+      console.log("[notify-incoming-call] Skipping non-ringing call, status:", status);
+      return new Response(JSON.stringify({ skipped: true, status }), { status: 200 });
+    }
 
     if (!receiver_id || !call_id) {
-      return new Response(JSON.stringify({ error: "Missing receiver_id or call_id" }), { status: 400 });
+      console.error("[notify-incoming-call] Missing fields. record keys:", Object.keys(record));
+      return new Response(
+        JSON.stringify({ error: "Missing receiver_id or call_id", received_keys: Object.keys(record) }),
+        { status: 400 }
+      );
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
