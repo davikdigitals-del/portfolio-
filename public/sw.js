@@ -174,6 +174,11 @@ self.addEventListener("message", (e) => {
   const { title, body, tag, vibrate, call_id, conversation_id, url } = e.data;
   const isCall = tag?.startsWith("call-") || !!call_id;
 
+  // Respond to the message port immediately to prevent
+  // "The message port closed before a response was received" warning
+  const port = e.ports?.[0];
+  if (port) port.postMessage({ ok: true });
+
   e.waitUntil(
     self.registration.showNotification(title, {
       body,

@@ -180,9 +180,12 @@ export async function sendPushNotification(
   }
 
   // App is in background — use Service Worker
-  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+  // Only postMessage when the controller is fully activated to avoid
+  // "message port closed before a response was received" warnings
+  const swController = navigator.serviceWorker?.controller;
+  if (swController && swController.state === "activated") {
     try {
-      navigator.serviceWorker.controller.postMessage({
+      swController.postMessage({
         type: "SHOW_NOTIFICATION",
         title,
         body,
