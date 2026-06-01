@@ -1625,11 +1625,14 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       // Fire push notification to receiver
       void supabase.functions.invoke("notify-incoming-call", {
         body: {
-          id: call.id,
-          receiver_id: receiverId,
-          initiator_id: user.id,
-          call_type: callType,
-          conversation_id: conversation.id,
+          record: {
+            id: call.id,
+            receiver_id: receiverId,
+            initiator_id: user.id,
+            call_type: callType,
+            conversation_id: conversation.id,
+            status: "ringing",
+          },
         },
       });
 

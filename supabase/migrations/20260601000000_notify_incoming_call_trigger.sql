@@ -14,20 +14,13 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- net.http_post body must be jsonb (not text/bytea)
-  -- Authorization header uses the service_role key
   PERFORM net.http_post(
     url     := 'https://gcckwqkzjoxraikosash.supabase.co/functions/v1/notify-incoming-call',
     headers := jsonb_build_object(
       'Content-Type',  'application/json',
-      'Authorization', 'Bearer ' || (
-        SELECT decrypted_secret
-        FROM vault.decrypted_secrets
-        WHERE name = 'service_role_key'
-        LIMIT 1
-      )
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjY2t3cWt6am94cmFpa29zYXNoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzE3MDgzNCwiZXhwIjoyMDkyNzQ2ODM0fQ.rveP7k6IxLXtIkRiLQlo7snseK4PiIm-0TN9sagSCzc'
     ),
-    body    := jsonb_build_object(
+    body := jsonb_build_object(
       'record', jsonb_build_object(
         'id',              NEW.id,
         'receiver_id',     NEW.receiver_id,
@@ -41,7 +34,6 @@ BEGIN
 
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
-  -- Never block the INSERT if the HTTP call fails
   RAISE WARNING 'trigger_notify_incoming_call failed: %', SQLERRM;
   RETURN NEW;
 END;
