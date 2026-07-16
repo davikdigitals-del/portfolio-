@@ -197,7 +197,7 @@
   to { transform: translateX(0); opacity: 1; }
 }
 @keyframes message-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes typing {
@@ -300,10 +300,18 @@ body {
 /* Chat textarea — prevent iOS zoom on focus (font-size must be >= 16px) */
 .chat-textarea {
   font-size: 16px !important;
+  line-height: 1.4;
 }
 @media (min-width: 768px) {
   .chat-textarea { font-size: 0.875rem !important; }
 }
+
+/* Smooth message entry */
+@keyframes msg-slide-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.msg-in { animation: msg-slide-in 0.2s cubic-bezier(0.22,1,0.36,1) both; }
 
 /* ── Emoji-only message bounce animation ────────────────────────────────────── */
 @keyframes emoji-bounce {

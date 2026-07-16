@@ -8,7 +8,6 @@ import {
   Play, Pause, FileText, Bell, BellOff, Trash2, Pencil, Reply,
   Phone, Video, Calendar, Link, Clock,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -661,95 +660,113 @@ function ChatPage() {
       </div>
 
       {/* Sidebar — full screen on mobile when no chat open */}
-      <aside className={`flex flex-col border-r border-border bg-[#111b21] shrink-0 ${active ? "hidden md:flex md:w-80" : "flex w-full md:w-80"}`}>
-        <div className="h-14 border-b border-border px-4 flex items-center justify-between shrink-0 bg-[#202c33]">
-          <h2 className="font-semibold text-[#e9edef] text-base">{isAdmin ? "Chats" : "Chats"}</h2>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setSoundOn((v) => !v)} title={soundOn ? "Mute sound" : "Enable sound"} className="p-2 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors">
-              {soundOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+      <aside className={`flex flex-col border-r border-[#2a3942] shrink-0 ${active ? "hidden md:flex md:w-[340px]" : "flex w-full md:w-[340px]"}`} style={{ background: "#111b21" }}>
+        {/* Sidebar header */}
+        <div className="h-[60px] px-4 flex items-center justify-between shrink-0" style={{ background: "#202c33", borderBottom: "1px solid #2a3942" }}>
+          <h2 className="font-bold text-[#e9edef] text-[17px] tracking-tight">Messages</h2>
+          <div className="flex items-center gap-0.5">
+            <button onClick={() => setSoundOn((v) => !v)} title={soundOn ? "Mute sound" : "Enable sound"} className="h-9 w-9 flex items-center justify-center rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-all">
+              {soundOn ? <Volume2 className="h-[18px] w-[18px]" /> : <VolumeX className="h-[18px] w-[18px]" />}
             </button>
-            <button onClick={() => setNotifsOn((v) => !v)} title={notifsOn ? "Disable notifications" : "Enable notifications"} className="p-2 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors">
-              {notifsOn ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+            <button onClick={() => setNotifsOn((v) => !v)} title={notifsOn ? "Disable notifications" : "Enable notifications"} className="h-9 w-9 flex items-center justify-center rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-all">
+              {notifsOn ? <Bell className="h-[18px] w-[18px]" /> : <BellOff className="h-[18px] w-[18px]" />}
             </button>
-            {typeof window !== "undefined" && "Notification" in window && Notification.permission === "default" && (
-              <button
-                onClick={() => requestNotificationPermission().then((ok) => ok && toast.success("Push notifications enabled!"))}
-                title="Enable push notifications"
-                className="p-2 rounded-full text-[#00a884] hover:bg-[#2a3942] transition-colors text-[10px] font-medium"
-              >
-                Allow
-              </button>
-            )}
           </div>
         </div>
+
         {/* Notification permission banner */}
         {notifPermission === "default" && (
-          <div className="px-4 py-2.5 bg-[#00a884]/10 border-b border-[#2a3942] flex items-center gap-3">
-            <Bell className="h-4 w-4 text-[#00a884] shrink-0" />
-            <span className="text-xs text-[#e9edef] flex-1">Enable notifications to get message alerts</span>
+          <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl flex items-center gap-2.5" style={{ background: "rgba(0,168,132,0.1)", border: "1px solid rgba(0,168,132,0.2)" }}>
+            <Bell className="h-3.5 w-3.5 text-[#00a884] shrink-0" />
+            <span className="text-xs text-[#e9edef] flex-1 leading-snug">Enable notifications for new messages</span>
             <button
               onClick={async () => {
                 const granted = await requestNotificationPermission();
                 setNotifPermission(granted ? "granted" : "denied");
-                if (granted && user) {
-                  void subscribeToWebPush(user.id);
-                  toast.success("Notifications enabled!");
-                }
+                if (granted && user) { void subscribeToWebPush(user.id); toast.success("Notifications enabled!"); }
               }}
-              className="text-xs font-semibold text-[#00a884] hover:underline shrink-0"
+              className="text-[11px] font-bold text-[#00a884] hover:underline shrink-0 uppercase tracking-wide"
             >
               Allow
             </button>
           </div>
         )}
-        {notifPermission === "denied" && (
-          <div className="px-4 py-2 bg-[#1f2c34] border-b border-[#2a3942] flex items-center gap-2">
-            <BellOff className="h-3.5 w-3.5 text-[#8696a0] shrink-0" />
-            <span className="text-xs text-[#8696a0]">Notifications blocked. Enable in browser settings.</span>
-          </div>
-        )}
+
+        {/* Search */}
         {isAdmin && (
-          <div className="p-3 border-b border-[#2a3942] bg-[#111b21]">
+          <div className="px-3 pt-3 pb-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8696a0]" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search or start new chat" className="pl-9 h-9 bg-[#2a3942] border-0 text-[#e9edef] placeholder:text-[#8696a0] rounded-lg focus-visible:ring-0" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-[15px] w-[15px] text-[#8696a0]" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search conversations"
+                className="pl-9 h-9 text-sm bg-[#2a3942] border-0 text-[#e9edef] placeholder:text-[#8696a0] rounded-xl focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto bg-[#111b21]">
+
+        {/* Conversation list */}
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="p-3 space-y-1">{[1,2,3].map((i) => <div key={i} className="h-[72px] rounded bg-[#1f2c34]/60 animate-pulse" />)}</div>
+            <div className="p-3 space-y-1">
+              {[1,2,3,4].map((i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl">
+                  <div className="h-12 w-12 rounded-full bg-[#2a3942] animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-32 rounded bg-[#2a3942] animate-pulse" />
+                    <div className="h-3 w-48 rounded bg-[#2a3942]/60 animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#8696a0]">No conversations yet.</div>
+            <div className="flex flex-col items-center justify-center h-40 gap-2">
+              <MessageCircle className="h-8 w-8 text-[#2a3942]" />
+              <p className="text-sm text-[#8696a0]">No conversations yet</p>
+            </div>
           ) : (
-            <ul className="divide-y divide-[#2a3942]/40">
+            <ul>
               {filtered.map((c) => {
                 const unread = isAdmin ? c.unread_admin : c.unread_user;
+                const isActive = activeId === c.id;
 
-                // CLIENT view: show admin's avatar, name, online status
                 if (!isAdmin) {
                   const adminOnline = adminProfile?.status === "online";
                   const adminName = adminProfile?.display_name ?? "Ajibola Gbenga Joseph";
                   const adminInitial = adminName[0].toUpperCase();
                   return (
                     <li key={c.id}>
-                      <button onClick={() => setActiveId(c.id)} className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors ${activeId === c.id ? "bg-[#2a3942]" : "hover:bg-[#1f2c34]"}`}>
+                      <button
+                        onClick={() => setActiveId(c.id)}
+                        className={`w-full text-left flex items-center gap-3 px-4 py-3.5 transition-all relative ${isActive ? "bg-[#2a3942]" : "hover:bg-[#1a2530]"}`}
+                      >
+                        {isActive && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#00a884]" />}
                         <div className="relative shrink-0">
                           {adminProfile?.avatar_url ? (
                             <img src={adminProfile.avatar_url} alt={adminName} className="h-12 w-12 rounded-full object-cover" />
                           ) : (
-                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#00a884] text-white text-base font-semibold">{adminInitial}</div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#00a884] to-[#25d366] text-white text-[15px] font-bold shadow-md">{adminInitial}</div>
                           )}
-                          <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#111b21] ${adminOnline ? "bg-[#25d366]" : "bg-[#8696a0]"}`} />
+                          <span className={`absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 ${isActive ? "border-[#2a3942]" : "border-[#111b21]"} ${adminOnline ? "bg-[#25d366]" : "bg-[#8696a0]"}`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium text-sm text-[#e9edef] truncate">{adminName}</span>
-                            {c.last_message_at && <span className={`text-[11px] shrink-0 ${unread > 0 ? "text-[#00a884]" : "text-[#8696a0]"}`}>{formatTime(c.last_message_at)}</span>}
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="font-semibold text-[14px] text-[#e9edef] truncate leading-snug">{adminName}</span>
+                            {c.last_message_at && (
+                              <span className={`text-[11px] shrink-0 tabular-nums ${unread > 0 ? "text-[#00a884] font-semibold" : "text-[#8696a0]"}`}>
+                                {formatTime(c.last_message_at)}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center justify-between gap-2 mt-0.5">
                             <LiveLastSeen iso={adminProfile?.last_seen ?? null} online={adminOnline} />
-                            {unread > 0 && <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-semibold rounded-full bg-[#00a884] text-white">{unread}</span>}
+                            {unread > 0 && (
+                              <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 text-[11px] font-bold rounded-full bg-[#00a884] text-white shadow-sm">
+                                {unread}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </button>
@@ -757,32 +774,45 @@ function ChatPage() {
                   );
                 }
 
-                // ADMIN view: show client avatar, name, online status
                 const clientOnline = c.profile?.status === "online";
                 const clientName = c.profile?.display_name ?? c.profile?.email ?? "User";
                 const clientInitial = clientName[0].toUpperCase();
                 return (
                   <li key={c.id}>
-                    <button onClick={() => setActiveId(c.id)} className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors ${activeId === c.id ? "bg-[#2a3942]" : "hover:bg-[#1f2c34]"}`}>
+                    <button
+                      onClick={() => setActiveId(c.id)}
+                      className={`w-full text-left flex items-center gap-3 px-4 py-3.5 transition-all relative ${isActive ? "bg-[#2a3942]" : "hover:bg-[#1a2530]"}`}
+                    >
+                      {isActive && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#00a884]" />}
                       <div className="relative shrink-0">
                         {c.profile?.avatar_url ? (
-                          <img src={c.profile.avatar_url} alt={clientName} className="h-12 w-12 rounded-full object-cover" />
+                          <img src={c.profile.avatar_url} alt={clientName} className="h-12 w-12 rounded-full object-cover ring-2 ring-[#2a3942]" />
                         ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#00a884] text-white text-base font-semibold">{clientInitial}</div>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#00a884] to-[#25d366] text-white text-[15px] font-bold shadow-md">{clientInitial}</div>
                         )}
-                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#111b21] ${clientOnline ? "bg-[#25d366]" : "bg-[#8696a0]"}`} />
+                        <span className={`absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 ${isActive ? "border-[#2a3942]" : "border-[#111b21]"} ${clientOnline ? "bg-[#25d366]" : "bg-[#8696a0]"}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-sm text-[#e9edef] truncate">{clientName}</span>
-                          {c.last_message_at && <span className={`text-[11px] shrink-0 ${unread > 0 ? "text-[#00a884]" : "text-[#8696a0]"}`}>{formatTime(c.last_message_at)}</span>}
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="font-semibold text-[14px] text-[#e9edef] truncate leading-snug">{clientName}</span>
+                          {c.last_message_at && (
+                            <span className={`text-[11px] shrink-0 tabular-nums ${unread > 0 ? "text-[#00a884] font-semibold" : "text-[#8696a0]"}`}>
+                              {formatTime(c.last_message_at)}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <div className="flex items-center justify-between gap-1.5 mt-0.5">
                           <LastMessagePreview text={c.last_message ?? null} />
-                          {unread > 0 && <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-semibold rounded-full bg-[#00a884] text-white">{unread}</span>}
+                          {unread > 0 && (
+                            <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 text-[11px] font-bold rounded-full bg-[#00a884] text-white shadow-sm">
+                              {unread}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </button>
+                    {/* Subtle divider */}
+                    <div className="ml-[67px] h-px" style={{ background: "#1f2c34" }} />
                   </li>
                 );
               })}
@@ -796,11 +826,13 @@ function ChatPage() {
         {active ? (
           <ActiveChat conversation={active} isAdmin={isAdmin} adminProfile={adminProfile} onBack={() => setActiveId(null)} pendingCallId={pendingCallId} />
         ) : (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center max-w-sm animate-fade-up">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4"><MessageCircle className="h-6 w-6" /></div>
-              <h2 className="text-lg font-semibold">Select a conversation</h2>
-              <p className="text-sm text-muted-foreground mt-1">Pick a thread on the left to start chatting.</p>
+          <div className="flex-1 flex flex-col items-center justify-center p-8 select-none" style={{ background: "#0b141a" }}>
+            <div className="text-center animate-fade-up max-w-xs">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full mb-5" style={{ background: "rgba(0,168,132,0.08)", border: "1.5px solid rgba(0,168,132,0.15)" }}>
+                <MessageCircle className="h-9 w-9 text-[#00a884] opacity-80" />
+              </div>
+              <h2 className="text-[17px] font-semibold text-[#e9edef]">Your messages</h2>
+              <p className="text-sm text-[#8696a0] mt-2 leading-relaxed">Select a conversation from the sidebar to start chatting.</p>
             </div>
           </div>
         )}
@@ -1782,49 +1814,45 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "#0b141a" }}>
-      {/* WhatsApp-style Header */}
-      <header className="h-14 px-2 flex items-center gap-2 shrink-0" style={{ background: "#202c33" }}>
-        {/* Back button — mobile only */}
+      {/* Chat header */}
+      <header className="shrink-0 flex items-center gap-2.5 px-3 py-2" style={{ background: "#202c33", borderBottom: "1px solid #1a2530", minHeight: "60px" }}>
+        {/* Back button — mobile */}
         <button
           onClick={onBack}
-          className="md:hidden flex items-center justify-center h-10 w-10 rounded-full hover:bg-[#2a3942] active:bg-[#2a3942] transition-all shrink-0 text-[#aebac1]"
+          className="md:hidden flex items-center justify-center h-9 w-9 rounded-full text-[#aebac1] hover:bg-[#2a3942] active:scale-90 transition-all shrink-0"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
-        
-        {/* Avatar with online indicator */}
+
+        {/* Avatar */}
         <div className="relative shrink-0">
           {!isAdmin && adminProfile?.avatar_url ? (
-            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-10 w-10 rounded-full object-cover" />
+            <img src={adminProfile.avatar_url} alt={counterpartName} className="h-10 w-10 rounded-full object-cover ring-2 ring-[#2a3942]" />
           ) : isAdmin && conversation.profile?.avatar_url ? (
-            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-10 w-10 rounded-full object-cover" />
+            <img src={conversation.profile.avatar_url} alt={counterpartName} className="h-10 w-10 rounded-full object-cover ring-2 ring-[#2a3942]" />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#00a884] text-white text-base font-bold">{counterpartInitial}</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#00a884] to-[#25d366] text-white text-[15px] font-bold shadow-md">{counterpartInitial}</div>
           )}
           <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#202c33] ${isOnline ? "bg-[#25d366]" : "bg-[#8696a0]"}`} />
         </div>
-        
-        {/* Name and status */}
-        <div className="flex-1 min-w-0 cursor-pointer">
-          <div className="font-semibold text-sm text-[#e9edef] truncate">{counterpartName}</div>
-          <div className={`text-xs font-normal ${isOnline ? "text-[#25d366]" : "text-[#8696a0]"}`}>
+
+        {/* Name + status */}
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-[14px] text-[#e9edef] truncate leading-tight">{counterpartName}</div>
+          <div className={`text-[12px] leading-tight mt-0.5 ${isOnline ? "text-[#25d366]" : "text-[#8696a0]"}`}>
             {statusLabel}
           </div>
         </div>
-        
-        {/* JOIN button — active call indicator */}
+
+        {/* JOIN active call */}
         {activeCallOnConv && activeCallOnConv.initiator_id !== user?.id && (
           <button
             onClick={async () => {
-              const { data: call } = await supabase
-                .from("calls").select("*").eq("id", activeCallOnConv.id).single();
+              const { data: call } = await supabase.from("calls").select("*").eq("id", activeCallOnConv.id).single();
               if (!call) { toast.error("Call not found"); return; }
               const answerFn = (window as any).__answerCall;
-              if (answerFn) {
-                void answerFn(call);
-              } else {
-                toast.error("Please go to the dashboard to join the call");
-              }
+              if (answerFn) void answerFn(call);
+              else toast.error("Please go to the dashboard to join the call");
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#25d366] text-white text-xs font-bold shadow-lg animate-pulse shrink-0"
           >
@@ -1832,62 +1860,43 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             JOIN
           </button>
         )}
-        
+
         {/* Action buttons */}
         <div className="flex items-center gap-0 shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              initiateCall("video");
-            }}
-            title="Start video call"
-            className="p-2.5 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] rounded-full transition-all shrink-0"
-          >
-            <Video className="h-5 w-5" />
+          <button onClick={(e) => { e.stopPropagation(); initiateCall("video"); }} title="Video call"
+            className="h-9 w-9 flex items-center justify-center rounded-full text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] transition-all">
+            <Video className="h-[18px] w-[18px]" />
           </button>
-          {/* Call button with dropdown */}
           <div className="relative shrink-0">
             <div className="flex items-center">
-              <button
-                onClick={(e) => { e.stopPropagation(); initiateCall("voice"); }}
-                title="Start voice call"
-                className="p-2.5 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] rounded-full transition-all"
-              >
-                <Phone className="h-5 w-5" />
+              <button onClick={(e) => { e.stopPropagation(); initiateCall("voice"); }} title="Voice call"
+                className="h-9 w-9 flex items-center justify-center rounded-full text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] transition-all">
+                <Phone className="h-[18px] w-[18px]" />
               </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowCallDropdown(v => !v); }}
-                className="p-1 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] rounded-full transition-all"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              <button onClick={(e) => { e.stopPropagation(); setShowCallDropdown(v => !v); }}
+                className="h-7 w-5 flex items-center justify-center text-[#8696a0] hover:text-[#e9edef] transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
               </button>
             </div>
             {showCallDropdown && (
-              <div
-                className="absolute right-0 top-full mt-1 rounded-lg shadow-2xl overflow-hidden z-50 min-w-[200px] animate-fade-up"
-                style={{ background: "#233138", border: "1px solid #2a3942" }}
-                onClick={e => e.stopPropagation()}
-              >
+              <div className="absolute right-0 top-full mt-1.5 rounded-xl shadow-2xl overflow-hidden z-50 min-w-[190px] animate-fade-up"
+                style={{ background: "#1f2c34", border: "1px solid #2a3942" }} onClick={e => e.stopPropagation()}>
                 <button onClick={() => { initiateCall("voice"); setShowCallDropdown(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#e9edef] hover:bg-[#2a3942] transition-colors text-left">
                   <Phone className="h-4 w-4 text-[#8696a0]" /> Voice call
                 </button>
-                <button onClick={() => { initiateCall("video"); setShowCallDropdown(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#e9edef] hover:bg-[#2a3942] transition-colors text-left">
+                <button onClick={() => { initiateCall("video"); setShowCallDropdown(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#e9edef] hover:bg-[#2a3942] transition-colors text-left" style={{ borderTop: "1px solid #2a3942" }}>
                   <Video className="h-4 w-4 text-[#8696a0]" /> Video call
                 </button>
-                <button onClick={() => { setShowSchedule(true); setShowCallDropdown(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#e9edef] hover:bg-[#2a3942] transition-colors text-left">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#8696a0]"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  Send call link
+                <button onClick={() => { setShowSchedule(true); setShowCallDropdown(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#e9edef] hover:bg-[#2a3942] transition-colors text-left" style={{ borderTop: "1px solid #2a3942" }}>
+                  <Calendar className="h-4 w-4 text-[#8696a0]" /> Schedule call
                 </button>
               </div>
             )}
           </div>
           {isAdmin && (
-            <button
-              onClick={() => { setShowSummary((v) => !v); if (!summary) void generateSummary(); }}
-              className="hidden md:flex p-2.5 text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] rounded-full transition-all shrink-0"
-              title="AI Summary"
-            >
-              <Sparkles className="h-5 w-5" />
+            <button onClick={() => { setShowSummary((v) => !v); if (!summary) void generateSummary(); }}
+              className="hidden md:flex h-9 w-9 items-center justify-center rounded-full text-[#aebac1] hover:text-[#e9edef] hover:bg-[#2a3942] transition-all" title="AI Summary">
+              <Sparkles className="h-[18px] w-[18px]" />
             </button>
           )}
         </div>
@@ -2012,28 +2021,35 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         </div>
       )}
 
-      {/* Messages — flex-1 so it fills remaining space, overflow scrolls */}
+      {/* Messages area */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1 overscroll-contain"
-        style={{ WebkitOverflowScrolling: "touch", background: "#0b141a" } as React.CSSProperties}
+        className="flex-1 overflow-y-auto overscroll-contain"
+        style={{
+          background: "#0b141a",
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23182229' fill-opacity='0.6'%3E%3Cpath d='M50 50c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10s-10-4.477-10-10 4.477-10 10-10zM10 10c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10S0 25.523 0 20s4.477-10 10-10z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          WebkitOverflowScrolling: "touch",
+          padding: "12px 8px",
+        } as React.CSSProperties}
         onClick={() => setCtxMenu(null)}
       >
         {messages.length === 0 && (
-          <div className="text-center text-sm text-[#8696a0] py-12">
-            <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            Say hello 👋
+          <div className="flex flex-col items-center justify-center h-full gap-3 py-16 select-none">
+            <div className="h-16 w-16 rounded-full flex items-center justify-center" style={{ background: "rgba(0,168,132,0.08)", border: "1.5px solid rgba(0,168,132,0.12)" }}>
+              <MessageCircle className="h-7 w-7 text-[#00a884] opacity-60" />
+            </div>
+            <p className="text-[#8696a0] text-sm">No messages yet — say hello 👋</p>
           </div>
         )}
         {messages.map((m, i) => {
           const mine = m.sender_id === user?.id;
           const prev = messages[i - 1];
+          const next = messages[i + 1];
           const showGap = !prev || prev.sender_id !== m.sender_id;
-          const showAvatar = !mine && (!messages[i + 1] || messages[i + 1].sender_id !== m.sender_id);
-          const canEdit = mine && m.type === "text" && !m.deleted_at;
-          const canDelete = (mine || isAdmin) && !m.deleted_at;
+          const isLastInGroup = !next || next.sender_id !== m.sender_id;
+          const showAvatar = !mine && isLastInGroup;
 
-          // Date separator logic
+          // Date separator
           const msgDate = new Date(m.created_at);
           const prevDate = prev ? new Date(prev.created_at) : null;
           const showDateSep = !prevDate || msgDate.toDateString() !== prevDate.toDateString();
@@ -2050,147 +2066,144 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             <div key={m.id}>
               {/* Date separator */}
               {showDateSep && (
-                <div className="flex items-center justify-center my-3">
-                  <span className="px-3 py-1 rounded-lg text-[11px] text-[#e9edef] font-medium shadow-sm" style={{ background: "#1f2c34" }}>
+                <div className="flex items-center justify-center my-4">
+                  <span className="px-3 py-1 rounded-full text-[11px] text-[#8696a0] font-medium shadow-sm select-none" style={{ background: "#182229", border: "1px solid #2a3942" }}>
                     {dateSepLabel}
                   </span>
                 </div>
               )}
-              {/* Message row */}
-              <div className={`flex ${mine ? "justify-end" : "justify-start items-end gap-1.5"} ${showGap ? "mt-2" : ""}`}>
-              {!mine && showAvatar && (
-                <div className="shrink-0 mb-1">
-                  {isAdmin ? (
-                    conversation.profile?.avatar_url ? (
-                      <img src={conversation.profile.avatar_url} alt="client" className="h-7 w-7 rounded-full object-cover" />
-                    ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00a884] text-white text-xs font-semibold">{counterpartInitial}</div>
-                    )
-                  ) : (
-                    adminProfile?.avatar_url ? (
-                      <img src={adminProfile.avatar_url} alt={adminProfile.display_name || "Admin"} className="h-7 w-7 rounded-full object-cover" />
-                    ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00a884] text-white text-xs font-semibold">{counterpartInitial}</div>
-                    )
-                  )}
-                </div>
-              )}
-              {!mine && !showAvatar && <div className="w-7 shrink-0" />}
 
-              <div className="max-w-[75%]">
-                {/* Inline edit mode */}
-                {editingId === m.id ? (
-                  <div className="flex items-end gap-2 rounded-lg border border-[#00a884]/60 bg-[#1f2c34] p-2 min-w-[200px]">
-                    <textarea
-                      autoFocus
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void saveEdit(m.id); }
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                      rows={1}
-                      className="flex-1 resize-none bg-transparent outline-none text-sm px-1 max-h-24 text-[#e9edef]"
-                    />
-                    <div className="flex gap-1 shrink-0">
-                      <button onClick={() => void saveEdit(m.id)} className="text-xs text-[#00a884] font-medium hover:underline">Save</button>
-                      <button onClick={() => setEditingId(null)} className="text-xs text-[#8696a0] hover:text-[#e9edef]">Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      openCtxMenu(e.clientX, e.clientY, m, mine);
-                    }}
-                    onTouchStart={(e) => startLongPress(e, m, mine)}
-                    onTouchEnd={cancelLongPress}
-                    onTouchMove={cancelLongPress}
-                    onTouchCancel={cancelLongPress}
-                    className="select-none cursor-context-menu"
-                  >
-                    <MessageBubble 
-                      message={m} 
-                      mine={mine} 
-                      playingId={playingId} 
-                      setPlayingId={setPlayingId} 
-                      onDelete={deleteMessage} 
-                      messages={messages}
-                      senderProfile={mine ? null : (isAdmin ? conversation.profile : adminProfile)}
-                    />
+              {/* Message row */}
+              <div className={`flex ${mine ? "justify-end" : "justify-start items-end gap-1.5"} ${showGap ? "mt-3" : "mt-0.5"} px-2`}>
+                {/* Counterpart avatar */}
+                {!mine && (
+                  <div className="shrink-0 mb-0.5 w-7">
+                    {showAvatar ? (
+                      isAdmin ? (
+                        conversation.profile?.avatar_url
+                          ? <img src={conversation.profile.avatar_url} alt="client" className="h-7 w-7 rounded-full object-cover" />
+                          : <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#00a884] to-[#25d366] text-white text-[10px] font-bold">{counterpartInitial}</div>
+                      ) : (
+                        adminProfile?.avatar_url
+                          ? <img src={adminProfile.avatar_url} alt="admin" className="h-7 w-7 rounded-full object-cover" />
+                          : <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#00a884] to-[#25d366] text-white text-[10px] font-bold">{counterpartInitial}</div>
+                      )
+                    ) : null}
                   </div>
                 )}
-                <div className={`flex items-center gap-1 mt-0.5 text-[10px] text-[#8696a0] ${mine ? "justify-end mr-1" : "ml-1"}`}>
-                  <span>{formatTime(m.created_at)}</span>
-                  {mine && !m.deleted_at && (
-                    m.status === "seen"
-                      ? <CheckCheck className="h-3 w-3 text-[#53bdeb]" />
-                      : m.status === "delivered"
-                        ? <CheckCheck className="h-3 w-3 text-[#8696a0]" />
-                        : <Check className="h-3 w-3 text-[#8696a0]" />
+
+                <div className="max-w-[72%] md:max-w-[60%]">
+                  {/* Edit mode */}
+                  {editingId === m.id ? (
+                    <div className="flex items-end gap-2 rounded-2xl border border-[#00a884]/50 bg-[#1f2c34] p-2.5 min-w-[220px] shadow-lg">
+                      <textarea
+                        autoFocus
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void saveEdit(m.id); }
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        rows={1}
+                        className="flex-1 resize-none bg-transparent outline-none text-sm px-1 max-h-24 text-[#e9edef] leading-relaxed"
+                      />
+                      <div className="flex gap-1.5 shrink-0">
+                        <button onClick={() => void saveEdit(m.id)} className="text-xs text-[#00a884] font-semibold hover:underline">Save</button>
+                        <button onClick={() => setEditingId(null)} className="text-xs text-[#8696a0] hover:text-[#e9edef]">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openCtxMenu(e.clientX, e.clientY, m, mine); }}
+                      onTouchStart={(e) => startLongPress(e, m, mine)}
+                      onTouchEnd={cancelLongPress}
+                      onTouchMove={cancelLongPress}
+                      onTouchCancel={cancelLongPress}
+                      className="select-none"
+                      style={{ animation: "message-in 0.22s cubic-bezier(0.22,1,0.36,1) both" }}
+                    >
+                      <MessageBubble
+                        message={m}
+                        mine={mine}
+                        playingId={playingId}
+                        setPlayingId={setPlayingId}
+                        onDelete={deleteMessage}
+                        messages={messages}
+                        senderProfile={mine ? null : (isAdmin ? conversation.profile : adminProfile)}
+                      />
+                    </div>
                   )}
-                </div>
-                {/* Reactions display */}
-                {m.reactions && Object.keys(m.reactions).length > 0 && (
-                  <div className={`flex flex-wrap gap-1 mt-1 ${mine ? "justify-end" : "justify-start"}`}>
-                    {Object.entries(m.reactions).map(([emoji, userIds]) =>
-                      userIds.length > 0 ? (
-                        <button
-                          key={emoji}
-                          onClick={async () => {
-                            if (!user) return;
-                            const current: Record<string, string[]> = m.reactions ?? {};
-                            const users = current[emoji] ?? [];
-                            const alreadyReacted = users.includes(user.id);
-                            const updated = {
-                              ...current,
-                              [emoji]: alreadyReacted
-                                ? users.filter(id => id !== user.id)
-                                : [...users, user.id],
-                            };
-                            if (updated[emoji].length === 0) delete updated[emoji];
-                            setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, reactions: updated } : msg));
-                            await supabase.from("messages").update({ reactions: updated }).eq("id", m.id);
-                          }}
-                          className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs transition-colors ${
-                            userIds.includes(user?.id ?? "") ? "bg-[#00a884]/30 border border-[#00a884]" : "bg-[#1f2c34] border border-[#2a3942]"
-                          }`}
-                        >
-                          <span>{emoji}</span>
-                          {userIds.length > 1 && <span className="text-[#8696a0] text-[10px]">{userIds.length}</span>}
-                        </button>
-                      ) : null
+
+                  {/* Timestamp + read receipt */}
+                  <div className={`flex items-center gap-1 mt-0.5 px-1 ${mine ? "justify-end" : "justify-start"}`}>
+                    <span className="text-[10px] text-[#8696a0] tabular-nums">{formatTime(m.created_at)}</span>
+                    {mine && !m.deleted_at && (
+                      m.status === "seen"
+                        ? <CheckCheck className="h-3 w-3 text-[#53bdeb]" />
+                        : m.status === "delivered"
+                          ? <CheckCheck className="h-3 w-3 text-[#8696a0]" />
+                          : <Check className="h-3 w-3 text-[#8696a0]" />
                     )}
                   </div>
-                )}
+
+                  {/* Reactions */}
+                  {m.reactions && Object.keys(m.reactions).length > 0 && (
+                    <div className={`flex flex-wrap gap-1 mt-1 ${mine ? "justify-end" : "justify-start"}`}>
+                      {Object.entries(m.reactions).map(([emoji, userIds]) =>
+                        userIds.length > 0 ? (
+                          <button
+                            key={emoji}
+                            onClick={async () => {
+                              if (!user) return;
+                              const current: Record<string, string[]> = m.reactions ?? {};
+                              const users = current[emoji] ?? [];
+                              const alreadyReacted = users.includes(user.id);
+                              const updated = { ...current, [emoji]: alreadyReacted ? users.filter(id => id !== user.id) : [...users, user.id] };
+                              if (updated[emoji].length === 0) delete updated[emoji];
+                              setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, reactions: updated } : msg));
+                              await supabase.from("messages").update({ reactions: updated }).eq("id", m.id);
+                            }}
+                            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs transition-all active:scale-95 ${
+                              userIds.includes(user?.id ?? "") ? "bg-[#00a884]/25 border border-[#00a884]/50" : "bg-[#1f2c34] border border-[#2a3942]"
+                            }`}
+                          >
+                            <span>{emoji}</span>
+                            {userIds.length > 1 && <span className="text-[#8696a0] text-[10px]">{userIds.length}</span>}
+                          </button>
+                        ) : null
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              </div>{/* end message row flex */}
             </div>
           );
         })}
+
+        {/* Typing indicator */}
         {theyTyping && (
-          <div className="flex justify-start">
-            <div className="px-4 py-3 rounded-lg rounded-bl-none" style={{ background: "#1f2c34" }}>
-              <div className="flex gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#8696a0] animate-typing" />
-                <span className="h-1.5 w-1.5 rounded-full bg-[#8696a0] animate-typing [animation-delay:160ms]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-[#8696a0] animate-typing [animation-delay:320ms]" />
+          <div className="flex justify-start items-end gap-1.5 mt-1 px-4">
+            <div className="w-7 shrink-0" />
+            <div className="px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm" style={{ background: "#1f2c34" }}>
+              <div className="flex gap-[5px] items-center h-3">
+                {[0, 160, 320].map((delay) => (
+                  <span key={delay} className="h-[6px] w-[6px] rounded-full bg-[#8696a0] animate-typing" style={{ animationDelay: `${delay}ms` }} />
+                ))}
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Reactions bar (floats above context menu) */}
+      {/* Reactions picker */}
       {reactionsMenu && (
         <div
-          className="fixed z-[51] flex items-center gap-1 px-3 py-2 rounded-full shadow-2xl animate-fade-up"
-          style={{ left: reactionsMenu.x, top: reactionsMenu.y, background: "#233138", border: "1px solid #2a3942" }}
+          className="fixed z-[51] flex items-center gap-0.5 px-2.5 py-2 rounded-full shadow-2xl animate-fade-up"
+          style={{ left: reactionsMenu.x, top: reactionsMenu.y, background: "#1f2c34", border: "1px solid #2a3942", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
           onClick={e => e.stopPropagation()}
           onTouchEnd={e => e.stopPropagation()}
         >
-          {["👍","❤️","😂","😮","😢","🙏","🧍"].map((emoji) => (
+          {["👍","❤️","😂","😮","😢","🙏","🔥"].map((emoji) => (
             <button
               key={emoji}
               onClick={async () => {
@@ -2198,162 +2211,123 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                 const msgId = reactionsMenu.msgId;
                 const msg = messages.find(m => m.id === msgId);
                 if (!msg) return;
-                // Toggle reaction: add if not present, remove if already reacted
                 const current: Record<string, string[]> = msg.reactions ?? {};
                 const users = current[emoji] ?? [];
                 const alreadyReacted = users.includes(user.id);
-                const updated = {
-                  ...current,
-                  [emoji]: alreadyReacted
-                    ? users.filter(id => id !== user.id)
-                    : [...users, user.id],
-                };
-                // Remove emoji key if no users left
+                const updated = { ...current, [emoji]: alreadyReacted ? users.filter(id => id !== user.id) : [...users, user.id] };
                 if (updated[emoji].length === 0) delete updated[emoji];
-                // Optimistic update
                 setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: updated } : m));
                 await supabase.from("messages").update({ reactions: updated }).eq("id", msgId);
                 setReactionsMenu(null);
                 setCtxMenu(null);
               }}
-              className="text-xl hover:scale-125 transition-transform active:scale-110 p-0.5"
+              className="text-[22px] hover:scale-125 transition-transform active:scale-95 p-1 rounded-full hover:bg-[#2a3942]"
             >
               {emoji}
             </button>
           ))}
-          <button
-            onClick={() => { setReactionsMenu(null); setCtxMenu(null); }}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2a3942] text-[#8696a0] hover:text-[#e9edef] text-sm font-bold ml-1"
-          >
-            +
-          </button>
         </div>
       )}
 
-      {/* WhatsApp-style context menu */}
+      {/* Context menu */}
       {ctxMenu && (
         <div
-          className="fixed z-50 rounded-lg border border-[#2a3942] overflow-hidden min-w-[200px] animate-fade-up shadow-2xl"
-          style={{ left: ctxMenu.x, top: ctxMenu.y, background: "#233138" }}
+          className="fixed z-50 rounded-2xl overflow-hidden min-w-[190px] animate-fade-up"
+          style={{ left: ctxMenu.x, top: ctxMenu.y, background: "#1f2c34", border: "1px solid #2a3942", boxShadow: "0 12px 40px rgba(0,0,0,0.55)" }}
           onClick={(e) => e.stopPropagation()}
           onTouchEnd={(e) => e.stopPropagation()}
         >
           <button
             onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+              e.preventDefault(); e.stopPropagation();
               const msg = messages.find((m) => m.id === ctxMenu.msgId);
               if (msg) setReplyingTo(msg);
-              setCtxMenu(null);
-              setReactionsMenu(null);
+              setCtxMenu(null); setReactionsMenu(null);
             }}
-            className="flex items-center gap-3 w-full px-5 py-3.5 text-sm hover:bg-[#2a3942] transition-colors text-left text-[#e9edef]"
+            className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] transition-colors text-left text-[#e9edef] font-medium"
           >
-            <Reply className="h-4 w-4 text-[#8696a0] shrink-0" />
-            Reply
+            <Reply className="h-[15px] w-[15px] text-[#8696a0] shrink-0" /> Reply
           </button>
           {ctxMenu.mine && ctxMenu.type === "text" && (
             <button
               onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 const msg = messages.find((m) => m.id === ctxMenu.msgId);
-                if (msg) { 
-                  setEditText(msg.content ?? ""); 
-                  setEditingId(msg.id); 
-                }
-                setCtxMenu(null);
-                setReactionsMenu(null);
+                if (msg) { setEditText(msg.content ?? ""); setEditingId(msg.id); }
+                setCtxMenu(null); setReactionsMenu(null);
               }}
-              className="flex items-center gap-3 w-full px-5 py-3.5 text-sm hover:bg-[#2a3942] transition-colors text-left text-[#e9edef]"
+              className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] transition-colors text-left text-[#e9edef] font-medium"
+              style={{ borderTop: "1px solid #2a3942" }}
             >
-              <Pencil className="h-4 w-4 text-[#8696a0] shrink-0" />
-              Edit message
+              <Pencil className="h-[15px] w-[15px] text-[#8696a0] shrink-0" /> Edit
             </button>
           )}
           {(ctxMenu.mine || isAdmin) && (
             <button
-              onClick={(e) => { 
-                e.preventDefault();
-                e.stopPropagation(); 
-                setCtxMenu(null);
-                setReactionsMenu(null);
+              onClick={(e) => {
+                e.preventDefault(); e.stopPropagation();
+                setCtxMenu(null); setReactionsMenu(null);
                 setTimeout(() => deleteMessage(ctxMenu.msgId), 50);
               }}
-              className="flex items-center gap-3 w-full px-5 py-3.5 text-sm hover:bg-[#2a3942] text-[#f15c6d] transition-colors text-left"
+              className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] text-[#f15c6d] transition-colors text-left font-medium"
+              style={{ borderTop: "1px solid #2a3942" }}
             >
-              <Trash2 className="h-4 w-4 shrink-0" />
-              Delete message
+              <Trash2 className="h-[15px] w-[15px] shrink-0" /> Delete
             </button>
           )}
         </div>
       )}
 
-      {/* File previews */}
-      {filePreviews.length > 0 && (
-        <div className="px-3 pt-2 pb-1 border-t border-[#2a3942] flex flex-wrap gap-2 shrink-0" style={{ background: "#111b21" }}>
-          {filePreviews.map((fp, idx) => (
-            <div key={idx} className="relative group">
-              {fp.kind === "image" && fp.previewUrl ? (
-                <img src={fp.previewUrl} alt={fp.file.name} className="h-16 w-16 object-cover rounded-lg border border-border" />
-              ) : fp.kind === "video" && fp.previewUrl ? (
-                <div className="h-16 w-24 relative rounded-lg border border-border overflow-hidden bg-black">
-                  <video src={fp.previewUrl} className="h-full w-full object-cover opacity-70" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Play className="h-5 w-5 text-white" />
-                  </div>
-                </div>
-              ) : (
-                <div className="h-16 w-32 flex flex-col items-center justify-center rounded-lg px-2 gap-1" style={{ background: "#1f2c34", border: "1px solid #2a3942" }}>
-                  <FileText className="h-5 w-5 text-[#8696a0]" />
-                  <span className="text-[10px] text-[#8696a0] truncate w-full text-center">{fp.file.name}</span>
-                  <span className="text-[9px] text-[#8696a0]">{formatBytes(fp.file.size)}</span>
-                </div>
-              )}
-              <button onClick={() => removePreview(idx)} className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-[#f15c6d] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <X className="h-2.5 w-2.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Composer */}
+      <div className="shrink-0" style={{ background: "#111b21", borderTop: "1px solid #1a2530", paddingBottom: "max(8px, env(safe-area-inset-bottom, 8px))" }}>
 
-      {/* Composer — shrink-0 keeps it at bottom, safe-area for iPhone home bar */}
-      <form
-        onSubmit={send}
-        className="shrink-0 px-2 pt-2 flex items-end gap-2"
-        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom, 0.5rem))", background: "#111b21" }}
-      >
         {/* Reply preview */}
         {replyingTo && (
-          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded border-l-4 border-[#00a884]" style={{ background: "#1f2c34" }}>
+          <div className="mx-3 mt-2 px-3 py-2 rounded-xl flex items-center gap-2.5" style={{ background: "#1f2c34", borderLeft: "3px solid #00a884" }}>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-[#00a884]">Replying to</div>
-              <div className="text-xs text-[#e9edef]/80 truncate mt-0.5">
-                {replyingTo.type === "voice"
-                  ? "🎙️ Voice note"
-                  : replyingTo.type === "image"
-                  ? "🖼️ Image"
-                  : replyingTo.type === "file"
-                  ? `📎 ${replyingTo.file_name ?? "File"}`
-                  : replyingTo.content ?? ""}
+              <div className="text-[11px] font-bold text-[#00a884] mb-0.5">Replying to</div>
+              <div className="text-xs text-[#8696a0] truncate">
+                {replyingTo.type === "voice" ? "🎙️ Voice note" : replyingTo.type === "image" ? "🖼️ Image" : replyingTo.type === "file" ? `📎 ${replyingTo.file_name ?? "File"}` : replyingTo.content ?? ""}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setReplyingTo(null)}
-              className="text-[#8696a0] hover:text-[#e9edef] transition-colors shrink-0 p-1"
-            >
-              <X className="h-4 w-4" />
+            <button type="button" onClick={() => setReplyingTo(null)} className="text-[#8696a0] hover:text-[#e9edef] transition-colors p-1 shrink-0">
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
-        {recording ? (
-          <div className="flex-1 flex items-center gap-3 rounded-full px-4 py-2.5" style={{ background: "#2a3942" }}>
-            {/* Cancel */}
-            <button
-              type="button"
-              onClick={() => {
+
+        {/* File previews */}
+        {filePreviews.length > 0 && (
+          <div className="px-3 pt-2 flex flex-wrap gap-2">
+            {filePreviews.map((fp, idx) => (
+              <div key={idx} className="relative group">
+                {fp.kind === "image" && fp.previewUrl ? (
+                  <img src={fp.previewUrl} alt={fp.file.name} className="h-16 w-16 object-cover rounded-xl border border-[#2a3942]" />
+                ) : fp.kind === "video" && fp.previewUrl ? (
+                  <div className="h-16 w-24 relative rounded-xl border border-[#2a3942] overflow-hidden bg-black">
+                    <video src={fp.previewUrl} className="h-full w-full object-cover opacity-70" />
+                    <div className="absolute inset-0 flex items-center justify-center"><Play className="h-5 w-5 text-white" /></div>
+                  </div>
+                ) : (
+                  <div className="h-16 w-32 flex flex-col items-center justify-center rounded-xl px-2 gap-1" style={{ background: "#1f2c34", border: "1px solid #2a3942" }}>
+                    <FileText className="h-5 w-5 text-[#8696a0]" />
+                    <span className="text-[10px] text-[#8696a0] truncate w-full text-center">{fp.file.name}</span>
+                    <span className="text-[9px] text-[#8696a0]">{formatBytes(fp.file.size)}</span>
+                  </div>
+                )}
+                <button onClick={() => removePreview(idx)} className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-[#f15c6d] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-md transition-opacity">
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={send} className="flex items-end gap-2 px-3 pt-2 pb-1">
+          {recording ? (
+            /* Recording UI */
+            <div className="flex-1 flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: "#2a3942" }}>
+              <button type="button" onClick={() => {
                 if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
                 if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
                 mediaRecorderRef.current?.stream?.getTracks().forEach(t => t.stop());
@@ -2362,82 +2336,60 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                 setRecording(false);
                 setRecordingSeconds(0);
                 setWaveformBars(Array(24).fill(10));
-              }}
-              className="text-[#8696a0] hover:text-[#f15c6d] transition-colors shrink-0"
-              title="Cancel recording"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            {/* Live waveform */}
-            <div className="flex-1 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-              <div className="flex items-end gap-[2px] h-6 flex-1">
-                {waveformBars.map((h, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-full bg-[#00a884] transition-all duration-75"
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
+              }} className="text-[#8696a0] hover:text-[#f15c6d] transition-colors shrink-0" title="Cancel">
+                <X className="h-5 w-5" />
+              </button>
+              <div className="flex-1 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+                <div className="flex items-end gap-[2px] h-6 flex-1">
+                  {waveformBars.map((h, i) => (
+                    <div key={i} className="flex-1 rounded-full bg-[#00a884] transition-all duration-75" style={{ height: `${h}%` }} />
+                  ))}
+                </div>
+                <span className="text-sm font-mono font-semibold text-red-400 shrink-0 w-10 text-right tabular-nums">
+                  {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, "0")}
+                </span>
               </div>
-              <span className="text-sm font-mono font-medium text-red-400 shrink-0 w-10 text-right">
-                {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, "0")}
-              </span>
+              <button type="button" onClick={stopRecording} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0 shadow-md">
+                <Send className="h-4 w-4" />
+              </button>
             </div>
+          ) : (
+            <>
+              {/* Input area */}
+              <div className="flex-1 flex items-end gap-1.5 rounded-2xl px-3 py-1.5 min-h-[46px]" style={{ background: "#2a3942" }}>
+                <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.csv,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileSelect} />
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-[#8696a0] hover:text-[#e9edef] transition-colors shrink-0 self-end mb-0.5">
+                  <Paperclip className="h-[18px] w-[18px]" />
+                </button>
+                <textarea
+                  value={text}
+                  onChange={(e) => { setText(e.target.value); broadcastTyping(); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(e as unknown as FormEvent); } }}
+                  rows={1}
+                  placeholder={filePreviews.length > 0 ? `${filePreviews.length} file(s) ready…` : "Message"}
+                  disabled={filePreviews.length > 0}
+                  className="chat-textarea flex-1 resize-none bg-transparent outline-none py-2.5 max-h-32 text-[#e9edef] placeholder:text-[#8696a0] disabled:opacity-50 leading-snug self-center"
+                  style={{ fontSize: "16px", lineHeight: "1.4" }}
+                />
+              </div>
 
-            {/* Send */}
-            <button
-              type="button"
-              onClick={stopRecording}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0"
-              title="Send voice note"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Attachment + text input */}
-            <div className="flex-1 flex items-end gap-2 rounded-full px-3 py-1.5" style={{ background: "#2a3942" }}>
-              <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.csv,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileSelect} />
-              <button type="button" onClick={() => fileInputRef.current?.click()} title="Attach file" className="p-1.5 text-[#8696a0] hover:text-[#e9edef] transition-colors shrink-0">
-                <Paperclip className="h-5 w-5" />
-              </button>
-              <textarea
-                value={text}
-                onChange={(e) => { setText(e.target.value); broadcastTyping(); }}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(e as unknown as FormEvent); } }}
-                rows={1}
-                placeholder={filePreviews.length > 0 ? `${filePreviews.length} file(s) ready...` : "Message"}
-                disabled={filePreviews.length > 0}
-                className="chat-textarea flex-1 resize-none bg-transparent outline-none py-2 max-h-32 text-[#e9edef] placeholder:text-[#8696a0] disabled:opacity-50 text-base"
-                style={{ fontSize: "16px" }} // Prevent iOS zoom on focus
-              />
-            </div>
-            {/* Mic / Send button */}
-            {!text.trim() && filePreviews.length === 0 ? (
-              <button
-                type="button"
-                onClick={startRecording}
-                disabled={uploading}
-                title="Record voice note"
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40"
-              >
-                <Mic className="h-5 w-5" />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={(!text.trim() && filePreviews.length === 0) || sending || uploading}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40"
-              >
-                {sending || uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-              </button>
-            )}
-          </>
-        )}
-      </form>
+              {/* Send / Mic button */}
+              {!text.trim() && filePreviews.length === 0 ? (
+                <button type="button" onClick={startRecording} disabled={uploading} title="Record voice note"
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40 shadow-md">
+                  <Mic className="h-5 w-5" />
+                </button>
+              ) : (
+                <button type="submit" disabled={(!text.trim() && filePreviews.length === 0) || sending || uploading}
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40 shadow-md">
+                  {sending || uploading ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <Send className="h-4.5 w-4.5" />}
+                </button>
+              )}
+            </>
+          )}
+        </form>
+      </div>
     </div>
   );
 }
@@ -2459,12 +2411,15 @@ function QuotedMessage({ message, messages }: { message: Message; messages: Mess
     : quotedMsg.content ?? "";
 
   return (
-    <div className="flex gap-2 mb-2 pb-2 border-l-4 border-[#00a884] pl-2 rounded-sm" style={{ background: "rgba(0,0,0,0.15)" }}>
-      <div className="flex-1 min-w-0">
-        <div className="font-bold text-[#00a884] text-[11px] leading-tight">
+    <div
+      className="flex gap-2 mb-2.5 pb-2 rounded-lg overflow-hidden pl-2.5 pr-2"
+      style={{ background: "rgba(0,0,0,0.18)", borderLeft: "3px solid rgba(0,168,132,0.7)" }}
+    >
+      <div className="flex-1 min-w-0 pt-1.5 pb-0.5">
+        <div className="font-semibold text-[#00a884] text-[11px] leading-none mb-1">
           {quotedMsg.sender_id === message.sender_id ? "You" : "Them"}
         </div>
-        <div className="text-white/70 text-[12px] truncate mt-0.5 leading-tight">{quotedContent}</div>
+        <div className="text-white/60 text-[12px] truncate leading-snug">{quotedContent}</div>
       </div>
     </div>
   );
@@ -2664,66 +2619,32 @@ function VoiceBubble({ message: m, mine, playingId, setPlayingId, senderProfile 
   const senderInitial = senderName[0].toUpperCase();
 
   return (
-    <div className={`flex items-start gap-2 max-w-[380px] ${mine ? "flex-row-reverse" : "flex-row"}`}>
-      {/* Avatar - only show for received messages */}
-      {!mine && (
-        <div className="shrink-0 mt-1">
-          {senderProfile?.avatar_url ? (
-            <img 
-              src={senderProfile.avatar_url} 
-              alt={senderName}
-              className="h-8 w-8 rounded-full object-cover ring-2 ring-border"
-            />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground text-xs font-semibold ring-2 ring-border">
-              {senderInitial}
-            </div>
-          )}
+    <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-2xl min-w-[240px] max-w-[300px] shadow-sm ${
+      mine ? "rounded-tr-sm" : "rounded-tl-sm"
+    }`} style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
+      {/* Play/Pause */}
+      <button
+        onClick={handleToggle}
+        disabled={loading || error !== null}
+        className={`flex h-9 w-9 items-center justify-center rounded-full shrink-0 transition-all active:scale-90 disabled:opacity-50 shadow-md ${
+          mine ? "bg-white/20 hover:bg-white/30" : "bg-[#00a884] hover:bg-[#009070]"
+        }`}
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin text-white" />
+          : isPlaying ? <Pause className="h-4 w-4 text-white" />
+          : <Play className="h-[15px] w-[15px] ml-0.5 text-white" />}
+      </button>
+
+      {/* Waveform + time */}
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+        <div className="flex items-center gap-[2px] h-6 cursor-pointer" onClick={handleSeek}>
+          {bars.map((b, i) => (
+            <div key={i} className={`flex-1 rounded-full transition-all duration-100 ${b.filled ? "bg-white" : (error ? "bg-red-400/30" : "bg-white/25")}`}
+              style={{ height: `${b.h}%`, minWidth: "2px" }} />
+          ))}
         </div>
-      )}
-      
-      {/* Voice message bubble */}
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl min-w-[260px] max-w-[320px] ${
-        mine ? "rounded-tr-none" : "rounded-tl-none"
-      }`} style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
-        {/* Play/Pause button */}
-        <button
-          onClick={handleToggle}
-          disabled={loading || error !== null}
-          className={`flex h-9 w-9 items-center justify-center rounded-full shrink-0 transition-all active:scale-95 disabled:opacity-50 ${
-            mine ? "bg-white/20 hover:bg-white/30" : "bg-[#00a884] hover:bg-[#00a884]/90"
-          }`}
-          title={error ? error : isPlaying ? "Pause" : "Play"}
-        >
-          {loading
-            ? <Loader2 className="h-4 w-4 animate-spin text-white" />
-            : isPlaying
-            ? <Pause className="h-4 w-4 text-white" />
-            : <Play className="h-4 w-4 ml-0.5 text-white" />
-          }
-        </button>
-        
-        {/* Waveform and duration */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
-          {/* Waveform */}
-          <div className="flex items-center gap-[1px] h-7 cursor-pointer" onClick={handleSeek}>
-            {bars.map((b, i) => (
-              <div 
-                key={i} 
-                className={`flex-1 rounded-full transition-all duration-150 ${
-                  b.filled 
-                    ? "bg-white" 
-                    : (error ? "bg-red-500/30" : "bg-white/30")
-                }`} 
-                style={{ height: `${b.h}%`, minWidth: '2px' }} 
-              />
-            ))}
-          </div>
-          
-          {/* Duration */}
-          <div className="text-[11px] font-medium text-[#8696a0]">
-            {error ? "⚠️ Error" : (isPlaying || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration))}
-          </div>
+        <div className="text-[11px] font-medium text-[#8696a0] tabular-nums">
+          {error ? "⚠️ Error" : (isPlaying || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration))}
         </div>
       </div>
     </div>
@@ -2868,41 +2789,26 @@ function ImageBubble({ message: m, mine }: { message: Message; mine: boolean }) 
   const [open, setOpen] = useState(false);
   return (
     <>
-      <div className={`rounded-xl overflow-hidden ${mine ? "rounded-tr-none" : "rounded-tl-none"} w-[260px] max-w-[260px]`}>
-        <button
-          onClick={() => setOpen(true)}
-          className="block w-full relative group focus:outline-none"
-        >
-          <img
-            src={m.file_url!}
-            alt={m.file_name ?? "image"}
-            className="w-full object-cover block"
-            style={{ maxHeight: 300, minHeight: 120 }}
-          />
-          {/* Hover overlay with zoom icon */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+      <div className={`rounded-2xl overflow-hidden shadow-sm ${mine ? "rounded-tr-sm" : "rounded-tl-sm"} w-[240px] max-w-[240px]`}>
+        <button onClick={() => setOpen(true)} className="block w-full relative group focus:outline-none">
+          <img src={m.file_url!} alt={m.file_name ?? "image"} className="w-full object-cover block" style={{ maxHeight: 280, minHeight: 100 }} />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center">
             <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
-              </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
             </div>
           </div>
         </button>
-        <div className="flex items-center justify-between gap-2 px-3 py-2" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
-          <span className="text-[11px] truncate text-[#8696a0]">{m.file_name}</span>
-          <a href={m.file_url!} download={m.file_name ?? "image"} target="_blank" rel="noreferrer"
-            className="shrink-0 hover:opacity-70 transition-opacity text-[#8696a0]" onClick={e => e.stopPropagation()}>
-            <Download className="h-3.5 w-3.5" />
-          </a>
-        </div>
+        {m.file_name && (
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
+            <span className="text-[11px] truncate text-[#8696a0]">{m.file_name}</span>
+            <a href={m.file_url!} download={m.file_name ?? "image"} target="_blank" rel="noreferrer"
+              className="shrink-0 hover:opacity-70 transition-opacity text-[#8696a0]" onClick={e => e.stopPropagation()}>
+              <Download className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        )}
       </div>
-      {open && (
-        <ImageLightbox
-          src={m.file_url!}
-          name={m.file_name ?? "image"}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      {open && <ImageLightbox src={m.file_url!} name={m.file_name ?? "image"} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -2922,8 +2828,8 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
   senderProfile?: { display_name: string | null; avatar_url: string | null } | null;
 }) {
   const base = mine
-    ? "text-[#e9edef] rounded-tr-none"
-    : "text-[#e9edef] rounded-tl-none";
+    ? "text-[#e9edef] rounded-tr-sm"
+    : "text-[#e9edef] rounded-tl-sm";
 
   // ── Call message (WhatsApp style) ────────────────────────────────────────────
   if (m.type === "call") {
@@ -3042,9 +2948,9 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
             if (fn) fn(cd?.call_type ?? "voice");
           }
         }}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm min-w-[180px] max-w-[240px] transition-opacity ${
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm min-w-[180px] max-w-[230px] shadow-sm transition-opacity ${
           canCallBack ? "active:opacity-70 cursor-pointer" : "cursor-default"
-        } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
+        } ${mine ? "rounded-tr-sm" : "rounded-tl-sm"}`}
         style={{ background: mine ? "#005c4b" : "#1f2c34" }}
       >
         {/* Icon circle — WhatsApp style */}
@@ -3082,20 +2988,14 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     // Video — inline player like WhatsApp
     if (isVideo) {
       return (
-        <div className={`rounded-xl overflow-hidden ${mine ? "rounded-tr-none" : "rounded-tl-none"} w-[260px] max-w-[260px]`}>
-          <video
-            src={m.file_url}
-            controls
-            playsInline
-            className="w-full block bg-black"
-            style={{ maxHeight: 260, minHeight: 120 }}
-          />
-          <div className="flex items-center justify-between gap-2 px-3 py-2" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
+        <div className={`rounded-2xl overflow-hidden shadow-sm ${mine ? "rounded-tr-sm" : "rounded-tl-sm"} w-[240px] max-w-[240px]`}>
+          <video src={m.file_url} controls playsInline className="w-full block bg-black" style={{ maxHeight: 240, minHeight: 100 }} />
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white/20 text-white">{ext}</span>
+              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-white/15 text-white">{ext}</span>
               <span className="text-[11px] truncate text-[#8696a0]">{name}</span>
             </div>
-            <a href={m.file_url} download={name} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 transition-opacity text-[#8696a0]">
+            <a href={m.file_url} download={name} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 text-[#8696a0]">
               <Download className="h-3.5 w-3.5" />
             </a>
           </div>
@@ -3103,27 +3003,19 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
       );
     }
 
-    // Document card — WhatsApp style with coloured type badge
+    // Document card
     const bgColor = docBgColor(ext);
     return (
-      <a
-        href={m.file_url}
-        target="_blank"
-        rel="noreferrer"
-        className={`flex items-center gap-3 px-3 py-3 rounded-xl ${mine ? "rounded-tr-none" : "rounded-tl-none"} min-w-[200px] max-w-[280px] hover:opacity-90 active:scale-[0.98] transition-all`}
+      <a href={m.file_url} target="_blank" rel="noreferrer"
+        className={`flex items-center gap-3 px-3 py-3 rounded-2xl shadow-sm ${mine ? "rounded-tr-sm" : "rounded-tl-sm"} min-w-[200px] max-w-[260px] hover:opacity-90 active:scale-[0.98] transition-all`}
         style={{ background: mine ? "#005c4b" : "#1f2c34" }}
       >
-        {/* Coloured type block */}
-        <div className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${bgColor}`}>
-          <span className="text-[11px] font-black uppercase text-white leading-none tracking-tight">
-            {ext.slice(0, 4) || "FILE"}
-          </span>
+        <div className={`flex h-11 w-11 items-center justify-center rounded-xl shrink-0 ${bgColor} shadow-sm`}>
+          <span className="text-[10px] font-black uppercase text-white leading-none tracking-tight">{ext.slice(0, 4) || "FILE"}</span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold truncate leading-tight text-[#e9edef]">{name}</div>
-          <div className="text-[11px] mt-0.5 text-[#8696a0]">
-            {m.file_size ? formatBytes(m.file_size) : ext.toUpperCase() + " Document"}
-          </div>
+          <div className="text-[13px] font-semibold truncate leading-snug text-[#e9edef]">{name}</div>
+          <div className="text-[11px] mt-0.5 text-[#8696a0]">{m.file_size ? formatBytes(m.file_size) : ext.toUpperCase()}</div>
         </div>
         <Download className="h-4 w-4 shrink-0 text-[#8696a0]" />
       </a>
@@ -3133,8 +3025,10 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
   // ── Deleted ─────────────────────────────────────────────────────────────────
   if (m.deleted_at) {
     return (
-      <div className="px-4 py-2.5 rounded-xl text-sm italic text-[#8696a0]" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
-        🚫 This message was deleted
+      <div className={`px-3.5 py-2 rounded-2xl text-[13px] italic text-[#8696a0] flex items-center gap-2 ${mine ? "rounded-tr-sm" : "rounded-tl-sm"}`}
+        style={{ background: mine ? "#00433a" : "#182229", border: "1px solid #2a3942" }}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-60"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        This message was deleted
       </div>
     );
   }
@@ -3172,7 +3066,7 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
   // ── Plain text ───────────────────────────────────────────────────────────────
   return (
     <div
-      className={`px-3 py-2 rounded-xl text-sm whitespace-pre-wrap break-words ${base}`}
+      className={`px-3.5 py-2 rounded-2xl text-[14px] whitespace-pre-wrap break-words leading-relaxed shadow-sm ${base} ${mine ? "rounded-tr-sm" : "rounded-tl-sm"}`}
       style={{ background: mine ? "#005c4b" : "#1f2c34" }}
     >
       {m.replied_to_id && <QuotedMessage message={m} messages={messages} />}
