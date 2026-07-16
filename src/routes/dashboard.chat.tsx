@@ -6,7 +6,7 @@ import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
   Play, Pause, FileText, Bell, BellOff, Trash2, Pencil, Reply,
-  Phone, Video, Calendar, Link, Clock,
+  Phone, Video, Calendar, Link, Clock, Camera, Image, Music, FolderOpen,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -860,6 +860,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [showCallDropdown, setShowCallDropdown] = useState(false);
+  const [showAttachPicker, setShowAttachPicker] = useState(false);
 
   // Reset reply state when conversation changes
   useEffect(() => {
@@ -888,7 +889,11 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);       // generic (all)
+  const photoInputRef = useRef<HTMLInputElement>(null);      // images only
+  const cameraInputRef = useRef<HTMLInputElement>(null);     // camera capture
+  const docInputRef = useRef<HTMLInputElement>(null);        // documents
+  const audioInputRef = useRef<HTMLInputElement>(null);      // audio files
 
   // Load messages + existing summary + counterpart status
   useEffect(() => {
@@ -2356,15 +2361,110 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             </div>
           ) : (
             <>
+              {/* Hidden file inputs — one per category */}
+              <input ref={fileInputRef}   type="file" multiple accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.csv,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileSelect} />
+              <input ref={photoInputRef}  type="file" multiple accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
+              <input ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" className="hidden" onChange={handleFileSelect} />
+              <input ref={docInputRef}    type="file" multiple accept="application/pdf,.doc,.docx,.txt,.zip,.csv,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileSelect} />
+              <input ref={audioInputRef}  type="file" multiple accept="audio/*,.mp3,.wav,.m4a,.ogg,.aac" className="hidden" onChange={handleFileSelect} />
+
               {/* Input area */}
-              <div className="flex-1 flex items-end gap-1.5 rounded-2xl px-3 py-1.5 min-h-[46px]" style={{ background: "#2a3942" }}>
-                <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,application/pdf,.doc,.docx,.txt,.zip,.csv,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileSelect} />
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-[#8696a0] hover:text-[#e9edef] transition-colors shrink-0 self-end mb-0.5">
+              <div className="flex-1 flex items-end gap-1.5 rounded-2xl px-3 py-1.5 min-h-[46px] relative" style={{ background: "#2a3942" }}>
+
+                {/* WhatsApp-style attachment picker */}
+                {showAttachPicker && (
+                  <>
+                    {/* Backdrop — tap anywhere to dismiss */}
+                    <div className="fixed inset-0 z-[60]" onClick={() => setShowAttachPicker(false)} />
+
+                    {/* Picker grid — floats above the composer */}
+                    <div
+                      className="absolute left-0 bottom-full mb-2 z-[61] rounded-2xl overflow-hidden shadow-2xl animate-fade-up"
+                      style={{ background: "#1f2c34", border: "1px solid #2a3942", minWidth: 220 }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {/* Grid of 2 columns */}
+                      <div className="grid grid-cols-3 gap-0">
+                        {/* Photos & Videos */}
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachPicker(false); photoInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
+                        >
+                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#7c3aed" }}>
+                            <Image className="h-6 w-6 text-white" />
+                          </div>
+                          <span className="text-[11px] text-[#8696a0] font-medium">Photos</span>
+                        </button>
+
+                        {/* Camera */}
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachPicker(false); cameraInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
+                        >
+                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#ea580c" }}>
+                            <Camera className="h-6 w-6 text-white" />
+                          </div>
+                          <span className="text-[11px] text-[#8696a0] font-medium">Camera</span>
+                        </button>
+
+                        {/* Document */}
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachPicker(false); docInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
+                        >
+                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#0284c7" }}>
+                            <FolderOpen className="h-6 w-6 text-white" />
+                          </div>
+                          <span className="text-[11px] text-[#8696a0] font-medium">Document</span>
+                        </button>
+
+                        {/* Audio */}
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachPicker(false); audioInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
+                          style={{ borderTop: "1px solid #2a3942" }}
+                        >
+                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#be185d" }}>
+                            <Music className="h-6 w-6 text-white" />
+                          </div>
+                          <span className="text-[11px] text-[#8696a0] font-medium">Audio</span>
+                        </button>
+
+                        {/* Any file */}
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachPicker(false); fileInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
+                          style={{ borderTop: "1px solid #2a3942" }}
+                        >
+                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#16a34a" }}>
+                            <FileText className="h-6 w-6 text-white" />
+                          </div>
+                          <span className="text-[11px] text-[#8696a0] font-medium">Any file</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Paperclip — toggles picker */}
+                <button
+                  type="button"
+                  onClick={() => setShowAttachPicker(v => !v)}
+                  className={`p-1.5 transition-all shrink-0 self-end mb-0.5 rounded-full ${showAttachPicker ? "text-[#00a884] bg-[#00a884]/10 rotate-45" : "text-[#8696a0] hover:text-[#e9edef]"}`}
+                  style={{ transition: "transform 0.2s ease, color 0.15s" }}
+                  title="Attach"
+                >
                   <Paperclip className="h-[18px] w-[18px]" />
                 </button>
+
                 <textarea
                   value={text}
-                  onChange={(e) => { setText(e.target.value); broadcastTyping(); }}
+                  onChange={(e) => { setText(e.target.value); broadcastTyping(); if (showAttachPicker) setShowAttachPicker(false); }}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(e as unknown as FormEvent); } }}
                   rows={1}
                   placeholder={filePreviews.length > 0 ? `${filePreviews.length} file(s) ready…` : "Message"}
@@ -2383,7 +2483,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
               ) : (
                 <button type="submit" disabled={(!text.trim() && filePreviews.length === 0) || sending || uploading}
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-[#00a884] text-white hover:opacity-90 transition-all active:scale-95 shrink-0 disabled:opacity-40 shadow-md">
-                  {sending || uploading ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <Send className="h-4.5 w-4.5" />}
+                  {sending || uploading ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <Send className="h-[18px] w-[18px]" />}
                 </button>
               )}
             </>
@@ -2941,31 +3041,21 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
       : mine ? "text-white" : "text-[#00a884]";
 
     return (
-      <button
-        onPointerDown={() => {
-          if (canCallBack) {
-            const fn = (window as any).__initiateCall;
-            if (fn) fn(cd?.call_type ?? "voice");
-          }
-        }}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm min-w-[180px] max-w-[230px] shadow-sm transition-opacity ${
-          canCallBack ? "active:opacity-70 cursor-pointer" : "cursor-default"
-        } ${mine ? "rounded-tr-sm" : "rounded-tl-sm"}`}
-        style={{ background: mine ? "#005c4b" : "#1f2c34" }}
-      >
-        {/* Icon circle — WhatsApp style */}
-        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-          <span className={iconFg}>{IconEl}</span>
-        </div>
-        <div className="flex-1 min-w-0 text-left">
-          <div className={`font-semibold text-sm leading-tight ${isMissed && !outgoing ? "text-red-400" : "text-[#e9edef]"}`}>{titleText}</div>
-          {subtitleText && (
-            <div className={`text-[11px] mt-0.5 ${canCallBack ? "text-[#00a884] font-medium" : "text-[#8696a0]"}`}>
-              {subtitleText}
-            </div>
-          )}
-        </div>
-      </button>
+      <CallBubble
+        mine={mine}
+        callData={cd}
+        isMissed={isMissed}
+        isDeclined={isDeclined}
+        isEnded={isEnded}
+        isVideo={isVideo}
+        outgoing={outgoing}
+        IconEl={IconEl}
+        titleText={titleText}
+        subtitleText={subtitleText}
+        canCallBack={canCallBack}
+        iconBg={iconBg}
+        iconFg={iconFg}
+      />
     );
   }
 
@@ -3033,7 +3123,7 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     );
   }
 
-  // ── Emoji-only — big bounce ──────────────────────────────────────────────────
+  // ── Emoji-only — per-emoji animated ─────────────────────────────────────────
   const emojiOnly = m.content ? /^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\s)+$/u.test(m.content.trim()) : false;
   const emojiChars = emojiOnly && m.content
     ? [...m.content.trim()].filter(c => /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u.test(c))
@@ -3041,24 +3131,46 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
 
   if (emojiChars.length > 0 && emojiChars.length <= 3) {
     const size = emojiChars.length === 1 ? "text-6xl" : emojiChars.length === 2 ? "text-5xl" : "text-4xl";
+
+    /** Map each emoji to its animation class(es).
+     *  entryClass  = played once on mount
+     *  loopClass   = looped after entry (optional)
+     */
+    function getEmojiAnim(emoji: string): { entry: string; loop?: string } {
+      // laugh / ROFL
+      if (["😂","🤣","😹"].includes(emoji)) return { entry: "emoji-laugh" };
+      // cry / sob
+      if (["😭","😢","🥺"].includes(emoji)) return { entry: "emoji-cry" };
+      // heart variants
+      if (["❤️","🧡","💛","💚","💙","💜","🖤","🤍","💖","💗","💓","💞","💝","🫶","♥️","💘","💕"].includes(emoji))
+        return { entry: "emoji-heart", loop: "emoji-heart-pulse" };
+      // fire
+      if (["🔥"].includes(emoji)) return { entry: "emoji-fire", loop: "emoji-fire-loop" };
+      // shock / scream
+      if (["😮","😲","😱","🤯"].includes(emoji)) return { entry: "emoji-shock" };
+      // party / thumbs
+      if (["👍","🎉","🥳","🎊","✨","🌟","⭐"].includes(emoji)) return { entry: "emoji-spin-pop" };
+      // skull / dead
+      if (["💀","☠️"].includes(emoji)) return { entry: "emoji-tumble" };
+      // default bounce
+      return { entry: "animate-emoji-bounce" };
+    }
+
     return (
-      <div className="flex gap-1 px-1 py-1">
-        {emojiChars.map((emoji, i) => (
-          <span
-            key={`${m.id}-${i}`}
-            className={`${size} select-none inline-block`}
-            style={{
-              animationName: "emoji-bounce",
-              animationDuration: "0.5s",
-              animationTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
-              animationFillMode: "both",
-              animationDelay: `${i * 80}ms`,
-              display: "inline-block",
-            }}
-          >
-            {emoji}
-          </span>
-        ))}
+      <div className="flex gap-1 px-1 py-1 select-none">
+        {emojiChars.map((emoji, i) => {
+          const { entry, loop } = getEmojiAnim(emoji);
+          return (
+            <EmojiChar
+              key={`${m.id}-${i}`}
+              emoji={emoji}
+              size={size}
+              entryClass={entry}
+              loopClass={loop}
+              delay={i * 80}
+            />
+          );
+        })}
       </div>
     );
   }
@@ -3073,6 +3185,139 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
       {m.pinned && <Pin className="inline h-3 w-3 mr-1 opacity-70" />}
       {m.content}
     </div>
+  );
+}
+
+// ── EmojiChar — entry animation then optional loop ────────────────────────────
+function EmojiChar({ emoji, size, entryClass, loopClass, delay }: {
+  emoji: string;
+  size: string;
+  entryClass: string;
+  loopClass?: string;
+  delay: number;
+}) {
+  const [phase, setPhase] = useState<"entry" | "loop">("entry");
+
+  return (
+    <span
+      className={`${size} inline-block ${phase === "entry" ? entryClass : (loopClass ?? "")}`}
+      style={{ animationDelay: phase === "entry" ? `${delay}ms` : "0ms" }}
+      onAnimationEnd={() => { if (phase === "entry" && loopClass) setPhase("loop"); }}
+    >
+      {emoji}
+    </span>
+  );
+}
+
+// ── CallBubble — with tap-to-callback modal ────────────────────────────────
+function CallBubble({ mine, callData, isMissed, isDeclined, isEnded, isVideo, outgoing, IconEl, titleText, subtitleText, canCallBack, iconBg, iconFg }: {
+  mine: boolean;
+  callData: any;
+  isMissed: boolean;
+  isDeclined: boolean;
+  isEnded: boolean;
+  isVideo: boolean;
+  outgoing: boolean;
+  IconEl: React.ReactNode;
+  titleText: string;
+  subtitleText: string;
+  canCallBack: boolean;
+  iconBg: string;
+  iconFg: string;
+}) {
+  const [showModal, setShowModal] = useState(false);
+
+  function handleTap() {
+    // Any call bubble tap opens the callback modal (not just missed)
+    setShowModal(true);
+  }
+
+  function callBack(type: "voice" | "video") {
+    setShowModal(false);
+    const fn = (window as any).__initiateCall;
+    if (fn) fn(type);
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleTap}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm min-w-[180px] max-w-[230px] shadow-sm transition-opacity active:opacity-70 cursor-pointer ${mine ? "rounded-tr-sm" : "rounded-tl-sm"}`}
+        style={{ background: mine ? "#005c4b" : "#1f2c34" }}
+      >
+        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+          <span className={iconFg}>{IconEl}</span>
+        </div>
+        <div className="flex-1 min-w-0 text-left">
+          <div className={`font-semibold text-sm leading-tight ${isMissed && !outgoing ? "text-red-400" : "text-[#e9edef]"}`}>{titleText}</div>
+          {subtitleText && (
+            <div className={`text-[11px] mt-0.5 ${canCallBack ? "text-[#00a884] font-medium" : "text-[#8696a0]"}`}>
+              {subtitleText}
+            </div>
+          )}
+        </div>
+      </button>
+
+      {/* Callback modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={() => setShowModal(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm rounded-t-3xl overflow-hidden animate-slide-up"
+            style={{ background: "#1f2c34" }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-[#8696a0]/40" />
+            </div>
+
+            {/* Title */}
+            <div className="px-5 py-3 text-center" style={{ borderBottom: "1px solid #2a3942" }}>
+              <p className="text-[13px] text-[#8696a0]">Call back</p>
+            </div>
+
+            {/* Options */}
+            <div className="flex gap-3 px-6 py-6">
+              {/* Voice call */}
+              <button
+                onClick={() => callBack("voice")}
+                className="flex-1 flex flex-col items-center gap-3 py-5 rounded-2xl transition-all active:scale-95"
+                style={{ background: "#2a3942" }}
+              >
+                <div className="h-14 w-14 rounded-full bg-[#00a884] flex items-center justify-center shadow-lg">
+                  <Phone className="h-6 w-6 text-white" />
+                </div>
+                <span className="text-[13px] font-semibold text-[#e9edef]">Voice call</span>
+              </button>
+
+              {/* Video call */}
+              <button
+                onClick={() => callBack("video")}
+                className="flex-1 flex flex-col items-center gap-3 py-5 rounded-2xl transition-all active:scale-95"
+                style={{ background: "#2a3942" }}
+              >
+                <div className="h-14 w-14 rounded-full bg-[#00a884] flex items-center justify-center shadow-lg">
+                  <Video className="h-6 w-6 text-white" />
+                </div>
+                <span className="text-[13px] font-semibold text-[#e9edef]">Video call</span>
+              </button>
+            </div>
+
+            {/* Cancel */}
+            <div className="px-6 pb-8">
+              <button
+                onClick={() => setShowModal(false)}
+                className="w-full py-3.5 rounded-2xl text-[14px] font-semibold text-[#8696a0] transition-all active:opacity-70"
+                style={{ background: "#2a3942" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
