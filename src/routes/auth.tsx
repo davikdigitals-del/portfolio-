@@ -1,9 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { MessageCircle, ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -66,25 +63,30 @@ function AuthPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
+
+    // Validate before setting submitting so the button never gets stuck
+    if (isRegister && password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
     setSubmitting(true);
     try {
       if (isRegister) {
-        if (password.length < 6) {
-          toast.error("Password must be at least 6 characters");
-          return;
-        }
         const { error, message } = await signUp(email, password, displayName || email.split("@")[0]);
         if (error) {
           toast.error(error);
         } else if (message) {
+          // Email confirmation required — stay on page and inform user
           toast.success(message, { duration: 6000 });
         } else {
+          // Auto-confirmed (e.g. email confirmations disabled in Supabase)
           toast.success("Welcome to Pulse!");
+          void navigate({ to: "/dashboard" });
         }
       } else {
         const { error } = await signIn(email, password);
         if (error) {
-          // Provide more helpful error messages
           if (error.includes("Invalid login credentials")) {
             toast.error("Invalid email or password. Please try again.");
           } else if (error.includes("Email not confirmed")) {
@@ -94,6 +96,7 @@ function AuthPage() {
           }
         } else {
           toast.success("Welcome back!");
+          // Navigation handled by the useEffect watching `user`
         }
       }
     } finally {

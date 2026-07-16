@@ -108,18 +108,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
+        // Apply cached role instantly to avoid a null-role flash
         const cached = getCachedRole(newSession.user.id);
-        if (cached) setRole(cached);
+        if (cached) {
+          setRole(cached);
+          // Already have a cached role — unblock loading now, role will silently refresh
+          if (mounted) setLoading(false);
+        }
 
+        // Fetch fresh role (with timeout), then clear loading if not already cleared
         const resolved = await fetchRole(newSession.user.id);
-        if (mounted) setRole(resolved);
+        if (mounted) {
+          setRole(resolved);
+          setLoading(false); // no-op if already false
+        }
       } else {
         setRole(null);
         clearCachedRole();
+        // Signed out — unblock immediately
+        if (mounted) setLoading(false);
       }
-
-      // Ensure loading is cleared on any auth event
-      if (mounted) setLoading(false);
     });
 
     return () => {
