@@ -6,7 +6,7 @@ import {
   Send, MessageCircle, Loader2, CheckCheck, Check, Search, Pin,
   Sparkles, Paperclip, Mic, Download, X, Volume2, VolumeX,
   Play, Pause, FileText, Bell, BellOff, Trash2, Pencil, Reply,
-  Phone, Video, Calendar, Link, Clock, Camera, Image, Music, FolderOpen,
+  Phone, Video, Calendar, Link, Clock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -1630,6 +1630,23 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       return;
     }
 
+    // ── Offline guard: check receiver is actually online before ringing ────────
+    const { data: receiverProfile } = await supabase
+      .from("profiles")
+      .select("status")
+      .eq("user_id", receiverId)
+      .maybeSingle();
+
+    if (!receiverProfile || receiverProfile.status !== "online") {
+      toast.error(
+        isAdmin
+          ? "This client is currently offline. They will see a missed call when they come back."
+          : "Ajibola is currently offline. Try again when they're online.",
+        { duration: 4000 }
+      );
+      return;
+    }
+
     console.log("[Call] Initiating", callType, "call to", receiverId);
 
     try {
@@ -2380,72 +2397,82 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                     {/* Picker grid — floats above the composer */}
                     <div
                       className="absolute left-0 bottom-full mb-2 z-[61] rounded-2xl overflow-hidden shadow-2xl animate-fade-up"
-                      style={{ background: "#1f2c34", border: "1px solid #2a3942", minWidth: 220 }}
+                      style={{ background: "#1f2c34", border: "1px solid #2a3942", minWidth: 240 }}
                       onClick={e => e.stopPropagation()}
                     >
-                      {/* Grid of 2 columns */}
-                      <div className="grid grid-cols-3 gap-0">
+                      <div className="grid grid-cols-3 gap-0 p-3 pb-2">
+
                         {/* Photos & Videos */}
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachPicker(false); photoInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
-                        >
-                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#7c3aed" }}>
-                            <Image className="h-6 w-6 text-white" />
+                        <button type="button" onClick={() => { setShowAttachPicker(false); photoInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
+                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899)" }}>
+                            {/* Mountain + sun photo icon */}
+                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                              <rect x="2" y="5" width="26" height="20" rx="3" fill="white" fillOpacity="0.25"/>
+                              <rect x="2" y="5" width="26" height="20" rx="3" stroke="white" strokeWidth="1.8"/>
+                              <circle cx="9.5" cy="11.5" r="2.5" fill="white"/>
+                              <path d="M2 20l7-7 5 5 4-4 10 9" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                            </svg>
                           </div>
-                          <span className="text-[11px] text-[#8696a0] font-medium">Photos</span>
+                          <span className="text-[11px] font-semibold text-[#e9edef]">Gallery</span>
                         </button>
 
                         {/* Camera */}
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachPicker(false); cameraInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
-                        >
-                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#ea580c" }}>
-                            <Camera className="h-6 w-6 text-white" />
+                        <button type="button" onClick={() => { setShowAttachPicker(false); cameraInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
+                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #f97316, #ef4444)" }}>
+                            {/* Camera body icon */}
+                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                              <path d="M11 7l2-2h4l2 2h4a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h4z" stroke="white" strokeWidth="1.8" fill="white" fillOpacity="0.2" strokeLinejoin="round"/>
+                              <circle cx="15" cy="15" r="4" stroke="white" strokeWidth="1.8"/>
+                              <circle cx="15" cy="15" r="1.5" fill="white"/>
+                            </svg>
                           </div>
-                          <span className="text-[11px] text-[#8696a0] font-medium">Camera</span>
+                          <span className="text-[11px] font-semibold text-[#e9edef]">Camera</span>
                         </button>
 
                         {/* Document */}
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachPicker(false); docInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
-                        >
-                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#0284c7" }}>
-                            <FolderOpen className="h-6 w-6 text-white" />
+                        <button type="button" onClick={() => { setShowAttachPicker(false); docInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
+                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}>
+                            {/* Folded-corner document icon */}
+                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                              <path d="M7 4h12l6 6v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="white" fillOpacity="0.25" stroke="white" strokeWidth="1.8"/>
+                              <path d="M19 4v6h6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                              <line x1="10" y1="14" x2="20" y2="14" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                              <line x1="10" y1="18" x2="20" y2="18" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                              <line x1="10" y1="22" x2="16" y2="22" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                            </svg>
                           </div>
-                          <span className="text-[11px] text-[#8696a0] font-medium">Document</span>
+                          <span className="text-[11px] font-semibold text-[#e9edef]">Document</span>
                         </button>
 
                         {/* Audio */}
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachPicker(false); audioInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
-                          style={{ borderTop: "1px solid #2a3942" }}
-                        >
-                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#be185d" }}>
-                            <Music className="h-6 w-6 text-white" />
+                        <button type="button" onClick={() => { setShowAttachPicker(false); audioInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
+                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #ec4899, #be185d)" }}>
+                            {/* Musical note icon */}
+                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                              <path d="M12 22V8l14-3v14" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                              <circle cx="9" cy="22" r="3" fill="white" fillOpacity="0.3" stroke="white" strokeWidth="1.8"/>
+                              <circle cx="23" cy="19" r="3" fill="white" fillOpacity="0.3" stroke="white" strokeWidth="1.8"/>
+                            </svg>
                           </div>
-                          <span className="text-[11px] text-[#8696a0] font-medium">Audio</span>
+                          <span className="text-[11px] font-semibold text-[#e9edef]">Audio</span>
                         </button>
 
                         {/* Any file */}
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachPicker(false); fileInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-4 py-5 hover:bg-[#2a3942] transition-colors"
-                          style={{ borderTop: "1px solid #2a3942" }}
-                        >
-                          <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ background: "#16a34a" }}>
-                            <FileText className="h-6 w-6 text-white" />
+                        <button type="button" onClick={() => { setShowAttachPicker(false); fileInputRef.current?.click(); }}
+                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
+                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+                            {/* Paperclip/file icon */}
+                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                              <path d="M24 14l-9.5 9.5a6 6 0 0 1-8.5-8.5l9.5-9.5a4 4 0 0 1 5.6 5.6L11.6 21a2 2 0 0 1-2.8-2.8l8.5-8.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
                           </div>
-                          <span className="text-[11px] text-[#8696a0] font-medium">Any file</span>
+                          <span className="text-[11px] font-semibold text-[#e9edef]">File</span>
                         </button>
+
                       </div>
                     </div>
                   </>

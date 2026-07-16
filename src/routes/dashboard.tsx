@@ -436,35 +436,75 @@ function DashboardLayout() {
 
   // ── Ringtone helpers (defined first so useEffects below can use them) ──────
   const startRingtone = useCallback(() => {
-    // Stop any existing ringtone first
     if (ringtoneRef.current) { ringtoneRef.current.stop(); ringtoneRef.current = null; }
     try {
-      const ctx = new AudioContext();
+      // Resume or create AudioContext — browsers block audio until a user gesture,
+      // but by the time the user receives a call they've already interacted with the page.
+      let ctx: AudioContext;
+      try {
+        ctx = new AudioContext();
+      } catch { return; }
+
       let playing = true;
-      let timeoutId: ReturnType<typeof setTimeout> | null = null;
-      function ring() {
+      let timerId: ReturnType<typeof setTimeout> | null = null;
+
+      // Classic GSM dual-tone ring: 400 Hz + 450 Hz mixed, on 0.4 s, off 0.2 s, on 0.4 s, off 2 s
+      // Matches what a real phone sounds like.
+      function playTone(freq1: number, freq2: number, duration: number, vol: number) {
         if (!playing) return;
-        const osc = ctx.createOscillator();
+        const now = ctx.currentTime;
+
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.connect(gain);
+
+        osc1.type = "sine";
+        osc1.frequency.value = freq1;
+        osc2.type = "sine";
+        osc2.frequency.value = freq2;
+
+        // Smooth attack + decay so it doesn't click
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(vol, now + 0.02);
+        gain.gain.setValueAtTime(vol, now + duration - 0.02);
+        gain.gain.linearRampToValueAtTime(0, now + duration);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
         gain.connect(ctx.destination);
-        osc.frequency.value = 440;
-        osc.type = "sine";
-        gain.gain.setValueAtTime(0.4, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.8);
-        timeoutId = setTimeout(() => { if (playing) ring(); }, 1500);
+
+        osc1.start(now); osc1.stop(now + duration);
+        osc2.start(now); osc2.stop(now + duration);
       }
-      ring();
+
+      function ringCycle() {
+        if (!playing) return;
+        // Ring pattern: RING (0.4s) — pause (0.2s) — RING (0.4s) — long pause (2s)
+        playTone(400, 450, 0.4, 0.35);
+        timerId = setTimeout(() => {
+          if (!playing) return;
+          playTone(400, 450, 0.4, 0.35);
+          timerId = setTimeout(() => {
+            if (playing) ringCycle(); // loop after the 2s pause
+          }, 2200);
+        }, 700); // 0.4 ring + 0.2 gap + a bit of buffer
+      }
+
+      // Unlock AudioContext if suspended (required on iOS/Chrome after page load)
+      if (ctx.state === "suspended") {
+        ctx.resume().then(ringCycle).catch(() => {});
+      } else {
+        ringCycle();
+      }
+
       ringtoneRef.current = {
         stop: () => {
           playing = false;
-          if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+          if (timerId) { clearTimeout(timerId); timerId = null; }
           ctx.close().catch(() => {});
-        }
+        },
       };
-    } catch { /* ignore */ }
+    } catch { /* ignore — audio not available */ }
   }, []);
 
   const stopRingtone = useCallback(() => {
