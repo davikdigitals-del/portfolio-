@@ -357,15 +357,14 @@ function ChatPage() {
   async function deleteConversation(convId: string) {
     setConvCtxMenu(null);
     setDeleteConfirm(null);
-    // Remove from UI immediately
+    // Optimistic — remove from UI immediately
     setConversations((prev) => prev.filter((c) => c.id !== convId));
     if (activeId === convId) setActiveId(null);
-    // Delete messages first (FK constraint), then conversation
-    await supabase.from("messages").delete().eq("conversation_id", convId);
+    // Messages cascade-delete automatically via FK ON DELETE CASCADE
     const { error } = await supabase.from("conversations").delete().eq("id", convId);
     if (error) {
-      toast.error("Failed to delete conversation");
-      void loadConversations(); // re-fetch to restore
+      toast.error("Failed to delete conversation: " + error.message);
+      void loadConversations(); // restore
     } else {
       toast.success("Conversation deleted");
     }
@@ -994,6 +993,24 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [theyTyping, setTheyTyping] = useState(false);
+
+  // ── "Delete for me" — hidden message IDs per conversation, persisted to localStorage ──
+  const hiddenKey = `hidden_msgs_${conversation.id}_${user?.id ?? ""}`;
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(hiddenKey);
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
+
+  function hideMessageForMe(msgId: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(msgId);
+      try { localStorage.setItem(hiddenKey, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  }
   const [filePreviews, setFilePreviews] = useState<FilePreview[]>([]);
   const [uploading, setUploading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -1638,35 +1655,35 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     return () => document.removeEventListener("pointerdown", handlePointerDown, true);
   }, [ctxMenu, reactionsMenu]);
 
-  // ---- Delete message ----
-  async function deleteMessage(msgId: string) {
-    console.log("[Delete] Starting delete for message:", msgId);
-    
-    if (!msgId) {
-      console.error("[Delete] No message ID provided");
-      toast.error("Cannot delete message: Invalid ID");
-      return;
-    }
-
-    try {
-      console.log("[Delete] Calling Supabase update...");
-      const { error } = await supabase
-        .from("messages")
-        .update({ deleted_at: new Date().toISOString(), content: "This message was deleted" })
-        .eq("id", msgId);
-      
-      if (error) {
-        console.error("[Delete] Supabase error:", error);
-        toast.error(`Failed to delete message: ${error.message}`);
-      } else {
-        console.log("[Delete] Message deleted successfully in database");
-        setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted_at: new Date().toISOString(), content: "This message was deleted" } : m));
-        toast.success("Message deleted");
-      }
-    } catch (err) {
-      console.error("[Delete] Exception:", err);
+  // ---- Delete for everyone (soft-delete — shows "This message was deleted" to both sides) ----
+  async function deleteForEveryone(msgId: string) {
+    if (!msgId) return;
+    setMessages((prev) => prev.map((m) => m.id === msgId
+      ? { ...m, deleted_at: new Date().toISOString(), content: "This message was deleted" }
+      : m
+    ));
+    const { error } = await supabase
+      .from("messages")
+      .update({ deleted_at: new Date().toISOString(), content: "This message was deleted" })
+      .eq("id", msgId);
+    if (error) {
       toast.error("Failed to delete message");
+      // revert
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted_at: null } : m));
+    } else {
+      toast.success("Message deleted for everyone");
     }
+  }
+
+  // ---- Delete for me (local-only hide — other side still sees the message) ----
+  function deleteForMe(msgId: string) {
+    hideMessageForMe(msgId);
+    toast.success("Message removed for you");
+  }
+
+  // Keep old name as alias so any other call sites still work
+  async function deleteMessage(msgId: string) {
+    await deleteForEveryone(msgId);
   }
 
   // ---- Send text ----
@@ -2206,10 +2223,10 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
             <p className="text-[#8696a0] text-sm">No messages yet — say hello 👋</p>
           </div>
         )}
-        {messages.map((m, i) => {
+        {messages.filter((m) => !hiddenIds.has(m.id)).map((m, i, visibleMsgs) => {
           const mine = m.sender_id === user?.id;
-          const prev = messages[i - 1];
-          const next = messages[i + 1];
+          const prev = visibleMsgs[i - 1];
+          const next = visibleMsgs[i + 1];
           const showGap = !prev || prev.sender_id !== m.sender_id;
           const isLastInGroup = !next || next.sender_id !== m.sender_id;
           const showAvatar = !mine && isLastInGroup;
@@ -2434,14 +2451,25 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
               onClick={(e) => {
                 e.preventDefault(); e.stopPropagation();
                 setCtxMenu(null); setReactionsMenu(null);
-                setTimeout(() => deleteMessage(ctxMenu.msgId), 50);
+                setTimeout(() => deleteForEveryone(ctxMenu.msgId), 50);
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] text-[#f15c6d] transition-colors text-left font-medium"
               style={{ borderTop: "1px solid #2a3942" }}
             >
-              <Trash2 className="h-[15px] w-[15px] shrink-0" /> Delete
+              <Trash2 className="h-[15px] w-[15px] shrink-0" /> Delete for everyone
             </button>
           )}
+          <button
+            onClick={(e) => {
+              e.preventDefault(); e.stopPropagation();
+              setCtxMenu(null); setReactionsMenu(null);
+              setTimeout(() => deleteForMe(ctxMenu.msgId), 50);
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] text-[#8696a0] transition-colors text-left font-medium"
+            style={{ borderTop: "1px solid #2a3942" }}
+          >
+            <Trash2 className="h-[15px] w-[15px] shrink-0" /> Delete for me
+          </button>
         </div>
       )}
 
