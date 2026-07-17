@@ -2936,40 +2936,72 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
 
 function ImageBubble({ message: m, mine, timestamp, status }: { message: Message; mine: boolean; timestamp: string; status?: Message["status"] }) {
   const [open, setOpen] = useState(false);
+  const [errored, setErrored] = useState(false);
+  const corners = mine ? "rounded-[18px] rounded-tr-[4px]" : "rounded-[18px] rounded-tl-[4px]";
+
   return (
     <>
-      {/* Wrapper — no padding, image fills entirely */}
       <div
-        className={`relative overflow-hidden shadow-sm ${mine ? "rounded-2xl rounded-tr-sm" : "rounded-2xl rounded-tl-sm"}`}
-        style={{ width: 240, maxWidth: 240 }}
+        className={`relative overflow-hidden shadow-md ${corners}`}
+        style={{ width: 240, maxWidth: "100%" }}
       >
-        <button onClick={() => setOpen(true)} className="block w-full focus:outline-none">
-          <img
-            src={m.file_url!}
-            alt=""
-            className="w-full block object-cover"
-            style={{ minHeight: 100, maxHeight: 320, display: "block" }}
-          />
-        </button>
+        {errored ? (
+          /* Fallback when image fails to load */
+          <div
+            className="flex flex-col items-center justify-center gap-2"
+            style={{ width: 240, height: 160, background: mine ? "#005c4b" : "#1f2c34" }}
+          >
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8696a0" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span className="text-[11px] text-[#8696a0]">Image unavailable</span>
+          </div>
+        ) : (
+          <button
+            onClick={() => setOpen(true)}
+            className="block w-full focus:outline-none active:opacity-90"
+            style={{ lineHeight: 0 }}
+          >
+            <img
+              src={m.file_url!}
+              alt={m.file_name ?? "image"}
+              onError={() => setErrored(true)}
+              className="w-full block"
+              style={{
+                minHeight: 120,
+                maxHeight: 300,
+                objectFit: "cover",
+                display: "block",
+                width: "100%",
+              }}
+            />
+          </button>
+        )}
 
-        {/* Timestamp + tick — overlaid bottom-right inside image */}
+        {/* Timestamp + tick overlaid at bottom-right — WhatsApp style */}
         <div
-          className="absolute bottom-0 right-0 left-0 flex justify-end items-end px-2 pb-1.5 pointer-events-none"
-          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 100%)", paddingTop: 18 }}
+          className="absolute bottom-0 left-0 right-0 flex justify-end items-end px-2 pb-1.5 pointer-events-none select-none"
+          style={{
+            background: "linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 60%)",
+            paddingTop: 24,
+          }}
         >
           <div className="flex items-center gap-1">
-            <span className="text-[11px] text-white/90 tabular-nums drop-shadow">{timestamp}</span>
+            <span className="text-[11px] text-white/90 tabular-nums" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}>
+              {timestamp}
+            </span>
             {mine && (
               status === "seen"
-                ? <CheckCheck className="h-3 w-3 text-[#53bdeb] drop-shadow" />
+                ? <CheckCheck className="h-[13px] w-[13px] text-[#53bdeb] drop-shadow-sm" />
                 : status === "delivered"
-                  ? <CheckCheck className="h-3 w-3 text-white/80 drop-shadow" />
-                  : <Check className="h-3 w-3 text-white/80 drop-shadow" />
+                  ? <CheckCheck className="h-[13px] w-[13px] text-white/85 drop-shadow-sm" />
+                  : <Check className="h-[13px] w-[13px] text-white/85 drop-shadow-sm" />
             )}
           </div>
         </div>
       </div>
-      {open && <ImageLightbox src={m.file_url!} name={m.file_name ?? "image"} onClose={() => setOpen(false)} />}
+
+      {open && !errored && (
+        <ImageLightbox src={m.file_url!} name={m.file_name ?? "image"} onClose={() => setOpen(false)} />
+      )}
     </>
   );
 }
@@ -3135,18 +3167,35 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
     const name = m.file_name ?? "File";
     const ext = name.split(".").pop()?.toLowerCase() ?? "";
     const isVideo = /^(mp4|mov|webm|avi|mkv|m4v|3gp)$/.test(ext);
+    const bubbleBg = mine ? "#005c4b" : "#1f2c34";
+    const corners = mine ? "rounded-[18px] rounded-tr-[4px]" : "rounded-[18px] rounded-tl-[4px]";
 
-    // Video — inline player like WhatsApp
+    // ── Video — inline player ──────────────────────────────────────────────
     if (isVideo) {
       return (
-        <div className={`rounded-2xl overflow-hidden shadow-sm ${mine ? "rounded-tr-sm" : "rounded-tl-sm"} w-[240px] max-w-[240px]`}>
-          <video src={m.file_url} controls playsInline className="w-full block bg-black" style={{ maxHeight: 240, minHeight: 100 }} />
-          <div className="flex items-center justify-between gap-2 px-3 py-1.5" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-white/15 text-white">{ext}</span>
-              <span className="text-[11px] truncate text-[#8696a0]">{name}</span>
-            </div>
-            <a href={m.file_url} download={name} target="_blank" rel="noreferrer" className="shrink-0 hover:opacity-70 text-[#8696a0]">
+        <div
+          className={`overflow-hidden shadow-md ${corners}`}
+          style={{ width: 240, maxWidth: "100%", background: "#000" }}
+        >
+          <video
+            src={m.file_url}
+            controls
+            playsInline
+            className="w-full block"
+            style={{ maxHeight: 240, minHeight: 100, display: "block" }}
+          />
+          {/* Footer with name + download */}
+          <div className="flex items-center gap-2 px-3 py-2" style={{ background: bubbleBg }}>
+            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white/15 text-white shrink-0">{ext}</span>
+            <span className="text-[11px] text-[#8696a0] truncate flex-1">{name}</span>
+            <a
+              href={m.file_url}
+              download={name}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0 text-[#8696a0] hover:text-[#e9edef] transition-colors"
+            >
               <Download className="h-3.5 w-3.5" />
             </a>
           </div>
@@ -3154,22 +3203,53 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
       );
     }
 
-    // Document card
+    // ── Document card — WhatsApp style ────────────────────────────────────
     const bgColor = docBgColor(ext);
     return (
-      <a href={m.file_url} target="_blank" rel="noreferrer"
-        className={`flex items-center gap-3 px-3 py-3 rounded-2xl shadow-sm ${mine ? "rounded-tr-sm" : "rounded-tl-sm"} min-w-[200px] max-w-[260px] hover:opacity-90 active:scale-[0.98] transition-all`}
-        style={{ background: mine ? "#005c4b" : "#1f2c34" }}
+      <div
+        className={`overflow-hidden shadow-md ${corners}`}
+        style={{ width: 260, maxWidth: "100%", background: bubbleBg }}
       >
-        <div className={`flex h-11 w-11 items-center justify-center rounded-xl shrink-0 ${bgColor} shadow-sm`}>
-          <span className="text-[10px] font-black uppercase text-white leading-none tracking-tight">{ext.slice(0, 4) || "FILE"}</span>
+        {/* Top: icon + name + download */}
+        <a
+          href={m.file_url}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-3 px-3 pt-3 pb-2 hover:opacity-90 active:opacity-70 transition-opacity"
+        >
+          {/* Coloured ext badge */}
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-xl shrink-0 shadow-sm"
+            style={{ background: bgColor + "28" }}
+          >
+            <span className="text-[10px] font-black uppercase leading-none tracking-tight" style={{ color: bgColor }}>
+              {ext.slice(0, 4) || "FILE"}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold text-[#e9edef] leading-snug" style={{
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}>
+              {name}
+            </div>
+            <div className="text-[11px] text-[#8696a0] mt-0.5">
+              {m.file_size ? formatBytes(m.file_size) : ext.toUpperCase()}
+            </div>
+          </div>
+          <Download className="h-4 w-4 shrink-0 text-[#8696a0]" />
+        </a>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: "rgba(255,255,255,0.06)", marginLeft: 12, marginRight: 12 }} />
+
+        {/* Bottom: open label */}
+        <div className="flex items-center justify-center py-2">
+          <span className="text-[12px] font-semibold text-[#00a884]">Open</span>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold truncate leading-snug text-[#e9edef]">{name}</div>
-          <div className="text-[11px] mt-0.5 text-[#8696a0]">{m.file_size ? formatBytes(m.file_size) : ext.toUpperCase()}</div>
-        </div>
-        <Download className="h-4 w-4 shrink-0 text-[#8696a0]" />
-      </a>
+      </div>
     );
   }
 
@@ -3428,13 +3508,13 @@ function CallBubble({ mine, callData, isMissed, isDeclined, isEnded, isVideo, ou
 
 function docBgColor(ext: string): string {
   const map: Record<string, string> = {
-    pdf: "bg-red-500",
-    doc: "bg-blue-600", docx: "bg-blue-600",
-    xls: "bg-green-600", xlsx: "bg-green-600", csv: "bg-emerald-600",
-    ppt: "bg-orange-500", pptx: "bg-orange-500",
-    zip: "bg-yellow-600", rar: "bg-yellow-600", "7z": "bg-yellow-600",
-    txt: "bg-gray-500", md: "bg-gray-500",
-    mp3: "bg-purple-500", wav: "bg-purple-500", m4a: "bg-purple-500",
+    pdf: "#f15c6d",
+    doc: "#4a90d9", docx: "#4a90d9",
+    xls: "#25d366", xlsx: "#25d366", csv: "#25d366",
+    ppt: "#f97316", pptx: "#f97316",
+    zip: "#ffd60a", rar: "#ffd60a", "7z": "#ffd60a",
+    txt: "#8696a0", md: "#8696a0",
+    mp3: "#a855f7", wav: "#a855f7", m4a: "#a855f7",
   };
-  return map[ext] ?? "bg-primary";
+  return map[ext] ?? "#00a884";
 }
