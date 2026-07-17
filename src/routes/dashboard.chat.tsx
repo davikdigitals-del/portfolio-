@@ -1,5 +1,6 @@
 ﻿import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, useCallback, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -2388,55 +2389,68 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
               {/* Input area */}
               <div className="flex-1 flex items-end gap-1.5 rounded-2xl px-3 py-1.5 min-h-[46px] relative" style={{ background: "#2a3942" }}>
 
-                {/* WhatsApp-style attachment picker */}
-                {showAttachPicker && (
-                  <>
-                    {/* Backdrop — tap anywhere to dismiss */}
-                    <div className="fixed inset-0 z-[60]" onClick={() => setShowAttachPicker(false)} />
+                {/* Attachment picker — portal bottom sheet */}
+                {showAttachPicker && createPortal(
+                  <div className="fixed inset-0 z-[300] flex flex-col justify-end" style={{ WebkitTapHighlightColor: "transparent" }}>
+                    {/* Scrim */}
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={() => setShowAttachPicker(false)} />
 
-                    {/* Picker grid — floats above the composer */}
+                    {/* Sheet */}
                     <div
-                      className="absolute left-0 bottom-full mb-2 z-[61] rounded-2xl overflow-hidden shadow-2xl animate-fade-up"
-                      style={{ background: "#1f2c34", border: "1px solid #2a3942", minWidth: 240 }}
+                      className="relative w-full"
+                      style={{
+                        background: "#1f2c34",
+                        borderRadius: "20px 20px 0 0",
+                        animation: "sheet-up 0.3s cubic-bezier(0.22,1,0.36,1) forwards",
+                        paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))",
+                      }}
                       onClick={e => e.stopPropagation()}
                     >
-                      <div className="grid grid-cols-3 gap-0 p-3 pb-2">
+                      {/* Drag handle */}
+                      <div className="flex justify-center pt-3 pb-2">
+                        <div className="w-9 h-[4px] rounded-full" style={{ background: "#3d5260" }} />
+                      </div>
 
-                        {/* Photos & Videos */}
+                      {/* Title */}
+                      <div className="px-5 pb-4" style={{ borderBottom: "1px solid #2a3942" }}>
+                        <p className="text-[16px] font-bold text-[#e9edef]">Share</p>
+                      </div>
+
+                      {/* 3-column icon grid */}
+                      <div className="grid grid-cols-3 px-4 pt-4 pb-2 gap-1">
+
+                        {/* Gallery */}
                         <button type="button" onClick={() => { setShowAttachPicker(false); photoInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
-                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899)" }}>
-                            {/* Mountain + sun photo icon */}
-                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                          className="flex flex-col items-center gap-2 py-4 rounded-2xl active:bg-[#2a3942] transition-colors">
+                          <div className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-md" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899)" }}>
+                            <svg width="32" height="32" viewBox="0 0 30 30" fill="none">
                               <rect x="2" y="5" width="26" height="20" rx="3" fill="white" fillOpacity="0.25"/>
                               <rect x="2" y="5" width="26" height="20" rx="3" stroke="white" strokeWidth="1.8"/>
                               <circle cx="9.5" cy="11.5" r="2.5" fill="white"/>
                               <path d="M2 20l7-7 5 5 4-4 10 9" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
                             </svg>
                           </div>
-                          <span className="text-[11px] font-semibold text-[#e9edef]">Gallery</span>
+                          <span className="text-[12px] font-semibold text-[#e9edef]">Gallery</span>
                         </button>
 
                         {/* Camera */}
                         <button type="button" onClick={() => { setShowAttachPicker(false); cameraInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
-                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #f97316, #ef4444)" }}>
-                            {/* Camera body icon */}
-                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                          className="flex flex-col items-center gap-2 py-4 rounded-2xl active:bg-[#2a3942] transition-colors">
+                          <div className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-md" style={{ background: "linear-gradient(135deg, #f97316, #ef4444)" }}>
+                            <svg width="32" height="32" viewBox="0 0 30 30" fill="none">
                               <path d="M11 7l2-2h4l2 2h4a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h4z" stroke="white" strokeWidth="1.8" fill="white" fillOpacity="0.2" strokeLinejoin="round"/>
                               <circle cx="15" cy="15" r="4" stroke="white" strokeWidth="1.8"/>
                               <circle cx="15" cy="15" r="1.5" fill="white"/>
                             </svg>
                           </div>
-                          <span className="text-[11px] font-semibold text-[#e9edef]">Camera</span>
+                          <span className="text-[12px] font-semibold text-[#e9edef]">Camera</span>
                         </button>
 
                         {/* Document */}
                         <button type="button" onClick={() => { setShowAttachPicker(false); docInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
-                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}>
-                            {/* Folded-corner document icon */}
-                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                          className="flex flex-col items-center gap-2 py-4 rounded-2xl active:bg-[#2a3942] transition-colors">
+                          <div className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-md" style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}>
+                            <svg width="32" height="32" viewBox="0 0 30 30" fill="none">
                               <path d="M7 4h12l6 6v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="white" fillOpacity="0.25" stroke="white" strokeWidth="1.8"/>
                               <path d="M19 4v6h6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                               <line x1="10" y1="14" x2="20" y2="14" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
@@ -2444,38 +2458,46 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                               <line x1="10" y1="22" x2="16" y2="22" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
                             </svg>
                           </div>
-                          <span className="text-[11px] font-semibold text-[#e9edef]">Document</span>
+                          <span className="text-[12px] font-semibold text-[#e9edef]">Document</span>
                         </button>
 
                         {/* Audio */}
                         <button type="button" onClick={() => { setShowAttachPicker(false); audioInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
-                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #ec4899, #be185d)" }}>
-                            {/* Musical note icon */}
-                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                          className="flex flex-col items-center gap-2 py-4 rounded-2xl active:bg-[#2a3942] transition-colors">
+                          <div className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-md" style={{ background: "linear-gradient(135deg, #ec4899, #be185d)" }}>
+                            <svg width="32" height="32" viewBox="0 0 30 30" fill="none">
                               <path d="M12 22V8l14-3v14" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                               <circle cx="9" cy="22" r="3" fill="white" fillOpacity="0.3" stroke="white" strokeWidth="1.8"/>
                               <circle cx="23" cy="19" r="3" fill="white" fillOpacity="0.3" stroke="white" strokeWidth="1.8"/>
                             </svg>
                           </div>
-                          <span className="text-[11px] font-semibold text-[#e9edef]">Audio</span>
+                          <span className="text-[12px] font-semibold text-[#e9edef]">Audio</span>
                         </button>
 
                         {/* Any file */}
                         <button type="button" onClick={() => { setShowAttachPicker(false); fileInputRef.current?.click(); }}
-                          className="flex flex-col items-center gap-2 px-2 py-3 rounded-2xl hover:bg-[#2a3942] transition-colors active:scale-95">
-                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
-                            {/* Paperclip/file icon */}
-                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                          className="flex flex-col items-center gap-2 py-4 rounded-2xl active:bg-[#2a3942] transition-colors">
+                          <div className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-md" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}>
+                            <svg width="32" height="32" viewBox="0 0 30 30" fill="none">
                               <path d="M24 14l-9.5 9.5a6 6 0 0 1-8.5-8.5l9.5-9.5a4 4 0 0 1 5.6 5.6L11.6 21a2 2 0 0 1-2.8-2.8l8.5-8.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
                           </div>
-                          <span className="text-[11px] font-semibold text-[#e9edef]">File</span>
+                          <span className="text-[12px] font-semibold text-[#e9edef]">File</span>
                         </button>
 
                       </div>
+
+                      {/* Cancel */}
+                      <div className="px-4 pt-1 pb-2">
+                        <button type="button" onClick={() => setShowAttachPicker(false)}
+                          className="w-full py-4 rounded-2xl text-[15px] font-semibold transition-all active:opacity-70"
+                          style={{ background: "#2a3942", color: "#f15c6d" }}>
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                  </>
+                  </div>,
+                  document.body
                 )}
 
                 {/* Paperclip — toggles picker */}
@@ -3236,7 +3258,7 @@ function EmojiChar({ emoji, size, entryClass, loopClass, delay }: {
   );
 }
 
-// ── CallBubble — with tap-to-callback modal ────────────────────────────────
+// ── CallBubble — WhatsApp-style bottom sheet that portals to document.body ──
 function CallBubble({ mine, callData, isMissed, isDeclined, isEnded, isVideo, outgoing, IconEl, titleText, subtitleText, canCallBack, iconBg, iconFg }: {
   mine: boolean;
   callData: any;
@@ -3252,23 +3274,125 @@ function CallBubble({ mine, callData, isMissed, isDeclined, isEnded, isVideo, ou
   iconBg: string;
   iconFg: string;
 }) {
-  const [showModal, setShowModal] = useState(false);
+  const [showSheet, setShowSheet] = useState(false);
+  const [closing, setClosing] = useState(false);
 
-  function handleTap() {
-    // Any call bubble tap opens the callback modal (not just missed)
-    setShowModal(true);
+  function close() {
+    setClosing(true);
+    setTimeout(() => { setClosing(false); setShowSheet(false); }, 260);
   }
 
   function callBack(type: "voice" | "video") {
-    setShowModal(false);
-    const fn = (window as any).__initiateCall;
-    if (fn) fn(type);
+    close();
+    setTimeout(() => {
+      const fn = (window as any).__initiateCall;
+      if (fn) fn(type);
+    }, 280);
   }
+
+  // Lock body scroll while sheet is open
+  useEffect(() => {
+    if (showSheet) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [showSheet]);
+
+  const sheet = showSheet ? createPortal(
+    <div
+      className="fixed inset-0 z-[300] flex flex-col justify-end"
+      style={{ WebkitTapHighlightColor: "transparent" }}
+    >
+      {/* Scrim — fades in */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+        style={{
+          animation: closing ? "scrim-out 0.26s ease forwards" : "scrim-in 0.26s ease forwards",
+        }}
+        onClick={close}
+      />
+
+      {/* Sheet — slides up from bottom */}
+      <div
+        className="relative w-full"
+        style={{
+          animation: closing
+            ? "sheet-down 0.26s cubic-bezier(0.4,0,1,1) forwards"
+            : "sheet-up 0.3s cubic-bezier(0.22,1,0.36,1) forwards",
+          background: "#1f2c34",
+          borderRadius: "20px 20px 0 0",
+          paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))",
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-4">
+          <div className="w-9 h-[4px] rounded-full" style={{ background: "#3d5260" }} />
+        </div>
+
+        {/* Contact name / call type */}
+        <div className="px-6 pb-5" style={{ borderBottom: "1px solid #2a3942" }}>
+          <p className="text-[18px] font-bold text-[#e9edef] leading-tight truncate">
+            {isMissed && !outgoing ? "Missed call" : isEnded ? "Call ended" : isDeclined ? "Call declined" : "Call"}
+          </p>
+          <p className="text-[13px] text-[#8696a0] mt-0.5">Choose how to call back</p>
+        </div>
+
+        {/* Two big option rows — like WhatsApp */}
+        <div className="px-4 pt-3 pb-2 flex flex-col gap-1">
+
+          {/* Voice call row */}
+          <button
+            onClick={() => callBack("voice")}
+            className="flex items-center gap-4 w-full px-4 py-4 rounded-2xl transition-all active:scale-[0.98] active:opacity-80"
+            style={{ background: "#2a3942" }}
+          >
+            <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0 shadow-md" style={{ background: "#00a884" }}>
+              <Phone className="h-5 w-5 text-white" />
+            </div>
+            <div className="text-left">
+              <div className="text-[15px] font-semibold text-[#e9edef]">Voice call</div>
+              <div className="text-[12px] text-[#8696a0] mt-0.5">Start an audio call</div>
+            </div>
+          </button>
+
+          {/* Video call row */}
+          <button
+            onClick={() => callBack("video")}
+            className="flex items-center gap-4 w-full px-4 py-4 rounded-2xl transition-all active:scale-[0.98] active:opacity-80"
+            style={{ background: "#2a3942" }}
+          >
+            <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0 shadow-md" style={{ background: "#00a884" }}>
+              <Video className="h-5 w-5 text-white" />
+            </div>
+            <div className="text-left">
+              <div className="text-[15px] font-semibold text-[#e9edef]">Video call</div>
+              <div className="text-[12px] text-[#8696a0] mt-0.5">Start a video call</div>
+            </div>
+          </button>
+        </div>
+
+        {/* Cancel */}
+        <div className="px-4 pt-2">
+          <button
+            onClick={close}
+            className="w-full py-4 rounded-2xl text-[15px] font-semibold transition-all active:opacity-70"
+            style={{ background: "#2a3942", color: "#f15c6d" }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
 
   return (
     <>
       <button
-        onClick={handleTap}
+        onClick={() => setShowSheet(true)}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm min-w-[180px] max-w-[230px] shadow-sm transition-opacity active:opacity-70 cursor-pointer ${mine ? "rounded-tr-sm" : "rounded-tl-sm"}`}
         style={{ background: mine ? "#005c4b" : "#1f2c34" }}
       >
@@ -3285,65 +3409,7 @@ function CallBubble({ mine, callData, isMissed, isDeclined, isEnded, isVideo, ou
         </div>
       </button>
 
-      {/* Callback modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={() => setShowModal(false)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-w-sm rounded-t-3xl overflow-hidden animate-slide-up"
-            style={{ background: "#1f2c34" }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-[#8696a0]/40" />
-            </div>
-
-            {/* Title */}
-            <div className="px-5 py-3 text-center" style={{ borderBottom: "1px solid #2a3942" }}>
-              <p className="text-[13px] text-[#8696a0]">Call back</p>
-            </div>
-
-            {/* Options */}
-            <div className="flex gap-3 px-6 py-6">
-              {/* Voice call */}
-              <button
-                onClick={() => callBack("voice")}
-                className="flex-1 flex flex-col items-center gap-3 py-5 rounded-2xl transition-all active:scale-95"
-                style={{ background: "#2a3942" }}
-              >
-                <div className="h-14 w-14 rounded-full bg-[#00a884] flex items-center justify-center shadow-lg">
-                  <Phone className="h-6 w-6 text-white" />
-                </div>
-                <span className="text-[13px] font-semibold text-[#e9edef]">Voice call</span>
-              </button>
-
-              {/* Video call */}
-              <button
-                onClick={() => callBack("video")}
-                className="flex-1 flex flex-col items-center gap-3 py-5 rounded-2xl transition-all active:scale-95"
-                style={{ background: "#2a3942" }}
-              >
-                <div className="h-14 w-14 rounded-full bg-[#00a884] flex items-center justify-center shadow-lg">
-                  <Video className="h-6 w-6 text-white" />
-                </div>
-                <span className="text-[13px] font-semibold text-[#e9edef]">Video call</span>
-              </button>
-            </div>
-
-            {/* Cancel */}
-            <div className="px-6 pb-8">
-              <button
-                onClick={() => setShowModal(false)}
-                className="w-full py-3.5 rounded-2xl text-[14px] font-semibold text-[#8696a0] transition-all active:opacity-70"
-                style={{ background: "#2a3942" }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {sheet}
     </>
   );
 }
