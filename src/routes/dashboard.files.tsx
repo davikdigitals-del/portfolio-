@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
   FileText, Image, Mic, Film, Search, Download,
-  Loader2, MessageCircle, File, Filter,
+  Loader2, MessageCircle, File, Play, Pause,
 } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/files")({
@@ -408,13 +408,152 @@ function FilesPage() {
 }
 
 function FileRow({ file: f, onOpenChat }: { file: SharedFile; onOpenChat: () => void }) {
+  // ── Voice note inline player ─────────────────────────────────────────────
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [audioReady, setAudioReady] = useState(false);
+
+  useEffect(() => {
+    if (f.fileType !== "voice" || !f.file_url) return;
+    const audio = new Audio(f.file_url);
+    audio.preload = "metadata";
+    audioRef.current = audio;
+
+    const onMeta = () => { if (isFinite(audio.duration)) setDuration(audio.duration); setAudioReady(true); };
+    const onTime = () => {
+      setCurrentTime(audio.currentTime);
+      if (audio.duration && isFinite(audio.duration))
+        setProgress((audio.currentTime / audio.duration) * 100);
+    };
+    const onEnded = () => { setPlaying(false); setProgress(0); setCurrentTime(0); };
+    const onCanPlay = () => { setAudioReady(true); if (isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration); };
+
+    audio.addEventListener("loadedmetadata", onMeta);
+    audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("canplay", onCanPlay);
+    audio.load();
+
+    return () => {
+      audio.pause();
+      audio.src = "";
+      audio.removeEventListener("loadedmetadata", onMeta);
+      audio.removeEventListener("timeupdate", onTime);
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("canplay", onCanPlay);
+      audioRef.current = null;
+    };
+  }, [f.file_url, f.fileType]);
+
+  function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) { audio.pause(); setPlaying(false); }
+    else { void audio.play(); setPlaying(true); }
+  }
+
+  function handleSeek(e: React.MouseEvent<HTMLDivElement>) {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    audio.currentTime = pct * duration;
+    setProgress(pct * 100);
+  }
+
+  function fmtDur(s: number) {
+    if (!isFinite(s) || s === 0) return "0:00";
+    return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+  }
+
+  // ── Voice note render ─────────────────────────────────────────────────────
+  if (f.fileType === "voice") {
+    return (
+      <div
+        className="flex items-center gap-3 px-3 py-3 rounded-xl group"
+        style={{ background: "#1a2530", border: "1px solid #2a3942", marginBottom: 4 }}
+      >
+        {/* Play / Pause */}
+        <button
+          onClick={togglePlay}
+          disabled={!audioReady}
+          className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-90 disabled:opacity-40"
+          style={{ background: "#00a884" }}
+        >
+          {playing
+            ? <Pause className="h-4 w-4 text-white" />
+            : <Play className="h-[15px] w-[15px] text-white ml-0.5" />}
+        </button>
+
+        {/* Waveform + scrubber + meta */}
+        <div className="flex-1 min-w-0">
+          {/* Waveform bar scrubber */}
+          <div
+            className="relative h-7 flex items-center cursor-pointer mb-1"
+            onClick={handleSeek}
+          >
+            {/* Track */}
+            <div className="absolute inset-x-0 h-1 rounded-full" style={{ background: "#2a3942" }} />
+            {/* Filled */}
+            <div
+              className="absolute left-0 h-1 rounded-full transition-all"
+              style={{ width: `${progress}%`, background: "#00a884" }}
+            />
+            {/* Thumb */}
+            <div
+              className="absolute h-3 w-3 rounded-full shadow"
+              style={{
+                left: `calc(${progress}% - 6px)`,
+                background: "#00a884",
+                border: "2px solid #fff",
+              }}
+            />
+          </div>
+
+          {/* Time + sender */}
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-[#8696a0] tabular-nums">
+              {playing || currentTime > 0 ? fmtDur(currentTime) : fmtDur(duration)}
+            </span>
+            <span className="text-[11px] text-[#3d5260] truncate max-w-[120px]">
+              {f.senderIsAdmin ? "You" : f.clientName} · {formatDate(f.created_at)}
+            </span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button
+            onClick={onOpenChat}
+            title="View in chat"
+            className="h-8 w-8 flex items-center justify-center rounded-full text-[#8696a0] hover:text-[#00a884] hover:bg-[#00a884]/10 transition-all"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </button>
+          <a
+            href={f.file_url}
+            download={f.file_name ?? "voice-note"}
+            target="_blank"
+            rel="noreferrer"
+            title="Download"
+            className="h-8 w-8 flex items-center justify-center rounded-full text-[#8696a0] hover:text-[#00a884] hover:bg-[#00a884]/10 transition-all"
+          >
+            <Download className="h-4 w-4" />
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // ── All other file types ──────────────────────────────────────────────────
   const Icon =
-    f.fileType === "voice" ? Mic :
-    f.fileType === "video" ? Film :
-    FileText;
+    f.fileType === "video" ? Film : FileText;
 
   const color = extColor(f.ext);
-  const name = f.file_name ?? (f.fileType === "voice" ? "Voice note" : "File");
+  const name = f.file_name ?? "File";
 
   return (
     <div
@@ -439,7 +578,6 @@ function FileRow({ file: f, onOpenChat }: { file: SharedFile; onOpenChat: () => 
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-semibold text-[#e9edef] truncate leading-snug">{name}</p>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          {/* Sender */}
           <span className="text-[11px] text-[#8696a0]">
             {f.senderIsAdmin ? "You" : f.clientName}
           </span>

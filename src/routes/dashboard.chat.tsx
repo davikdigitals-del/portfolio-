@@ -525,25 +525,58 @@ function ChatPage() {
     if (!user) return;
     const ch = supabase.channel("conv-list")
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, (payload) => {
-        void loadConversations();
         const updated = payload.new as Conversation;
+
+        if (payload.eventType === "DELETE") {
+          // Already handled optimistically by deleteConversation — just ensure state is clean
+          const deleted = payload.old as { id: string };
+          setConversations((prev) => prev.filter((c) => c.id !== deleted.id));
+          return;
+        }
+
+        if (payload.eventType === "INSERT") {
+          // New conversation — need profile, so do a targeted fetch for just this one
+          void (async () => {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("user_id, display_name, email, avatar_url, status")
+              .eq("user_id", updated.user_id)
+              .maybeSingle();
+            const enriched = { ...updated, profile: profile ?? undefined } as Conversation;
+            setConversations((prev) => {
+              const exists = prev.some((c) => c.id === enriched.id);
+              if (exists) return prev;
+              return [enriched, ...prev].sort((a, b) =>
+                (b.last_message_at ?? "").localeCompare(a.last_message_at ?? "")
+              );
+            });
+          })();
+          return;
+        }
+
+        // UPDATE — patch in-place, no network call needed
+        setConversations((prev) => {
+          const idx = prev.findIndex((c) => c.id === updated.id);
+          if (idx === -1) return prev; // not in list yet, ignore
+          const patched = { ...prev[idx], ...updated };
+          // Re-sort by last_message_at descending
+          const next = [...prev];
+          next[idx] = patched;
+          return next.sort((a, b) =>
+            (b.last_message_at ?? "").localeCompare(a.last_message_at ?? "")
+          );
+        });
+
         const unread = isAdmin ? updated.unread_admin : updated.unread_user;
 
-        // I received a conversation update — I'm connected.
-        // Mark messages sent TO me (not by me) as delivered.
-        // This tells the sender their message reached my device.
+        // Mark messages sent TO me as delivered
         if (updated.id && user) {
-          console.log("[MessageStatus] Marking messages as delivered for conversation:", updated.id);
           void supabase
             .from("messages")
             .update({ status: "delivered" })
             .eq("conversation_id", updated.id)
-            .neq("sender_id", user.id)  // messages sent by the OTHER person
-            .eq("status", "sent")       // only sent → delivered, never downgrade seen
-            .then(({ data, error }) => {
-              if (error) console.error("[MessageStatus] Delivered update error:", error);
-              else console.log("[MessageStatus] Marked messages as delivered:", data);
-            });
+            .neq("sender_id", user.id)
+            .eq("status", "sent");
         }
 
         if (unread > 0 && updated.id !== activeId && notifsOn) {
@@ -553,13 +586,11 @@ function ChatPage() {
           const nid = crypto.randomUUID();
           setAlerts((prev) => [{ id: nid, text: label, convId: updated.id }, ...prev.slice(0, 3)]);
           if (soundOn) playBeep();
-          // In-app / background tab notification
           void sendPushNotification(
             isAdmin ? "📩 New message" : "💬 New message",
             label,
             { tag: `msg-${updated.id}` }
           );
-          // Real Web Push — wakes phone even when browser is closed
           if (user) {
             void sendWebPush(
               user.id,
@@ -572,7 +603,7 @@ function ChatPage() {
         }
       }).subscribe();
     return () => { void supabase.removeChannel(ch); };
-  }, [user, isAdmin, activeId, soundOn, notifsOn, loadConversations, adminProfile?.display_name]);
+  }, [user, isAdmin, activeId, soundOn, notifsOn, adminProfile?.display_name]);
 
   // ── Background polling for messages when app is hidden ──
   const lastUnreadRef = useRef<Map<string, number>>(new Map());
@@ -827,9 +858,19 @@ function ChatPage() {
                 const clientName = c.profile?.display_name ?? c.profile?.email ?? "User";
                 const clientInitial = clientName[0].toUpperCase();
                 return (
-                  <li key={c.id}>
+                  <li key={c.id} className="relative">
                     <button
                       onClick={() => setActiveId(c.id)}
+                      onContextMenu={(e) => { e.preventDefault(); openConvCtxMenu(e, c.id); }}
+                      onTouchStart={() => {
+                        convLongPressTimer.current = setTimeout(() => {
+                          // approximate centre of the row as menu position
+                          openConvCtxMenu({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 }, c.id);
+                          if ("vibrate" in navigator) navigator.vibrate(40);
+                        }, 500);
+                      }}
+                      onTouchEnd={() => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } }}
+                      onTouchMove={() => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } }}
                       className={`w-full text-left flex items-center gap-3 px-4 py-3.5 transition-all relative ${isActive ? "bg-[#2a3942]" : "hover:bg-[#1a2530]"}`}
                     >
                       {isActive && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#00a884]" />}
@@ -872,6 +913,61 @@ function ChatPage() {
 
       {/* Active chat — full screen on mobile when open */}
       <section className={`flex-1 flex-col min-w-0 ${active ? "flex" : "hidden md:flex"}`}>
+
+      {/* ── Conversation context menu (admin) ──────────────────────────── */}
+      {convCtxMenu && createPortal(
+        <div
+          data-conv-ctx-menu
+          className="fixed z-[60] rounded-xl overflow-hidden shadow-2xl min-w-[180px] animate-fade-up"
+          style={{ left: convCtxMenu.x, top: convCtxMenu.y, background: "#1f2c34", border: "1px solid #2a3942", boxShadow: "0 12px 40px rgba(0,0,0,0.6)" }}
+        >
+          <button
+            onClick={() => { setDeleteConfirm(convCtxMenu.convId); setConvCtxMenu(null); }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-[13px] text-[#f15c6d] hover:bg-[#2a3942] transition-colors text-left font-medium"
+          >
+            <Trash2 className="h-[15px] w-[15px] shrink-0" /> Delete chat
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Delete confirmation modal ───────────────────────────────────── */}
+      {deleteConfirm && createPortal(
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setDeleteConfirm(null)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "#1f2c34" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 text-center">
+              <div className="h-12 w-12 rounded-full bg-[#f15c6d]/15 flex items-center justify-center mx-auto mb-3">
+                <Trash2 className="h-5 w-5 text-[#f15c6d]" />
+              </div>
+              <h3 className="font-bold text-[#e9edef] text-base mb-1">Delete chat?</h3>
+              <p className="text-[#8696a0] text-sm">All messages will be permanently deleted. This cannot be undone.</p>
+            </div>
+            <div className="flex border-t border-[#2a3942]">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-3.5 text-sm font-semibold text-[#8696a0] hover:bg-[#2a3942] transition-colors"
+              >
+                Cancel
+              </button>
+              <div style={{ width: 1, background: "#2a3942" }} />
+              <button
+                onClick={() => void deleteConversation(deleteConfirm)}
+                className="flex-1 py-3.5 text-sm font-bold text-[#f15c6d] hover:bg-[#2a3942] transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
         {active ? (
           <ActiveChat conversation={active} isAdmin={isAdmin} adminProfile={adminProfile} onBack={() => setActiveId(null)} pendingCallId={pendingCallId} />
         ) : (
