@@ -336,6 +336,54 @@ function ChatPage() {
   const [alerts, setAlerts] = useState<{ id: string; text: string; convId: string }[]>([]);
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
 
+  // ── Conversation context menu (admin only) ────────────────────────────────
+  const [convCtxMenu, setConvCtxMenu] = useState<{ convId: string; x: number; y: number } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null); // convId awaiting confirm
+  const convCtxOpenTimeRef = useRef(0);
+  const convLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function openConvCtxMenu(e: React.MouseEvent | { clientX: number; clientY: number }, convId: string) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const menuW = 180, menuH = 80;
+    let x = (e as React.MouseEvent).clientX ?? 0;
+    let y = (e as React.MouseEvent).clientY ?? 0;
+    x = Math.max(8, Math.min(x, vw - menuW - 8));
+    y = Math.max(8, Math.min(y, vh - menuH - 8));
+    convCtxOpenTimeRef.current = Date.now();
+    setConvCtxMenu({ convId, x, y });
+  }
+
+  async function deleteConversation(convId: string) {
+    setConvCtxMenu(null);
+    setDeleteConfirm(null);
+    // Remove from UI immediately
+    setConversations((prev) => prev.filter((c) => c.id !== convId));
+    if (activeId === convId) setActiveId(null);
+    // Delete messages first (FK constraint), then conversation
+    await supabase.from("messages").delete().eq("conversation_id", convId);
+    const { error } = await supabase.from("conversations").delete().eq("id", convId);
+    if (error) {
+      toast.error("Failed to delete conversation");
+      void loadConversations(); // re-fetch to restore
+    } else {
+      toast.success("Conversation deleted");
+    }
+  }
+
+  // Close conv context menu on outside pointer
+  useEffect(() => {
+    if (!convCtxMenu) return;
+    const handler = (e: PointerEvent) => {
+      if (Date.now() - convCtxOpenTimeRef.current < 400) return;
+      const target = e.target as Element | null;
+      if (target?.closest("[data-conv-ctx-menu]")) return;
+      setConvCtxMenu(null);
+    };
+    document.addEventListener("pointerdown", handler, true);
+    return () => document.removeEventListener("pointerdown", handler, true);
+  }, [convCtxMenu]);
+
   // Fetch admin profile + subscribe immediately — no race condition
   useEffect(() => {
     if (isAdmin) return;
@@ -2821,29 +2869,31 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      // Fallback: open in new tab
       window.open(src, "_blank");
     } finally {
       setDownloading(false);
     }
   }
 
-  // Close on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Prevent body scroll
   useEffect(() => {
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    return () => { document.body.style.overflow = prev; };
   }, []);
+
+  function zoom(delta: number) {
+    setScale(s => Math.min(5, Math.max(0.25, s + delta)));
+  }
 
   function handleWheel(e: React.WheelEvent) {
     e.preventDefault();
-    setScale(s => Math.min(5, Math.max(0.5, s - e.deltaY * 0.001)));
+    zoom(-e.deltaY * 0.001);
   }
 
   function handleMouseDown(e: React.MouseEvent) {
@@ -2859,78 +2909,97 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
 
   function handleMouseUp() { setDragging(false); }
 
-  // Double tap to zoom
   function handleDoubleClick() {
     if (scale > 1) { setScale(1); setPos({ x: 0, y: 0 }); }
     else setScale(2.5);
   }
 
-  return (
+  function reset() { setScale(1); setPos({ x: 0, y: 0 }); }
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-black/95"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-[200] flex flex-col"
+      style={{ background: "rgba(0,0,0,0.96)" }}
     >
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-black/60 backdrop-blur-sm">
-        <span className="text-white/80 text-sm truncate max-w-[60vw]">{name}</span>
-        <div className="flex items-center gap-3">
-          {/* Zoom controls */}
-          <button onClick={() => setScale(s => Math.min(5, s + 0.5))}
-            className="text-white/70 hover:text-white transition-colors text-lg font-bold w-8 h-8 flex items-center justify-center">
-            +
-          </button>
-          <button onClick={() => { setScale(1); setPos({ x: 0, y: 0 }); }}
-            className="text-white/70 hover:text-white transition-colors text-xs">
-            {Math.round(scale * 100)}%
-          </button>
-          <button onClick={() => setScale(s => Math.max(0.5, s - 0.5))}
-            className="text-white/70 hover:text-white transition-colors text-lg font-bold w-8 h-8 flex items-center justify-center">
-            −
-          </button>
-          {/* Download */}
+      <div
+        className="flex items-center justify-between px-4 py-3 shrink-0"
+        style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}
+      >
+        <span className="text-white/70 text-sm truncate max-w-[55vw]">{name}</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => zoom(0.5)}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-all text-lg font-bold"
+          >+</button>
+          <button
+            onClick={reset}
+            className="px-2 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all text-xs font-mono"
+          >{Math.round(scale * 100)}%</button>
+          <button
+            onClick={() => zoom(-0.5)}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-all text-lg font-bold"
+          >−</button>
+          <div className="w-px h-5 mx-1" style={{ background: "rgba(255,255,255,0.15)" }} />
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="text-white/70 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-40"
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-all disabled:opacity-40"
           >
-            {downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           </button>
-          {/* Close */}
-          <button onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
-            <X className="h-5 w-5" />
+          <button
+            onClick={onClose}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      {/* Image area */}
+      {/* Image area — takes all remaining height */}
       <div
-        className="flex-1 overflow-hidden flex items-center justify-center"
+        className="flex-1 flex items-center justify-center"
+        style={{
+          minHeight: 0,          /* critical — lets flex child shrink */
+          overflow: "hidden",
+          cursor: scale > 1 ? (dragging ? "grabbing" : "grab") : "zoom-in",
+        }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        style={{ cursor: scale > 1 ? (dragging ? "grabbing" : "grab") : "zoom-in" }}
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         <img
           src={src}
           alt={name}
-          onDoubleClick={handleDoubleClick}
           draggable={false}
-          className="max-w-full max-h-full object-contain select-none transition-transform duration-150"
+          onDoubleClick={handleDoubleClick}
+          className="select-none"
           style={{
+            maxWidth: "100%",
+            maxHeight: "100%",
+            objectFit: "contain",
+            display: "block",
             transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
             transformOrigin: "center center",
+            transition: dragging ? "none" : "transform 0.15s ease",
+            userSelect: "none",
           }}
         />
       </div>
 
       {/* Bottom hint */}
-      <div className="text-center text-white/30 text-xs py-2 shrink-0">
-        Scroll to zoom · Double-tap to zoom in · Drag to pan
+      <div
+        className="shrink-0 text-center py-2 text-xs"
+        style={{ color: "rgba(255,255,255,0.25)" }}
+      >
+        Scroll to zoom · Double-click to zoom in · Drag to pan · Esc to close
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
