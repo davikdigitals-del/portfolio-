@@ -1116,16 +1116,16 @@ function DashboardLayout() {
 
   const SidebarContent = () => (
     <>
-      {/* Brand */}
+      {/* Brand — avatar only on md, full on lg+ */}
       <Link
         to="/"
-        className="flex items-center gap-3 px-4 h-14 border-b border-[#2a3942] hover:bg-[#2a3942] transition-all shrink-0"
+        className="flex items-center justify-center lg:justify-start gap-3 lg:px-4 h-14 border-b border-[#2a3942] hover:bg-[#2a3942] transition-all shrink-0"
         style={{ background: "#202c33" }}
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-full overflow-hidden border border-[#2a3942]">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full overflow-hidden border border-[#2a3942] shrink-0">
           <img src="/me.webp" alt="Ajibola" className="w-full h-full object-cover object-top" />
         </div>
-        <div className="flex flex-col">
+        <div className="hidden lg:flex flex-col min-w-0">
           <span className="font-semibold text-sm text-[#e9edef]">Ajibola</span>
           <span className="text-[11px] text-[#8696a0]">Portfolio & Chat</span>
         </div>
@@ -1146,9 +1146,9 @@ function DashboardLayout() {
         ))}
       </nav>
 
-      {/* User Profile */}
-      <div className="p-3 border-t border-[#2a3942] shrink-0" style={{ background: "#202c33" }}>
-        <div className="flex items-center gap-3 px-2 py-2">
+      {/* User Profile — icon only on md, full on lg+ */}
+      <div className="p-2 lg:p-3 border-t border-[#2a3942] shrink-0" style={{ background: "#202c33" }}>
+        <div className="flex items-center justify-center lg:justify-start gap-3 lg:px-2 py-1.5">
           {avatarUrl ? (
             <img src={avatarUrl} alt={displayName} className="h-9 w-9 rounded-full object-cover shrink-0" />
           ) : (
@@ -1156,7 +1156,7 @@ function DashboardLayout() {
               {initial}
             </div>
           )}
-          <div className="flex-1 min-w-0">
+          <div className="hidden lg:flex flex-col flex-1 min-w-0">
             <div className="text-sm font-medium truncate text-[#e9edef]">{displayName || user.email}</div>
             {isAdmin && (
               <div className="flex items-center gap-1 text-[11px] text-[#00a884] mt-0.5">
@@ -1166,7 +1166,7 @@ function DashboardLayout() {
           </div>
           <button
             onClick={() => signOut().then(() => navigate({ to: "/" }))}
-            className="p-1.5 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors"
+            className="hidden lg:flex p-1.5 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors"
             title="Sign out"
           >
             <LogOut className="h-4 w-4" />
@@ -1182,8 +1182,8 @@ function DashboardLayout() {
   return (
     <div className="flex bg-background overflow-hidden" style={{ height: "calc(var(--vh, 1vh) * 100)" }}>
 
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-56 flex-col border-r border-[#2a3942] shrink-0" style={{ background: "#111b21" }}>
+      {/* Desktop sidebar — icon-only on md, full labels on lg+ (WhatsApp Web style) */}
+      <aside className="hidden md:flex flex-col border-r border-[#2a3942] shrink-0 w-[72px] lg:w-[260px]" style={{ background: "#111b21" }}>
         <SidebarContent />
       </aside>
 
@@ -1819,15 +1819,16 @@ function NavItem({
       to={to}
       activeOptions={{ exact }}
       onClick={onClick}
-      className="flex items-center gap-3 px-4 py-3 text-sm text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors"
-      activeProps={{ 
-        className: "flex items-center gap-3 px-4 py-3 text-sm text-[#e9edef] bg-[#2a3942] font-medium border-l-4 border-[#00a884]"
+      title={label}
+      className="flex items-center justify-center lg:justify-start gap-3 lg:px-4 py-3 text-sm text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors relative"
+      activeProps={{
+        className: "flex items-center justify-center lg:justify-start gap-3 lg:px-4 py-3 text-sm text-[#e9edef] bg-[#2a3942] font-medium relative border-l-4 border-[#00a884]"
       }}
     >
       <Icon className="h-5 w-5 shrink-0" />
-      <span className="flex-1">{label}</span>
+      <span className="hidden lg:block flex-1">{label}</span>
       {badge != null && badge > 0 && (
-        <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full bg-[#00a884] text-white">
+        <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full bg-[#00a884] text-white lg:static absolute top-1.5 right-1.5">
           {badge > 99 ? "99+" : badge}
         </span>
       )}

@@ -660,8 +660,8 @@ function ChatPage() {
         ))}
       </div>
 
-      {/* Sidebar — full screen on mobile when no chat open */}
-      <aside className={`flex flex-col border-r border-[#2a3942] shrink-0 ${active ? "hidden md:flex md:w-[340px]" : "flex w-full md:w-[340px]"}`} style={{ background: "#111b21" }}>
+      {/* Sidebar — full screen on mobile when no chat open, 420px on desktop (WhatsApp Web) */}
+      <aside className={`flex flex-col border-r border-[#2a3942] shrink-0 ${active ? "hidden md:flex md:w-[420px]" : "flex w-full md:w-[420px]"}`} style={{ background: "#111b21" }}>
         {/* Sidebar header */}
         <div className="h-[60px] px-4 flex items-center justify-between shrink-0" style={{ background: "#202c33", borderBottom: "1px solid #2a3942" }}>
           <h2 className="font-bold text-[#e9edef] text-[17px] tracking-tight">Messages</h2>
@@ -1441,25 +1441,21 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   const [reactionsMenu, setReactionsMenu] = useState<{ msgId: string; x: number; y: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressDataRef = useRef<{ msg: Message; mine: boolean; x: number; y: number } | null>(null);
-  const ctxMenuJustOpenedRef = useRef(false);
+  // Timestamp of when the menu was last opened — used to swallow the pointer event that opened it
+  const ctxOpenTimeRef = useRef(0);
 
   function openCtxMenu(x: number, y: number, msg: Message, mine: boolean) {
-    console.log("[ContextMenu] Opening menu for message:", msg.id, "Type:", msg.type, "Mine:", mine);
-    const menuW = 180, menuH = 160;
+    const menuW = 180, menuH = 200;
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
     const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
     x = Math.max(8, Math.min(x, viewportWidth - menuW - 8));
     y = Math.max(8, Math.min(y, viewportHeight - menuH - 8));
-    ctxMenuJustOpenedRef.current = true;
+    ctxOpenTimeRef.current = Date.now();
     setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
-    // Show reactions bar above the context menu
     setReactionsMenu({ msgId: msg.id, x: Math.max(8, Math.min(x, viewportWidth - 280)), y: Math.max(8, y - 60) });
-    console.log("[ContextMenu] Menu state set:", { msgId: msg.id, x, y, mine, type: msg.type });
-    setTimeout(() => { ctxMenuJustOpenedRef.current = false; }, 300);
   }
 
   function startLongPress(e: React.TouchEvent, msg: Message, mine: boolean) {
-    // Capture coordinates immediately before event is recycled
     const touch = e.touches[0];
     const x = touch.clientX;
     const y = touch.clientY;
@@ -1470,9 +1466,9 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         const { msg, mine, x, y } = longPressDataRef.current;
         openCtxMenu(x, y, msg, mine);
         if ("vibrate" in navigator) navigator.vibrate(50);
-        longPressDataRef.current = null; // prevent cancel from clearing after open
+        longPressDataRef.current = null;
       }
-    }, 600);
+    }, 500);
   }
 
   function cancelLongPress() {
@@ -1480,20 +1476,23 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
     longPressDataRef.current = null;
   }
 
-  // Close context menu on outside tap/click — but NOT on the same touch that opened it
+  // Close context menu on outside tap/click — pointerdown fires on both mouse and touch
+  // We ignore the pointer event that opened the menu (within 400ms grace window)
   useEffect(() => {
-    if (!ctxMenu) return;
-    const close = (e: Event) => {
-      if (ctxMenuJustOpenedRef.current) return;
+    if (!ctxMenu && !reactionsMenu) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      // Swallow the event that triggered the open
+      if (Date.now() - ctxOpenTimeRef.current < 400) return;
+      // If the click target is inside the menu or reactions bar, don't close
+      const target = e.target as Element | null;
+      if (target?.closest("[data-ctx-menu]") || target?.closest("[data-reactions-menu]")) return;
       setCtxMenu(null);
       setReactionsMenu(null);
     };
-    document.addEventListener("click", close);
-    // Don't add touchend here — it fires immediately after long press opens the menu
-    return () => {
-      document.removeEventListener("click", close);
-    };
-  }, [ctxMenu]);
+    // Use capture so we get it before any child handlers
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [ctxMenu, reactionsMenu]);
 
   // ---- Delete message ----
   async function deleteMessage(msgId: string) {
@@ -2054,7 +2053,6 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
           WebkitOverflowScrolling: "touch",
           padding: "12px 8px",
         } as React.CSSProperties}
-        onClick={() => setCtxMenu(null)}
       >
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-3 py-16 select-none">
@@ -2157,8 +2155,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                     </div>
                   )}
 
-                  {/* Timestamp + read receipt */}
-                  <div className={`flex items-center gap-1 mt-0.5 px-1 ${mine ? "justify-end" : "justify-start"}`}>
+                  {/* Timestamp + read receipt — hidden for images (overlaid inside) */}
+                  <div className={`flex items-center gap-1 mt-0.5 px-1 ${mine ? "justify-end" : "justify-start"} ${m.type === "image" && m.file_url ? "hidden" : ""}`}>
                     <span className="text-[10px] text-[#8696a0] tabular-nums">{formatTime(m.created_at)}</span>
                     {mine && !m.deleted_at && (
                       m.status === "seen"
@@ -2221,6 +2219,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       {/* Reactions picker */}
       {reactionsMenu && (
         <div
+          data-reactions-menu
           className="fixed z-[51] flex items-center gap-0.5 px-2.5 py-2 rounded-full shadow-2xl animate-fade-up"
           style={{ left: reactionsMenu.x, top: reactionsMenu.y, background: "#1f2c34", border: "1px solid #2a3942", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
           onClick={e => e.stopPropagation()}
@@ -2255,6 +2254,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
       {/* Context menu */}
       {ctxMenu && (
         <div
+          data-ctx-menu
           className="fixed z-50 rounded-2xl overflow-hidden min-w-[190px] animate-fade-up"
           style={{ left: ctxMenu.x, top: ctxMenu.y, background: "#1f2c34", border: "1px solid #2a3942", boxShadow: "0 12px 40px rgba(0,0,0,0.55)" }}
           onClick={(e) => e.stopPropagation()}
@@ -2934,28 +2934,40 @@ function ImageLightbox({ src, name, onClose }: { src: string; name: string; onCl
   );
 }
 
-function ImageBubble({ message: m, mine }: { message: Message; mine: boolean }) {
+function ImageBubble({ message: m, mine, timestamp, status }: { message: Message; mine: boolean; timestamp: string; status?: Message["status"] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <div className={`rounded-2xl overflow-hidden shadow-sm ${mine ? "rounded-tr-sm" : "rounded-tl-sm"} w-[240px] max-w-[240px]`}>
-        <button onClick={() => setOpen(true)} className="block w-full relative group focus:outline-none">
-          <img src={m.file_url!} alt={m.file_name ?? "image"} className="w-full object-cover block" style={{ maxHeight: 280, minHeight: 100 }} />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center">
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-            </div>
-          </div>
+      {/* Wrapper — no padding, image fills entirely */}
+      <div
+        className={`relative overflow-hidden shadow-sm ${mine ? "rounded-2xl rounded-tr-sm" : "rounded-2xl rounded-tl-sm"}`}
+        style={{ width: 240, maxWidth: 240 }}
+      >
+        <button onClick={() => setOpen(true)} className="block w-full focus:outline-none">
+          <img
+            src={m.file_url!}
+            alt=""
+            className="w-full block object-cover"
+            style={{ minHeight: 100, maxHeight: 320, display: "block" }}
+          />
         </button>
-        {m.file_name && (
-          <div className="flex items-center justify-between gap-2 px-3 py-1.5" style={{ background: mine ? "#005c4b" : "#1f2c34" }}>
-            <span className="text-[11px] truncate text-[#8696a0]">{m.file_name}</span>
-            <a href={m.file_url!} download={m.file_name ?? "image"} target="_blank" rel="noreferrer"
-              className="shrink-0 hover:opacity-70 transition-opacity text-[#8696a0]" onClick={e => e.stopPropagation()}>
-              <Download className="h-3.5 w-3.5" />
-            </a>
+
+        {/* Timestamp + tick — overlaid bottom-right inside image */}
+        <div
+          className="absolute bottom-0 right-0 left-0 flex justify-end items-end px-2 pb-1.5 pointer-events-none"
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 100%)", paddingTop: 18 }}
+        >
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-white/90 tabular-nums drop-shadow">{timestamp}</span>
+            {mine && (
+              status === "seen"
+                ? <CheckCheck className="h-3 w-3 text-[#53bdeb] drop-shadow" />
+                : status === "delivered"
+                  ? <CheckCheck className="h-3 w-3 text-white/80 drop-shadow" />
+                  : <Check className="h-3 w-3 text-white/80 drop-shadow" />
+            )}
           </div>
-        )}
+        </div>
       </div>
       {open && <ImageLightbox src={m.file_url!} name={m.file_name ?? "image"} onClose={() => setOpen(false)} />}
     </>
@@ -3115,7 +3127,7 @@ function MessageBubble({ message: m, mine, playingId, setPlayingId, onDelete, me
 
   // ── Image ───────────────────────────────────────────────────────────────────
   if (m.type === "image" && m.file_url) {
-    return <ImageBubble message={m} mine={mine} />;
+    return <ImageBubble message={m} mine={mine} timestamp={formatTime(m.created_at)} status={m.status} />;
   }
 
   // ── File / Video / Document ─────────────────────────────────────────────────
