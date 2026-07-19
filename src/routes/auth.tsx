@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { MessageCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { MessageCircle, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { getDisposableEmailError } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -27,10 +28,21 @@ function AuthPage() {
 
   const [isRegister, setIsRegister] = useState(mode === "register");
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  // Validate email in real time when registering
+  function handleEmailChange(val: string) {
+    setEmail(val);
+    if (isRegister && val.includes("@")) {
+      setEmailError(getDisposableEmailError(val));
+    } else {
+      setEmailError(null);
+    }
+  }
 
   useEffect(() => {
     if (!loading && user) {
@@ -67,6 +79,10 @@ function AuthPage() {
     // Validate before setting submitting so the button never gets stuck
     if (isRegister && password.length < 6) {
       toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (isRegister && emailError) {
+      toast.error(emailError);
       return;
     }
 
@@ -155,9 +171,22 @@ function AuthPage() {
               )}
               <div className="space-y-1.5">
                 <label htmlFor="email" className="text-xs font-medium text-[#8696a0] uppercase tracking-wide">Email</label>
-                <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email"
-                  className="w-full rounded-lg px-3 py-3 text-base text-[#e9edef] placeholder:text-[#8696a0] outline-none focus:border-[#00a884]"
-                  style={{ background: "#2a3942", border: "1px solid #3d5260", fontSize: "16px" }} />
+                <input id="email" type="email" required value={email}
+                  onChange={(e) => handleEmailChange(e.target.value)}
+                  placeholder="you@example.com" autoComplete="email"
+                  className={`w-full rounded-lg px-3 py-3 text-base text-[#e9edef] placeholder:text-[#8696a0] outline-none transition-colors`}
+                  style={{
+                    background: "#2a3942",
+                    border: `1px solid ${isRegister && emailError ? "#f15c6d" : "#3d5260"}`,
+                    fontSize: "16px",
+                  }}
+                />
+                {isRegister && emailError && (
+                  <div className="flex items-start gap-1.5 mt-1">
+                    <AlertCircle className="h-3.5 w-3.5 text-[#f15c6d] shrink-0 mt-0.5" />
+                    <p className="text-[12px] text-[#f15c6d] leading-snug">{emailError}</p>
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -172,7 +201,7 @@ function AuthPage() {
                   className="w-full rounded-lg px-3 py-3 text-base text-[#e9edef] placeholder:text-[#8696a0] outline-none focus:border-[#00a884]"
                   style={{ background: "#2a3942", border: "1px solid #3d5260", fontSize: "16px" }} />
               </div>
-              <button type="submit" disabled={submitting} className="w-full py-3.5 rounded-lg bg-[#00a884] text-white font-semibold text-base hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2 min-h-[48px]">
+              <button type="submit" disabled={submitting || (isRegister && !!emailError)} className="w-full py-3.5 rounded-lg bg-[#00a884] text-white font-semibold text-base hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2 min-h-[48px]">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isRegister ? "Create account" : "Sign in"}
               </button>
             </form>
@@ -181,7 +210,7 @@ function AuthPage() {
           {!showForgotPassword && (
             <div className="text-center text-sm text-[#8696a0] pt-2">
               {isRegister ? "Already have an account?" : "New to Pulse?"}{" "}
-              <button onClick={() => setIsRegister(!isRegister)} className="text-[#00a884] hover:underline font-medium">
+              <button onClick={() => { setIsRegister(!isRegister); setEmailError(null); }} className="text-[#00a884] hover:underline font-medium">
                 {isRegister ? "Sign in" : "Create one"}
               </button>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, createContext, useContext, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,25 +49,21 @@ function notifBg(type: NotifType): string {
   }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Singleton notification context ──────────────────────────────────────────
+// Keeps exactly ONE Supabase realtime channel open regardless of how many
+// NotificationBell instances are rendered (desktop sidebar + mobile top bar).
 
-interface Props {
-  /** Pass true to render icon-only (collapsed sidebar on md breakpoint) */
-  iconOnly?: boolean;
+interface NotifContextValue {
+  notifs: AppNotification[];
+  setNotifs: React.Dispatch<React.SetStateAction<AppNotification[]>>;
 }
 
-export function NotificationBell({ iconOnly = false }: Props) {
+const NotifContext = createContext<NotifContextValue | null>(null);
+
+export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
-  const [open, setOpen] = useState(false);
-  const [closing, setClosing] = useState(false);
-  const bellRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
-  const unread = notifs.filter((n) => !n.read).length;
-
-  // ── Load + realtime ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
 
@@ -83,8 +79,8 @@ export function NotificationBell({ iconOnly = false }: Props) {
 
     void load();
 
-    // Use a unique channel name per mount to avoid Supabase "already subscribed" error
-    const channelName = `notifs:${user.id}:${Date.now()}`;
+    // Single channel name per user — stable across re-renders
+    const channelName = `notifs:${user.id}`;
     const ch = supabase
       .channel(channelName)
       .on(
@@ -114,8 +110,38 @@ export function NotificationBell({ iconOnly = false }: Props) {
       .subscribe();
 
     return () => { void supabase.removeChannel(ch); };
-  // Use user.id (stable string) not user object to avoid unnecessary re-subscriptions
   }, [user?.id]);
+
+  return (
+    <NotifContext.Provider value={{ notifs, setNotifs }}>
+      {children}
+    </NotifContext.Provider>
+  );
+}
+
+function useNotifs() {
+  const ctx = useContext(NotifContext);
+  if (!ctx) throw new Error("NotificationBell must be rendered inside NotificationProvider");
+  return ctx;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+interface Props {
+  /** Pass true to render icon-only (collapsed sidebar on md breakpoint) */
+  iconOnly?: boolean;
+}
+
+export function NotificationBell({ iconOnly = false }: Props) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { notifs, setNotifs } = useNotifs();
+  const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const unread = notifs.filter((n) => !n.read).length;
 
   // ── Close on outside click ──────────────────────────────────────────────────
   useEffect(() => {

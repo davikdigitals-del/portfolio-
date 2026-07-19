@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { sendPushNotification, sendWebPush } from "@/lib/notifications";
 import { callManager, type Call } from "@/lib/calls";
-import { NotificationBell } from "@/components/NotificationBell";
+import { NotificationBell, NotificationProvider } from "@/components/NotificationBell";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
@@ -33,28 +33,41 @@ function usePresence(userId: string | undefined) {
     async function setOffline() {
       const now = new Date().toISOString();
       try {
-        await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`,
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-              "Prefer": "return=minimal",  // suppresses 404 body noise
-            },
-            body: JSON.stringify({ status: "offline", last_seen: now }),
-            keepalive: true,
-          }
-        );
-      } catch { /* ignore — page may be closing */ }
-      // Backup via supabase client
-      try {
+        // upsert handles the case where the profile row doesn't exist yet —
+        // avoids the 404 that a plain update/PATCH produces on a missing row.
         await supabase
           .from("profiles")
-          .update({ status: "offline", last_seen: now })
-          .eq("user_id", userId);
-      } catch { /* ignore */ }
+          .upsert(
+            { user_id: userId, status: "offline", last_seen: now },
+            { onConflict: "user_id" }
+          );
+      } catch { /* ignore — page may be closing */ }
+    }
+
+    // keepalive version used in pagehide/beforeunload where the Supabase client
+    // may not finish before the page tears down.
+    function setOfflineBeacon() {
+      const now = new Date().toISOString();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
+      const body = JSON.stringify({ status: "offline", last_seen: now });
+      // sendBeacon is fire-and-forget and survives page unload
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        navigator.sendBeacon(url, blob);
+      } else {
+        // Fallback: keepalive fetch (best-effort)
+        fetch(url, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            "Prefer": "return=minimal",
+          },
+          body,
+          keepalive: true,
+        }).catch(() => {});
+      }
     }
 
     void setOnline();
@@ -64,8 +77,8 @@ function usePresence(userId: string | undefined) {
       if (document.visibilityState === "hidden") void setOffline();
       else void setOnline();
     };
-    const onPageHide = (e: PageTransitionEvent) => { if (!e.persisted) void setOffline(); };
-    const onUnload = () => void setOffline();
+    const onPageHide = (e: PageTransitionEvent) => { if (!e.persisted) setOfflineBeacon(); };
+    const onUnload = () => setOfflineBeacon();
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
@@ -1182,6 +1195,7 @@ function DashboardLayout() {
   const fmtDuration = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
   return (
+    <NotificationProvider>
     <div className="flex bg-background overflow-hidden" style={{ height: "calc(var(--vh, 1vh) * 100)" }}>
 
       {/* Desktop sidebar — icon-only on md, full labels on lg+ (WhatsApp Web style) */}
@@ -1798,6 +1812,7 @@ function DashboardLayout() {
         </div>
       )}
     </div>
+    </NotificationProvider>
   );
 }
 
