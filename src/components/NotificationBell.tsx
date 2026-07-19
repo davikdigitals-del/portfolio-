@@ -83,16 +83,13 @@ export function NotificationBell({ iconOnly = false }: Props) {
 
     void load();
 
+    // Use a unique channel name per mount to avoid Supabase "already subscribed" error
+    const channelName = `notifs:${user.id}:${Date.now()}`;
     const ch = supabase
-      .channel(`notifs:${user.id}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         (payload) => {
           const n = payload.new as AppNotification;
           setNotifs((prev) => [n, ...prev].slice(0, 50));
@@ -100,12 +97,7 @@ export function NotificationBell({ iconOnly = false }: Props) {
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
+        { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         (payload) => {
           const n = payload.new as AppNotification;
           setNotifs((prev) => prev.map((x) => (x.id === n.id ? n : x)));
@@ -113,12 +105,7 @@ export function NotificationBell({ iconOnly = false }: Props) {
       )
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
+        { event: "DELETE", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         (payload) => {
           const old = payload.old as { id: string };
           setNotifs((prev) => prev.filter((x) => x.id !== old.id));
@@ -127,7 +114,8 @@ export function NotificationBell({ iconOnly = false }: Props) {
       .subscribe();
 
     return () => { void supabase.removeChannel(ch); };
-  }, [user]);
+  // Use user.id (stable string) not user object to avoid unnecessary re-subscriptions
+  }, [user?.id]);
 
   // ── Close on outside click ──────────────────────────────────────────────────
   useEffect(() => {

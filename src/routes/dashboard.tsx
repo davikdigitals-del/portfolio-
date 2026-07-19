@@ -23,17 +23,15 @@ function usePresence(userId: string | undefined) {
     if (!userId) return;
 
     async function setOnline() {
+      // Upsert instead of update — handles the race condition where profile
+      // doesn't exist yet on first login (DB trigger may not have fired yet)
       await supabase
         .from("profiles")
-        .update({ status: "online", last_seen: new Date().toISOString() })
-        .eq("user_id", userId);
+        .upsert({ user_id: userId, status: "online", last_seen: new Date().toISOString() }, { onConflict: "user_id" });
     }
 
     async function setOffline() {
       const now = new Date().toISOString();
-      // sendBeacon fires even when tab is being destroyed
-      // Must include apikey header — use a FormData workaround since sendBeacon
-      // doesn't support custom headers. Fall back to fetch with keepalive.
       try {
         await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`,
@@ -43,13 +41,14 @@ function usePresence(userId: string | undefined) {
               "Content-Type": "application/json",
               "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
               "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              "Prefer": "return=minimal",  // suppresses 404 body noise
             },
             body: JSON.stringify({ status: "offline", last_seen: now }),
-            keepalive: true, // fires even when page is unloading
+            keepalive: true,
           }
         );
       } catch { /* ignore — page may be closing */ }
-      // Also try via supabase client as backup
+      // Backup via supabase client
       try {
         await supabase
           .from("profiles")

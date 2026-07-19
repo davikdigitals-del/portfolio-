@@ -142,6 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signUp(email: string, password: string, displayName: string) {
+    // Block disposable / throwaway email domains
+    const disposableError = getDisposableEmailError(email);
+    if (disposableError) return { error: disposableError };
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
