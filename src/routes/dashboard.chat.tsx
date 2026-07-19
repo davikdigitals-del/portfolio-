@@ -98,16 +98,20 @@ function useStalePresenceCleanup(isAdmin: boolean) {
   useEffect(() => {
     if (!isAdmin) return;
     async function cleanup() {
-      const cutoff = new Date(Date.now() - 45_000).toISOString(); // 45s
+      // Guard: only run if we have a valid session — avoids 401s on load
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const cutoff = new Date(Date.now() - 45_000).toISOString();
       await supabase
         .from("profiles")
         .update({ status: "offline" })
         .eq("status", "online")
         .lt("last_seen", cutoff);
     }
-    void cleanup(); // run immediately
-    const interval = setInterval(() => void cleanup(), 15_000); // check every 15s
-    return () => clearInterval(interval);
+    // Delay first run by 2s so session is definitely loaded
+    const initial = setTimeout(() => void cleanup(), 2000);
+    const interval = setInterval(() => void cleanup(), 15_000);
+    return () => { clearTimeout(initial); clearInterval(interval); };
   }, [isAdmin]);
 }
 

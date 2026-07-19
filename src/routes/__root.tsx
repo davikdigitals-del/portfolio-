@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
 import { Preloader } from "@/components/preloader";
 import { InstallPrompt } from "@/components/install-prompt";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { sendPushNotification } from "@/lib/notifications";
 import type { Call } from "@/lib/calls";
@@ -121,6 +122,7 @@ function RootComponent() {
 
   return (
     <AuthProvider>
+      <OfflineBanner />
       <GlobalCallListener />
       {!ready && <Preloader onDone={() => setReady(true)} />}
       <div className={ready ? "opacity-100 transition-opacity duration-500" : "opacity-0"}>

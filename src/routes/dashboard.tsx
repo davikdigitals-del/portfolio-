@@ -23,30 +23,25 @@ function usePresence(userId: string | undefined) {
     if (!userId) return;
 
     async function setOnline() {
-      // Confirm we have a valid session before writing — avoids 401s that occur
-      // in the brief window between React state having `user` and the Supabase
-      // client having the auth token attached to its REST requests.
+      // Guard: confirm valid session before writing — avoids 401s during the
+      // brief window where React has `user` but the Supabase client hasn't
+      // finished attaching the auth token to its REST requests yet.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      // Upsert instead of update — handles the race condition where profile
-      // doesn't exist yet on first login (DB trigger may not have fired yet)
       await supabase
         .from("profiles")
-        .upsert({ user_id: userId, status: "online", last_seen: new Date().toISOString() }, { onConflict: "user_id" });
+        .update({ status: "online", last_seen: new Date().toISOString() })
+        .eq("user_id", userId);
     }
 
     async function setOffline() {
       const now = new Date().toISOString();
       try {
-        // upsert handles the case where the profile row doesn't exist yet —
-        // avoids the 404 that a plain update/PATCH produces on a missing row.
         await supabase
           .from("profiles")
-          .upsert(
-            { user_id: userId, status: "offline", last_seen: now },
-            { onConflict: "user_id" }
-          );
-      } catch { /* ignore — page may be closing */ }
+          .update({ status: "offline", last_seen: now })
+          .eq("user_id", userId);
+      } catch { /* ignore */ }
     }
 
     // keepalive version used in pagehide/beforeunload where the Supabase client
@@ -75,8 +70,10 @@ function usePresence(userId: string | undefined) {
       }
     }
 
-    void setOnline();
-    const heartbeat = setInterval(() => void setOnline(), 10_000); // Update every 10 seconds instead of 20
+    // Delay first online ping 500ms — gives the Supabase client time to
+    // attach the session token after React mounts (avoids the initial 401)
+    const initialTimer = setTimeout(() => void setOnline(), 500);
+    const heartbeat = setInterval(() => void setOnline(), 10_000);
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") void setOffline();
@@ -90,6 +87,7 @@ function usePresence(userId: string | undefined) {
     window.addEventListener("beforeunload", onUnload);
 
     return () => {
+      clearTimeout(initialTimer);
       clearInterval(heartbeat);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
