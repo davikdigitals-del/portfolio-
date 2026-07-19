@@ -98,18 +98,23 @@ function useStalePresenceCleanup(isAdmin: boolean) {
   useEffect(() => {
     if (!isAdmin) return;
     async function cleanup() {
-      // Guard: only run if we have a valid session — avoids 401s on load
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session?.access_token) return;
       const cutoff = new Date(Date.now() - 45_000).toISOString();
-      await supabase
-        .from("profiles")
-        .update({ status: "offline" })
-        .eq("status", "online")
-        .lt("last_seen", cutoff);
+      // Use a direct fetch with the real JWT so RLS passes
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?status=eq.online&last_seen=lt.${encodeURIComponent(cutoff)}`;
+      await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          "Authorization": `Bearer ${session.access_token}`,
+          "Prefer": "return=minimal",
+        },
+        body: JSON.stringify({ status: "offline" }),
+      }).catch(() => {});
     }
-    // Delay first run by 2s so session is definitely loaded
-    const initial = setTimeout(() => void cleanup(), 2000);
+    const initial = setTimeout(() => void cleanup(), 3000);
     const interval = setInterval(() => void cleanup(), 15_000);
     return () => { clearTimeout(initial); clearInterval(interval); };
   }, [isAdmin]);

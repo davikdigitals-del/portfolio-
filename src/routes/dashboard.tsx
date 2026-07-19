@@ -22,12 +22,14 @@ function usePresence(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return;
 
-    async function setOnline() {
-      // Guard: confirm valid session before writing — avoids 401s during the
-      // brief window where React has `user` but the Supabase client hasn't
-      // finished attaching the auth token to its REST requests yet.
+    async function getToken(): Promise<string | null> {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      return session?.access_token ?? null;
+    }
+
+    async function setOnline() {
+      const token = await getToken();
+      if (!token) return;
       await supabase
         .from("profiles")
         .update({ status: "online", last_seen: new Date().toISOString() })
@@ -35,52 +37,49 @@ function usePresence(userId: string | undefined) {
     }
 
     async function setOffline() {
-      const now = new Date().toISOString();
+      const token = await getToken();
+      if (!token) return;
       try {
         await supabase
           .from("profiles")
-          .update({ status: "offline", last_seen: now })
+          .update({ status: "offline", last_seen: new Date().toISOString() })
           .eq("user_id", userId);
       } catch { /* ignore */ }
     }
 
-    // keepalive version used in pagehide/beforeunload where the Supabase client
-    // may not finish before the page tears down.
-    function setOfflineBeacon() {
+    // keepalive fetch for page unload — must use the real JWT not the anon key
+    async function setOfflineBeacon() {
+      const token = await getToken();
+      // If we can't get the token synchronously, skip — page is closing anyway
+      const accessToken = token ?? "";
       const now = new Date().toISOString();
       const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`;
       const body = JSON.stringify({ status: "offline", last_seen: now });
-      // sendBeacon is fire-and-forget and survives page unload
-      if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: "application/json" });
-        navigator.sendBeacon(url, blob);
-      } else {
-        // Fallback: keepalive fetch (best-effort)
-        fetch(url, {
+      try {
+        await fetch(url, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            "Authorization": `Bearer ${accessToken}`,
             "Prefer": "return=minimal",
           },
           body,
           keepalive: true,
-        }).catch(() => {});
-      }
+        });
+      } catch { /* ignore — page is closing */ }
     }
 
-    // Delay first online ping 500ms — gives the Supabase client time to
-    // attach the session token after React mounts (avoids the initial 401)
-    const initialTimer = setTimeout(() => void setOnline(), 500);
+    // Delay first ping 1s so the Supabase client finishes loading the session
+    const initialTimer = setTimeout(() => void setOnline(), 1000);
     const heartbeat = setInterval(() => void setOnline(), 10_000);
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") void setOffline();
       else void setOnline();
     };
-    const onPageHide = (e: PageTransitionEvent) => { if (!e.persisted) setOfflineBeacon(); };
-    const onUnload = () => setOfflineBeacon();
+    const onPageHide = (e: PageTransitionEvent) => { if (!e.persisted) void setOfflineBeacon(); };
+    const onUnload = () => void setOfflineBeacon();
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
