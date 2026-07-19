@@ -23,6 +23,11 @@ function usePresence(userId: string | undefined) {
     if (!userId) return;
 
     async function setOnline() {
+      // Confirm we have a valid session before writing — avoids 401s that occur
+      // in the brief window between React state having `user` and the Supabase
+      // client having the auth token attached to its REST requests.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
       // Upsert instead of update — handles the race condition where profile
       // doesn't exist yet on first login (DB trigger may not have fired yet)
       await supabase
@@ -585,7 +590,10 @@ function DashboardLayout() {
     if (!user) return;
     console.log("[CallListener] Subscribing for user:", user.id);
 
-    const ch = supabase.channel(`global-calls-${user.id}`)
+    // Append a random suffix so each mount always gets a fresh channel object.
+    // supabase.channel(name) returns the *same object* if the name already exists
+    // in the client registry, which causes "cannot add callbacks after subscribe()".
+    const ch = supabase.channel(`global-calls-${user.id}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
@@ -1100,7 +1108,7 @@ function DashboardLayout() {
       }
     }
     void fetchUnread();
-    const ch = supabase.channel("dashboard-unread")
+    const ch = supabase.channel(`dashboard-unread-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => void fetchUnread())
       .subscribe();
     return () => { void supabase.removeChannel(ch); };

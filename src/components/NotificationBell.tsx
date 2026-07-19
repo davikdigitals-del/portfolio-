@@ -79,8 +79,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     void load();
 
-    // Single channel name per user — stable across re-renders
-    const channelName = `notifs:${user.id}`;
+    // Unique channel name per mount — supabase.channel(name) returns the same
+    // object if the name already exists (even mid-teardown), which causes
+    // "cannot add callbacks after subscribe()". The random suffix prevents that.
+    const channelName = `notifs:${user.id}:${Math.random().toString(36).slice(2)}`;
     const ch = supabase
       .channel(channelName)
       .on(

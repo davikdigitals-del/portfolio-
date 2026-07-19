@@ -165,11 +165,10 @@ function GlobalCallListener() {
     }
 
     // Subscribe to incoming calls — only fires when the dashboard listener is NOT active.
-    // We use the SAME channel name as the dashboard (`global-calls-${user.id}`) so
-    // Supabase reuses the existing socket subscription instead of opening a second one.
-    // The dashboard registers `window.__setIncomingCall` before its channel subscribes,
-    // so we check that flag to decide whether to handle the event here.
-    const ch = supabase.channel(`global-calls-${user.id}`)
+    // Use a unique channel name (root-calls-) distinct from the dashboard (global-calls-)
+    // so the two channels never share a channel object. The handler short-circuits
+    // immediately if the dashboard's __setIncomingCall handler is already registered.
+    const ch = supabase.channel(`root-calls-${user.id}`)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
