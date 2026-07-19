@@ -1600,27 +1600,49 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
   // ---- Context menu (long press / right click) ----
   const [ctxMenu, setCtxMenu] = useState<{ msgId: string; x: number; y: number; mine: boolean; type: string } | null>(null);
   const [reactionsMenu, setReactionsMenu] = useState<{ msgId: string; x: number; y: number } | null>(null);
+  // Bottom sheet for mobile (shows instead of floating menu)
+  const [bottomSheet, setBottomSheet] = useState<{ msgId: string; mine: boolean; type: string } | null>(null);
+  const [sheetClosing, setSheetClosing] = useState(false);
+
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressDataRef = useRef<{ msg: Message; mine: boolean; x: number; y: number } | null>(null);
-  // Timestamp of when the menu was last opened — used to swallow the pointer event that opened it
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const ctxOpenTimeRef = useRef(0);
 
+  const isMobile = () => window.matchMedia("(pointer: coarse)").matches;
+
   function openCtxMenu(x: number, y: number, msg: Message, mine: boolean) {
-    const menuW = 180, menuH = 200;
-    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-    x = Math.max(8, Math.min(x, viewportWidth - menuW - 8));
-    y = Math.max(8, Math.min(y, viewportHeight - menuH - 8));
     ctxOpenTimeRef.current = Date.now();
-    setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
-    setReactionsMenu({ msgId: msg.id, x: Math.max(8, Math.min(x, viewportWidth - 280)), y: Math.max(8, y - 60) });
+    if (isMobile()) {
+      // Mobile — bottom sheet
+      setBottomSheet({ msgId: msg.id, mine, type: msg.type });
+      // Reactions bar still shows at top of sheet, no position needed
+      setReactionsMenu({ msgId: msg.id, x: 0, y: 0 });
+    } else {
+      // Desktop — floating menu at cursor
+      const menuW = 200, menuH = 220;
+      const vw = window.visualViewport?.width ?? window.innerWidth;
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      x = Math.max(8, Math.min(x, vw - menuW - 8));
+      y = Math.max(8, Math.min(y, vh - menuH - 8));
+      setCtxMenu({ msgId: msg.id, x, y, mine, type: msg.type });
+      setReactionsMenu({ msgId: msg.id, x: Math.max(8, Math.min(x, vw - 290)), y: Math.max(8, y - 64) });
+    }
+  }
+
+  function closeMenus() {
+    if (bottomSheet) {
+      setSheetClosing(true);
+      setTimeout(() => { setBottomSheet(null); setSheetClosing(false); }, 240);
+    }
+    setCtxMenu(null);
+    setReactionsMenu(null);
   }
 
   function startLongPress(e: React.TouchEvent, msg: Message, mine: boolean) {
     const touch = e.touches[0];
-    const x = touch.clientX;
-    const y = touch.clientY;
-    longPressDataRef.current = { msg, mine, x, y };
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    longPressDataRef.current = { msg, mine, x: touch.clientX, y: touch.clientY };
 
     longPressTimer.current = setTimeout(() => {
       if (longPressDataRef.current) {
@@ -1629,28 +1651,38 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         if ("vibrate" in navigator) navigator.vibrate(50);
         longPressDataRef.current = null;
       }
-    }, 500);
+    }, 450);
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (!touchStartPos.current || !longPressTimer.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+    // Only cancel if finger moved more than 10px — allows slight wobble
+    if (dx > 10 || dy > 10) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      longPressDataRef.current = null;
+    }
   }
 
   function cancelLongPress() {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     longPressDataRef.current = null;
+    touchStartPos.current = null;
   }
 
-  // Close context menu on outside tap/click — pointerdown fires on both mouse and touch
-  // We ignore the pointer event that opened the menu (within 400ms grace window)
+  // Close menus on outside pointer (desktop only — mobile uses backdrop tap)
   useEffect(() => {
     if (!ctxMenu && !reactionsMenu) return;
     const handlePointerDown = (e: PointerEvent) => {
-      // Swallow the event that triggered the open
       if (Date.now() - ctxOpenTimeRef.current < 400) return;
-      // If the click target is inside the menu or reactions bar, don't close
       const target = e.target as Element | null;
       if (target?.closest("[data-ctx-menu]") || target?.closest("[data-reactions-menu]")) return;
       setCtxMenu(null);
       setReactionsMenu(null);
     };
-    // Use capture so we get it before any child handlers
     document.addEventListener("pointerdown", handlePointerDown, true);
     return () => document.removeEventListener("pointerdown", handlePointerDown, true);
   }, [ctxMenu, reactionsMenu]);
@@ -2299,7 +2331,7 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
                       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openCtxMenu(e.clientX, e.clientY, m, mine); }}
                       onTouchStart={(e) => startLongPress(e, m, mine)}
                       onTouchEnd={cancelLongPress}
-                      onTouchMove={cancelLongPress}
+                      onTouchMove={onTouchMove}
                       onTouchCancel={cancelLongPress}
                       className="select-none"
                       style={{ animation: "message-in 0.22s cubic-bezier(0.22,1,0.36,1) both" }}
@@ -2377,8 +2409,8 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         )}
       </div>
 
-      {/* Reactions picker */}
-      {reactionsMenu && (
+      {/* Reactions picker — desktop floating, mobile inside bottom sheet */}
+      {reactionsMenu && !bottomSheet && (
         <div
           data-reactions-menu
           className="fixed z-[51] flex items-center gap-0.5 px-2.5 py-2 rounded-full shadow-2xl animate-fade-up"
@@ -2412,65 +2444,171 @@ function ActiveChat({ conversation, isAdmin, adminProfile, onBack, pendingCallId
         </div>
       )}
 
-      {/* Context menu */}
+      {/* Desktop floating context menu */}
       {ctxMenu && (
         <div
           data-ctx-menu
-          className="fixed z-50 rounded-2xl overflow-hidden min-w-[190px] animate-fade-up"
+          className="fixed z-50 rounded-2xl overflow-hidden min-w-[200px] animate-fade-up"
           style={{ left: ctxMenu.x, top: ctxMenu.y, background: "#1f2c34", border: "1px solid #2a3942", boxShadow: "0 12px 40px rgba(0,0,0,0.55)" }}
           onClick={(e) => e.stopPropagation()}
           onTouchEnd={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={(e) => {
-              e.preventDefault(); e.stopPropagation();
-              const msg = messages.find((m) => m.id === ctxMenu.msgId);
-              if (msg) setReplyingTo(msg);
-              setCtxMenu(null); setReactionsMenu(null);
-            }}
-            className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] transition-colors text-left text-[#e9edef] font-medium"
-          >
+          <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); const msg = messages.find((m) => m.id === ctxMenu.msgId); if (msg) setReplyingTo(msg); setCtxMenu(null); setReactionsMenu(null); }} className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] transition-colors text-left text-[#e9edef] font-medium">
             <Reply className="h-[15px] w-[15px] text-[#8696a0] shrink-0" /> Reply
           </button>
           {ctxMenu.mine && ctxMenu.type === "text" && (
-            <button
-              onClick={(e) => {
-                e.preventDefault(); e.stopPropagation();
-                const msg = messages.find((m) => m.id === ctxMenu.msgId);
-                if (msg) { setEditText(msg.content ?? ""); setEditingId(msg.id); }
-                setCtxMenu(null); setReactionsMenu(null);
-              }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] transition-colors text-left text-[#e9edef] font-medium"
-              style={{ borderTop: "1px solid #2a3942" }}
-            >
+            <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); const msg = messages.find((m) => m.id === ctxMenu.msgId); if (msg) { setEditText(msg.content ?? ""); setEditingId(msg.id); } setCtxMenu(null); setReactionsMenu(null); }} className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] transition-colors text-left text-[#e9edef] font-medium" style={{ borderTop: "1px solid #2a3942" }}>
               <Pencil className="h-[15px] w-[15px] text-[#8696a0] shrink-0" /> Edit
             </button>
           )}
           {(ctxMenu.mine || isAdmin) && (
-            <button
-              onClick={(e) => {
-                e.preventDefault(); e.stopPropagation();
-                setCtxMenu(null); setReactionsMenu(null);
-                setTimeout(() => deleteForEveryone(ctxMenu.msgId), 50);
-              }}
-              className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] text-[#f15c6d] transition-colors text-left font-medium"
-              style={{ borderTop: "1px solid #2a3942" }}
-            >
+            <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); const id = ctxMenu.msgId; setCtxMenu(null); setReactionsMenu(null); setTimeout(() => deleteForEveryone(id), 50); }} className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] text-[#f15c6d] transition-colors text-left font-medium" style={{ borderTop: "1px solid #2a3942" }}>
               <Trash2 className="h-[15px] w-[15px] shrink-0" /> Delete for everyone
             </button>
           )}
-          <button
-            onClick={(e) => {
-              e.preventDefault(); e.stopPropagation();
-              setCtxMenu(null); setReactionsMenu(null);
-              setTimeout(() => deleteForMe(ctxMenu.msgId), 50);
-            }}
-            className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] text-[#8696a0] transition-colors text-left font-medium"
-            style={{ borderTop: "1px solid #2a3942" }}
-          >
+          <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); const id = ctxMenu.msgId; setCtxMenu(null); setReactionsMenu(null); setTimeout(() => deleteForMe(id), 50); }} className="flex items-center gap-3 w-full px-4 py-3 text-[13px] hover:bg-[#2a3942] text-[#8696a0] transition-colors text-left font-medium" style={{ borderTop: "1px solid #2a3942" }}>
             <Trash2 className="h-[15px] w-[15px] shrink-0" /> Delete for me
           </button>
         </div>
+      )}
+
+      {/* Mobile bottom sheet — portaled to body */}
+      {(bottomSheet || sheetClosing) && createPortal(
+        <div className="fixed inset-0 z-[100] flex flex-col justify-end" style={{ WebkitTapHighlightColor: "transparent" }}>
+          {/* Scrim */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "rgba(0,0,0,0.45)",
+              animation: sheetClosing ? "scrim-out 0.24s ease forwards" : "scrim-in 0.24s ease forwards",
+            }}
+            onClick={closeMenus}
+          />
+          {/* Sheet */}
+          <div
+            className="relative w-full rounded-t-3xl overflow-hidden"
+            style={{
+              background: "#1f2c34",
+              animation: sheetClosing ? "sheet-down 0.24s cubic-bezier(0.4,0,1,1) forwards" : "sheet-up 0.28s cubic-bezier(0.22,1,0.36,1) forwards",
+              paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))",
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full" style={{ background: "#3d5260" }} />
+            </div>
+
+            {/* Reactions row */}
+            <div className="flex items-center justify-around px-4 py-3" style={{ borderBottom: "1px solid #2a3942" }}>
+              {["👍","❤️","😂","😮","😢","🙏","🔥"].map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={async () => {
+                    if (!user || !bottomSheet) return;
+                    const msgId = bottomSheet.msgId;
+                    const msg = messages.find(m => m.id === msgId);
+                    if (!msg) return;
+                    const current: Record<string, string[]> = msg.reactions ?? {};
+                    const users = current[emoji] ?? [];
+                    const alreadyReacted = users.includes(user.id);
+                    const updated = { ...current, [emoji]: alreadyReacted ? users.filter(id => id !== user.id) : [...users, user.id] };
+                    if (updated[emoji].length === 0) delete updated[emoji];
+                    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: updated } : m));
+                    await supabase.from("messages").update({ reactions: updated }).eq("id", msgId);
+                    closeMenus();
+                  }}
+                  className="text-[28px] active:scale-90 transition-transform p-1"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+
+            {/* Action rows */}
+            <div className="py-1">
+              {/* Reply */}
+              <button
+                onClick={() => {
+                  if (!bottomSheet) return;
+                  const msg = messages.find((m) => m.id === bottomSheet.msgId);
+                  if (msg) setReplyingTo(msg);
+                  closeMenus();
+                }}
+                className="flex items-center gap-4 w-full px-5 py-3.5 text-[15px] text-[#e9edef] active:bg-[#2a3942] transition-colors text-left"
+              >
+                <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "#2a3942" }}>
+                  <Reply className="h-4 w-4 text-[#8696a0]" />
+                </div>
+                Reply
+              </button>
+
+              {/* Edit — only for own text messages */}
+              {bottomSheet?.mine && bottomSheet.type === "text" && (
+                <button
+                  onClick={() => {
+                    if (!bottomSheet) return;
+                    const msg = messages.find((m) => m.id === bottomSheet.msgId);
+                    if (msg) { setEditText(msg.content ?? ""); setEditingId(msg.id); }
+                    closeMenus();
+                  }}
+                  className="flex items-center gap-4 w-full px-5 py-3.5 text-[15px] text-[#e9edef] active:bg-[#2a3942] transition-colors text-left"
+                >
+                  <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "#2a3942" }}>
+                    <Pencil className="h-4 w-4 text-[#8696a0]" />
+                  </div>
+                  Edit
+                </button>
+              )}
+
+              {/* Delete for everyone — own messages or admin */}
+              {(bottomSheet?.mine || isAdmin) && (
+                <button
+                  onClick={() => {
+                    if (!bottomSheet) return;
+                    const id = bottomSheet.msgId;
+                    closeMenus();
+                    setTimeout(() => deleteForEveryone(id), 260);
+                  }}
+                  className="flex items-center gap-4 w-full px-5 py-3.5 text-[15px] text-[#f15c6d] active:bg-[#2a3942] transition-colors text-left"
+                >
+                  <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(241,92,109,0.15)" }}>
+                    <Trash2 className="h-4 w-4 text-[#f15c6d]" />
+                  </div>
+                  Delete for everyone
+                </button>
+              )}
+
+              {/* Delete for me — always shown */}
+              <button
+                onClick={() => {
+                  if (!bottomSheet) return;
+                  const id = bottomSheet.msgId;
+                  closeMenus();
+                  setTimeout(() => deleteForMe(id), 260);
+                }}
+                className="flex items-center gap-4 w-full px-5 py-3.5 text-[15px] text-[#8696a0] active:bg-[#2a3942] transition-colors text-left"
+              >
+                <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "#2a3942" }}>
+                  <Trash2 className="h-4 w-4 text-[#8696a0]" />
+                </div>
+                Delete for me
+              </button>
+            </div>
+
+            {/* Cancel */}
+            <div className="px-4 pt-1">
+              <button
+                onClick={closeMenus}
+                className="w-full py-3.5 rounded-2xl text-[15px] font-semibold text-[#f15c6d] active:opacity-70 transition-opacity"
+                style={{ background: "#2a3942" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Composer */}
