@@ -204,8 +204,17 @@ Deno.serve(async (req: Request) => {
     const chatUrl = `${SITE_URL}/dashboard/chat`;
 
     if (isAdminSender) {
-      // Admin → client: Web Push + email
+      // Admin → client: Web Push + email + in-app notification
       const clientUserId = conversation.user_id;
+
+      // In-app notification
+      await supabase.from("notifications").insert({
+        user_id: clientUserId,
+        type: "new_message",
+        title: `💬 ${ADMIN_NAME}`,
+        body: preview,
+        conversation_id,
+      });
 
       // Web Push (wakes phone)
       await sendWebPushToUser(
@@ -227,13 +236,22 @@ Deno.serve(async (req: Request) => {
         );
       }
     } else {
-      // Client → admin: Web Push + email
+      // Client → admin: Web Push + email + in-app notification
 
       // Get admin user_id
       const { data: adminRole } = await supabase
         .from("user_roles").select("user_id").eq("role", "admin").limit(1).maybeSingle();
 
       if (adminRole?.user_id) {
+        // In-app notification
+        await supabase.from("notifications").insert({
+          user_id: adminRole.user_id,
+          type: "new_message",
+          title: `📩 ${senderName}`,
+          body: preview,
+          conversation_id,
+        });
+
         // Web Push (wakes phone)
         await sendWebPushToUser(
           adminRole.user_id,

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { sendPushNotification, sendWebPush } from "@/lib/notifications";
 import { callManager, type Call } from "@/lib/calls";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard" }] }),
@@ -1144,6 +1145,8 @@ function DashboardLayout() {
             onClick={() => setMobileOpen(false)}
           />
         ))}
+        {/* Notification bell — shown for all users */}
+        <NotificationBell />
       </nav>
 
       {/* User Profile — icon only on md, full on lg+ */}
@@ -1197,12 +1200,9 @@ function DashboardLayout() {
           </div>
           <span className="font-semibold text-sm text-[#e9edef]">Ajibola</span>
         </Link>
-        <div className="flex items-center gap-3">
-          {unreadCount > 0 && (
-            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full bg-[#00a884] text-white">
-              {unreadCount}
-            </span>
-          )}
+        <div className="flex items-center gap-1">
+          {/* Notification bell — compact for mobile top bar */}
+          <NotificationBellCompact />
           <button 
             onClick={() => setMobileOpen((v) => !v)} 
             className="p-2 rounded-full text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition-colors"
@@ -1803,6 +1803,16 @@ function DashboardLayout() {
 }
 
 
+
+// ── Compact bell for mobile top bar ──────────────────────────────────────────
+// Same panel as NotificationBell but renders as a bare icon button
+function NotificationBellCompact() {
+  return (
+    <div className="[&>button]:py-0 [&>button]:px-2 [&>button]:h-9 [&>button]:w-9 [&>button]:flex [&>button]:items-center [&>button]:justify-center [&>button]:rounded-full">
+      <NotificationBell />
+    </div>
+  );
+}
 
 function NavItem({
   to, icon: Icon, label, exact, badge, onClick,
