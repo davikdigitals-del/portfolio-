@@ -24,6 +24,8 @@ const MIME = {
   ".mjs": "application/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -49,6 +51,10 @@ const getCacheControl = (pathname) => {
   }
   if (pathname === "/" || pathname.endsWith(".html")) {
     return "public, max-age=0, must-revalidate";
+  }
+  // sitemap, robots.txt, manifest.json — short cache so Google picks up updates
+  if (pathname === "/sitemap.xml" || pathname === "/robots.txt" || pathname === "/manifest.json") {
+    return "public, max-age=3600, must-revalidate";
   }
   return "public, max-age=3600, must-revalidate";
 };
