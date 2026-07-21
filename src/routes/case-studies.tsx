@@ -267,7 +267,6 @@ function PortfolioPage() {
             My Work
           </div>
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
             Website Designer &amp;
             <br />
             <span className="shimmer-text">Website Developer Portfolio</span>
