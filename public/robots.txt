@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://ajibola-gbenga-joseph.onrender.com/sitemap.xml
+Sitemap: https://ajibolagbengajoseph.site/sitemap.xml

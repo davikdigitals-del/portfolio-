@@ -4,7 +4,7 @@ import { ArrowRight, Code2, Palette, Search, Layers, Cpu, Globe, ChevronDown } f
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
-const SITE_URL = "https://ajibola-gbenga-joseph.onrender.com";
+const SITE_URL = "https://ajibolagbengajoseph.site";
 
 export const Route = createFileRoute("/")({
   head: () => ({
