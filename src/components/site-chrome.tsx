@@ -55,11 +55,8 @@ export function SiteHeader() {
             </Button>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-                <Link to="/auth">Sign in</Link>
-              </Button>
               <Button asChild size="sm" className="bg-gradient-primary hover:opacity-90 shadow-glow">
-                <Link to="/auth" search={{ mode: "register" } as never}>Hire Me</Link>
+                <Link to="/contact">Hire Me</Link>
               </Button>
             </>
           )}
@@ -83,7 +80,7 @@ export function SiteHeader() {
           ))}
           <div className="pt-2 border-t border-border/40">
             <Button asChild size="sm" className="w-full bg-gradient-primary hover:opacity-90 shadow-glow">
-              <Link to="/auth" search={{ mode: "register" } as never} onClick={() => setOpen(false)}>Hire Me</Link>
+              <Link to="/contact" onClick={() => setOpen(false)}>Hire Me</Link>
             </Button>
           </div>
         </div>
@@ -123,7 +120,7 @@ export function SiteFooter() {
             <div className="space-y-3">
               <div className="font-semibold text-xs uppercase tracking-widest text-muted-foreground">Connect</div>
               <Link to="/contact" className="block text-muted-foreground hover:text-foreground transition-colors">Contact</Link>
-              <Link to="/auth" search={{ mode: "register" } as never} className="block text-muted-foreground hover:text-foreground transition-colors">Start a Project</Link>
+              <Link to="/contact" className="block text-muted-foreground hover:text-foreground transition-colors">Start a Project</Link>
               <a href="mailto:ajibolagbengajoseph@gmail.com" className="block text-muted-foreground hover:text-foreground transition-colors">Email</a>
             </div>
           </div>

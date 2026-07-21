@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { ArrowRight, Code2, Palette, Search, Layers, Cpu, Globe, ChevronDown, MessageCircle, Download } from "lucide-react";
+import { ArrowRight, Code2, Palette, Search, Layers, Cpu, Globe, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
@@ -80,7 +80,6 @@ function HomePage() {
       <ToolsSection />
       <CTASection />
       <SiteFooter />
-      <FloatingChat />
     </div>
   );
 }
@@ -133,12 +132,6 @@ function HeroSection() {
             </Button>
             <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base">
               <Link to="/case-studies">See My Work</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-7 text-base gap-2">
-              <a href="/pulsechat.apk" download>
-                <Download className="h-4 w-4" />
-                Download App
-              </a>
             </Button>
           </div>
 
@@ -368,12 +361,6 @@ function CTASection() {
             <Button asChild variant="outline" size="lg" className="h-12 px-8">
               <Link to="/case-studies">View My Work</Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-8 gap-2">
-              <a href="/pulsechat.apk" download>
-                <Download className="h-4 w-4" />
-                Download App
-              </a>
-            </Button>
           </div>
         </div>
       </div>
@@ -381,16 +368,4 @@ function CTASection() {
   );
 }
 
-function FloatingChat() {
-  return (
-    <Link
-      to="/auth"
-      search={{ mode: "register" } as never}
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-gradient-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-glow hover:opacity-90 transition-all hover:scale-105 animate-float"
-      style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))", right: "calc(1.5rem + env(safe-area-inset-right, 0px))" }}
-    >
-      <MessageCircle className="h-4 w-4" />
-      <span className="hidden sm:inline">Message me</span>
-    </Link>
-  );
-}
+

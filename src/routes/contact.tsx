@@ -111,14 +111,14 @@ function ContactPage() {
                 size="lg"
                 className="h-14 px-10 bg-gradient-primary hover:opacity-90 shadow-glow text-base gap-3 rounded-2xl"
               >
-                <Link to="/auth" search={{ mode: "register" } as never}>
+                <a href="mailto:gbengajosephajibola@gmail.com">
                   <MessageCircle className="h-5 w-5" />
-                  Send Me a Message
+                  Send Me an Email
                   <ArrowRight className="h-4 w-4" />
-                </Link>
+                </a>
               </Button>
               <p className="mt-3 text-xs text-muted-foreground">
-                Sign up free · No credit card · Reply within 24h
+                No sign-up needed · Reply within 24h
               </p>
             </div>
           </div>
@@ -201,10 +201,10 @@ function ContactPage() {
               size="lg"
               className="h-12 px-8 bg-gradient-primary hover:opacity-90 shadow-glow gap-2"
             >
-              <Link to="/auth" search={{ mode: "register" } as never}>
+              <a href="mailto:gbengajosephajibola@gmail.com">
                 <MessageCircle className="h-4 w-4" />
                 Start a Conversation
-              </Link>
+              </a>
             </Button>
           </div>
         </div>
