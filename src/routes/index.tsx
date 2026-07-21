@@ -4,11 +4,51 @@ import { ArrowRight, Code2, Palette, Search, Layers, Cpu, Globe, ChevronDown, Me
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
+const SITE_URL = "https://ajibola-gbenga-joseph.onrender.com";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Ajibola Gbenga Joseph — Web Designer & Developer" },
-      { name: "description", content: "I design and build websites that look great and actually work. Based in Nigeria, working with clients worldwide." },
+      { title: "Website Designer & Website Developer for Hire | Ajibola Gbenga Joseph" },
+      { name: "description", content: "Ajibola Gbenga Joseph is a professional website designer and website developer for hire. I build custom websites, landing pages, and e-commerce sites that look sharp, load fast, and turn visitors into paying clients." },
+      { name: "keywords", content: "website designer, website developer, website designer for hire, website developer for hire, professional website designer, professional website developer, freelance website designer, freelance website developer, hire website designer, hire website developer, custom website design, website designer Nigeria, website developer Nigeria, business website designer, e-commerce website designer, landing page designer, responsive website designer, WordPress website designer, React website developer, website redesign service" },
+      { property: "og:title", content: "Website Designer & Website Developer for Hire | Ajibola Gbenga Joseph" },
+      { property: "og:description", content: "Professional website designer and website developer for hire. Custom websites, e-commerce, landing pages and web apps that convert. Serving businesses worldwide." },
+      { property: "og:url", content: `${SITE_URL}/` },
+      { property: "og:image", content: `${SITE_URL}/me.webp` },
+      { property: "og:image:alt", content: "Ajibola Gbenga Joseph — Website Designer & Developer" },
+      { name: "twitter:title", content: "Website Designer & Developer for Hire | Ajibola Gbenga Joseph" },
+      { name: "twitter:description", content: "Professional website designer and developer for hire. Custom websites that look sharp, load fast, and turn visitors into clients." },
+      { name: "twitter:image", content: `${SITE_URL}/me.webp` },
+    ],
+    links: [
+      { rel: "canonical", href: `${SITE_URL}/` },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: "Website Designer & Developer for Hire | Ajibola Gbenga Joseph",
+          url: `${SITE_URL}/`,
+          description: "Professional website designer and developer for hire. Custom websites, landing pages, e-commerce sites and web apps that convert visitors into clients.",
+          inLanguage: "en",
+          isPartOf: { "@type": "WebSite", url: `${SITE_URL}/` },
+          about: {
+            "@type": "Person",
+            name: "Ajibola Gbenga Joseph",
+            jobTitle: "Website Designer & Developer",
+          },
+          keywords: "website designer, website design, web designer, web development, website development, custom website design, freelance website designer, website designer for hire",
+          breadcrumb: {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+            ],
+          },
+        }),
+      },
     ],
   }),
   component: HomePage,
@@ -48,6 +88,18 @@ function HomePage() {
 function HeroSection() {
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
+      {/* Visually hidden keyword block — read by search engines and screen readers */}
+      <div className="sr-only">
+        <h2>Professional Website Designer and Website Developer for Hire</h2>
+        <p>
+          Ajibola Gbenga Joseph is a professional website designer and website developer with over 5 years of experience.
+          As a skilled website designer, he creates custom, responsive, and conversion-focused websites for businesses worldwide.
+          As a website developer, he builds full-stack web applications using React, Next.js, and WordPress.
+          Whether you need a website designer for a new business site, an e-commerce website, or a landing page,
+          or a website developer for a custom web application — Ajibola Gbenga Joseph delivers results.
+          Hire a website designer and website developer who combines creativity with technical skill.
+        </p>
+      </div>
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-primary/10 blur-3xl animate-blob" />
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-primary/5 blur-3xl animate-blob [animation-delay:3s]" />
@@ -63,16 +115,16 @@ function HeroSection() {
           </div>
 
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05] animate-fade-up">
-            Designing Digital
+            Professional
             <br />
-            <span className="shimmer-text">Experiences</span>
+            <span className="shimmer-text">Website Designer</span>
             <br />
-            That Convert
+            &amp; Developer
           </h1>
 
           <p className="text-lg text-muted-foreground leading-relaxed animate-fade-up [animation-delay:120ms] opacity-0">
-            I'm Ajibola Gbenga Joseph — a web designer, tech advisor and developer from Nigeria.
-            I build websites that look sharp, load fast, and turn visitors into clients.
+            I'm Ajibola Gbenga Joseph — a professional <strong className="text-foreground">website designer</strong> and <strong className="text-foreground">website developer</strong> from Nigeria.
+            I build custom websites that look sharp, load fast, and turn visitors into paying clients.
           </p>
 
           <div className="flex flex-wrap gap-3 animate-fade-up [animation-delay:240ms] opacity-0">
@@ -158,15 +210,15 @@ function HeroSection() {
 
 function WhatIDoSection() {
   const items = [
-    { icon: Palette, title: "Website Design", desc: "Clean, modern designs that match your brand and guide visitors to take action." },
-    { icon: Code2, title: "Software Development", desc: "Custom software solutions built to solve real problems — scalable, reliable and maintainable." },
-    { icon: Cpu, title: "Tech Advisory", desc: "Not sure what tech stack or digital strategy fits your business? I'll guide you to the right decisions." },
+    { icon: Palette, title: "Website Designer", desc: "Custom website design that matches your brand and guides visitors to take action. Mobile-first, responsive, and built to convert." },
+    { icon: Code2, title: "Website Developer", desc: "Full-stack website development using React, Next.js, and WordPress. Scalable, fast, and maintainable code from day one." },
+    { icon: Cpu, title: "Tech Advisor", desc: "Not sure what tech stack or digital strategy fits your business? I'll guide you to the right decisions." },
   ];
   return (
     <section className="container mx-auto px-6 py-24 section-reveal">
       <div className="mb-12">
-        <h2 className="text-4xl font-bold tracking-tight">What I Do</h2>
-        <p className="mt-2 text-muted-foreground">Built for performance, not just looks.</p>
+        <h2 className="text-4xl font-bold tracking-tight">Website Design & Development Services</h2>
+        <p className="mt-2 text-muted-foreground">Professional web design and development — built for performance, not just looks.</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {items.map((s, i) => (
@@ -187,7 +239,7 @@ function IndustriesSection() {
   const items = ["Startups", "Small Businesses", "Personal Brands", "Large Companies", "Governments", "Schools"];
   return (
     <section className="container mx-auto px-6 py-12 section-reveal">
-      <h2 className="text-4xl font-bold tracking-tight mb-2">Who I Work With</h2>
+      <h2 className="text-4xl font-bold tracking-tight mb-2">Who I Design Websites For</h2>
       <p className="text-muted-foreground mb-8">Doesn't matter the size — if you need a great website, let's talk.</p>
       <div className="flex flex-wrap gap-4">
         {items.map((ind, i) => (
@@ -203,13 +255,13 @@ function IndustriesSection() {
 
 function BenefitsSection() {
   const items = [
-    { icon: "📈", title: "More conversions", desc: "A site that actually turns visitors into paying clients — not just something that looks nice." },
-    { icon: "🔍", title: "Better Google ranking", desc: "Show up when people search for what you offer. SEO built in from day one." },
-    { icon: "🏆", title: "Credibility", desc: "A professional site makes people trust you before you even say a word." },
+    { icon: "📈", title: "More conversions", desc: "A custom website design that actually turns visitors into paying clients — not just something that looks nice." },
+    { icon: "🔍", title: "Better Google ranking", desc: "Show up when people search for your services. SEO-optimised website design built in from day one." },
+    { icon: "🏆", title: "Credibility", desc: "A professional website makes people trust you before you even say a word." },
   ];
   return (
     <section className="container mx-auto px-6 py-12 section-reveal">
-      <h2 className="text-4xl font-bold tracking-tight mb-2">What You Get</h2>
+      <h2 className="text-4xl font-bold tracking-tight mb-2">What You Get With Professional Website Design</h2>
       <p className="text-muted-foreground mb-8">Real outcomes, not just a pretty website.</p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {items.map((b, i) => (
@@ -251,13 +303,13 @@ function ProcessSection() {
 
 function WhyDifferentSection() {
   const items = [
-    { icon: "🎯", title: "I think before I build", desc: "Every decision has a reason. I don't just copy templates and call it done." },
-    { icon: "⚡", title: "I know my tools", desc: "React, WordPress, SEO, full stack — I pick what actually fits your project." },
-    { icon: "🤝", title: "I stick around", desc: "After launch, I'm still here. Questions, updates, fixes — I've got you." },
+    { icon: "🎯", title: "I think before I build", desc: "Every website design decision has a reason. I don't copy templates and call it done." },
+    { icon: "⚡", title: "I know my tools", desc: "React, WordPress, SEO, full-stack development — I pick what actually fits your project." },
+    { icon: "🤝", title: "I stick around", desc: "After your website launches, I'm still here. Questions, updates, fixes — I've got you." },
   ];
   return (
     <section className="container mx-auto px-6 py-12 section-reveal">
-      <h2 className="text-4xl font-bold tracking-tight mb-2">Why Work With Me</h2>
+      <h2 className="text-4xl font-bold tracking-tight mb-2">Why Hire Me as Your Website Designer</h2>
       <p className="text-muted-foreground mb-8">Honest answer — I care about the result, not just the invoice.</p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {items.map((d, i) => (
@@ -283,8 +335,8 @@ function ToolsSection() {
   ];
   return (
     <section className="container mx-auto px-6 py-12 section-reveal">
-      <h2 className="text-4xl font-bold tracking-tight mb-2">Tools I Use</h2>
-      <p className="text-muted-foreground mb-8">The stack behind the work.</p>
+      <h2 className="text-4xl font-bold tracking-tight mb-2">Website Design & Development Tools</h2>
+      <p className="text-muted-foreground mb-8">The stack behind every website I design and build.</p>
       <div className="flex flex-wrap gap-3">
         {tools.map((t, i) => (
           <div key={t.name} className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-5 py-3 text-sm font-medium hover-lift card-glow transition-all duration-300" style={{ transitionDelay: `${i * 50}ms` }}>
@@ -304,10 +356,10 @@ function CTASection() {
         <div className="absolute inset-0 bg-gradient-hero opacity-60 pointer-events-none" />
         <div className="relative">
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-            Got a project? Let's talk.
+            Need a Website Designer or Developer?
           </h2>
           <p className="mt-3 text-muted-foreground max-w-md mx-auto">
-            No long forms, no waiting. Just send me a message and we'll figure out the rest.
+            Whether you need a website designer for a brand new site or a website developer for a custom web app — let's talk.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg" className="h-12 px-8 bg-gradient-primary hover:opacity-90 shadow-glow">

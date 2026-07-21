@@ -5,11 +5,59 @@ import { FaTiktok } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
+const SITE_URL = "https://ajibola-gbenga-joseph.onrender.com";
+
 export const Route = createFileRoute("/contact")({
   head: () => ({
     meta: [
-      { title: "Contact — Ajibola Gbenga Joseph" },
-      { name: "description", content: "Get in touch with Ajibola Gbenga Joseph for website design, web development, and digital solutions." },
+      { title: "Hire a Website Designer & Developer | Contact Ajibola Gbenga Joseph" },
+      { name: "description", content: "Ready to hire a professional website designer or developer? Get in touch with Ajibola Gbenga Joseph. Available for website design, web development, and digital projects worldwide. Reply within 24 hours." },
+      { name: "keywords", content: "hire website designer, hire web developer, hire website developer, contact website designer, website designer for hire, freelance website designer, website design quote, web design quote, get website designed, website design consultation, website development quote, hire web designer Nigeria" },
+      { property: "og:title", content: "Hire a Website Designer & Developer | Contact Ajibola Gbenga Joseph" },
+      { property: "og:description", content: "Ready to hire a professional website designer? Get in touch. Available for website design and development projects worldwide. Reply within 24 hours." },
+      { property: "og:url", content: `${SITE_URL}/contact` },
+      { property: "og:image", content: `${SITE_URL}/me.webp` },
+      { property: "og:image:alt", content: "Hire Ajibola Gbenga Joseph — Website Designer & Developer" },
+      { name: "twitter:title", content: "Hire a Website Designer & Developer | Contact Ajibola Gbenga Joseph" },
+      { name: "twitter:description", content: "Ready to hire a professional website designer? Available worldwide. Reply within 24 hours." },
+      { name: "twitter:image", content: `${SITE_URL}/me.webp` },
+    ],
+    links: [
+      { rel: "canonical", href: `${SITE_URL}/contact` },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "ContactPage",
+          name: "Hire a Website Designer & Developer | Contact Ajibola Gbenga Joseph",
+          url: `${SITE_URL}/contact`,
+          description: "Contact Ajibola Gbenga Joseph to hire a professional website designer and developer for your next project.",
+          inLanguage: "en",
+          breadcrumb: {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              { "@type": "ListItem", position: 2, name: "Contact", item: `${SITE_URL}/contact` },
+            ],
+          },
+          mainEntity: {
+            "@type": "Person",
+            name: "Ajibola Gbenga Joseph",
+            jobTitle: "Website Designer & Developer",
+            email: "gbengajosephajibola@gmail.com",
+            url: `${SITE_URL}/`,
+            availableService: [
+              { "@type": "Service", name: "Website Design", serviceType: "Website Design" },
+              { "@type": "Service", name: "Website Development", serviceType: "Web Development" },
+              { "@type": "Service", name: "E-Commerce Website Design", serviceType: "E-Commerce" },
+              { "@type": "Service", name: "Landing Page Design", serviceType: "Landing Page" },
+              { "@type": "Service", name: "Full Stack Development", serviceType: "Full Stack Development" },
+            ],
+          },
+        }),
+      },
     ],
   }),
   component: ContactPage,
@@ -47,12 +95,12 @@ function ContactPage() {
               Available for new projects
             </div>
             <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight">
-              Let's Build Something
+              Hire a Website Designer
               <br />
-              <span className="shimmer-text">Great Together</span>
+              <span className="shimmer-text">For Your Next Project</span>
             </h1>
             <p className="mt-6 text-lg text-muted-foreground leading-relaxed">
-              Have a project in mind? I'd love to hear about it.
+              Looking for a professional website designer or developer? I'd love to hear about your project.
               Send me a message and I'll get back to you within 24 hours.
             </p>
 

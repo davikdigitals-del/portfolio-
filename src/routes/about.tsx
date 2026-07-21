@@ -4,11 +4,89 @@ import { ArrowRight, GraduationCap, Briefcase, Heart, Target, Eye, Star, Globe, 
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
+const SITE_URL = "https://ajibola-gbenga-joseph.onrender.com";
+
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "About — Ajibola Gbenga Joseph" },
-      { name: "description", content: "Website Designer & tech advisor, Full-stack developer | Co-Founder, Edgebrook AI Solutions. 5+ years creating scalable digital experiences." },
+      { title: "About Ajibola Gbenga Joseph | Professional Website Designer & Website Developer" },
+      { name: "description", content: "Meet Ajibola Gbenga Joseph — professional website designer and website developer with 5+ years experience. Co-Founder of Edgebrook AI Solutions. Building custom websites that convert worldwide." },
+      { name: "keywords", content: "Ajibola Gbenga Joseph, professional website designer, professional website developer, website designer Nigeria, website developer Nigeria, freelance website designer, freelance website developer, full stack developer Nigeria, Edgebrook AI Solutions, hire website designer, hire website developer" },
+      { property: "og:title", content: "About Ajibola Gbenga Joseph | Professional Website Designer & Website Developer" },
+      { property: "og:description", content: "Professional website designer and website developer with 5+ years experience. Co-Founder of Edgebrook AI Solutions." },
+      { property: "og:url", content: `${SITE_URL}/about` },
+      { property: "og:image", content: `${SITE_URL}/me.webp` },
+      { property: "og:image:alt", content: "Ajibola Gbenga Joseph — Website Designer & Developer" },
+      { name: "twitter:title", content: "About Ajibola Gbenga Joseph | Professional Website Designer & Developer" },
+      { name: "twitter:description", content: "Professional website designer, full-stack developer & tech advisor with 5+ years experience. Co-Founder of Edgebrook AI Solutions." },
+      { name: "twitter:image", content: `${SITE_URL}/me.webp` },
+    ],
+    links: [
+      { rel: "canonical", href: `${SITE_URL}/about` },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: "About Ajibola Gbenga Joseph | Professional Website Designer & Developer",
+          url: `${SITE_URL}/about`,
+          description: "Professional website designer, full-stack developer and tech advisor with 5+ years experience building custom websites and web applications worldwide.",
+          inLanguage: "en",
+          breadcrumb: {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              { "@type": "ListItem", position: 2, name: "About", item: `${SITE_URL}/about` },
+            ],
+          },
+          mainEntity: {
+            "@type": "Person",
+            name: "Ajibola Gbenga Joseph",
+            url: `${SITE_URL}/`,
+            image: `${SITE_URL}/me.webp`,
+            jobTitle: "Website Designer & Full-Stack Developer",
+            description: "Professional website designer and full-stack developer with 5+ years of experience building modern, responsive, conversion-focused websites for businesses worldwide.",
+            email: "gbengajosephajibola@gmail.com",
+            nationality: "Nigerian",
+            alumniOf: {
+              "@type": "EducationalOrganization",
+              name: "Polytechnic Nigeria",
+              description: "National Diploma in Computer Science",
+            },
+            worksFor: {
+              "@type": "Organization",
+              name: "Edgebrook AI Solutions",
+            },
+            hasCredential: {
+              "@type": "EducationalOccupationalCredential",
+              name: "National Diploma in Computer Science",
+            },
+            knowsAbout: [
+              "Website Design",
+              "Website Development",
+              "Web Design",
+              "Web Development",
+              "Full-Stack Development",
+              "React",
+              "Next.js",
+              "WordPress",
+              "UI/UX Design",
+              "SEO",
+              "E-Commerce Website Design",
+              "Landing Page Design",
+              "Mobile App Development",
+              "Responsive Web Design",
+            ],
+            sameAs: [
+              "https://www.tiktok.com/@joseph_4124",
+              "https://www.youtube.com/@AjibolaGbengaJoseph1",
+              "https://share.google/aXjcfG6DMAOnPqXk4",
+            ],
+          },
+        }),
+      },
     ],
   }),
   component: AboutPage,
@@ -63,17 +141,13 @@ function AboutHero() {
               <span className="shimmer-text">Joseph</span>
             </h1>
             <p className="text-lg text-primary font-semibold">
-              Website Designer &amp; tech advisor, Full-stack developer
+              Professional Website Designer &amp; Website Developer
               <br />
               Co-Founder, Edgebrook AI Solutions
             </p>
-            <p className="text-muted-foreground leading-relaxed">
-              Step into the future of digital design with Ajibola Gbenga Joseph, a visionary web designer who began 
-              his journey in 2022. As a dedicated full-stack developer and co-founder of Edgebrook AI Solutions, he 
-              brings a unique blend of creativity and technical expertise to every project. Whether you're a burgeoning 
-              startup or an established enterprise, Ajibola Gbenga Joseph crafts dynamic and engaging online experiences 
-              tailored to your needs. Discover how a passion for innovation can transform your digital presence.
-            </p>
+          <p className="text-muted-foreground leading-relaxed">
+            Meet Ajibola Gbenga Joseph — a dedicated <strong className="text-foreground">website designer</strong> and <strong className="text-foreground">website developer</strong> who began his journey in 2019. As a full-stack website developer and co-founder of Edgebrook AI Solutions, he brings a unique blend of creative design and technical expertise to every project. Whether you're a startup or an enterprise, Ajibola designs and develops dynamic, engaging websites tailored to your needs.
+          </p>
             <div className="flex flex-wrap gap-3 pt-2">
               {[
                 { icon: Briefcase, label: "5+ Years Experience" },

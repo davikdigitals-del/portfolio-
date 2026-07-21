@@ -4,11 +4,62 @@ import { ArrowRight, ExternalLink, Plus, Folder, MousePointer2 } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
+const SITE_URL = "https://ajibola-gbenga-joseph.onrender.com";
+
 export const Route = createFileRoute("/case-studies")({
   head: () => ({
     meta: [
-      { title: "Portfolio — Ajibola Gbenga Joseph" },
-      { name: "description", content: "Projects and case studies by Ajibola Gbenga Joseph — Website Designer & Software Developer." },
+      { title: "Website Design Portfolio | Case Studies — Ajibola Gbenga Joseph" },
+      { name: "description", content: "Website design and development portfolio of Ajibola Gbenga Joseph. Browse 9+ real-world projects — e-commerce websites, healthcare platforms, real estate sites, education platforms, and business websites." },
+      { name: "keywords", content: "website design portfolio, web design portfolio, website design examples, web developer portfolio, website design case studies, custom website design examples, e-commerce website design, healthcare website design, real estate website design, business website design examples, web design work, portfolio website designer" },
+      { property: "og:title", content: "Website Design Portfolio | Case Studies — Ajibola Gbenga Joseph" },
+      { property: "og:description", content: "Browse 9+ website design and development projects — e-commerce, healthcare, real estate, education, and business websites." },
+      { property: "og:url", content: `${SITE_URL}/case-studies` },
+      { property: "og:image", content: `${SITE_URL}/portfolio1.png` },
+      { property: "og:image:alt", content: "Website Design Portfolio — Ajibola Gbenga Joseph" },
+      { name: "twitter:title", content: "Website Design Portfolio | Case Studies — Ajibola Gbenga Joseph" },
+      { name: "twitter:description", content: "Browse 9+ website design and development projects — e-commerce, healthcare, real estate, education, and business websites." },
+      { name: "twitter:image", content: `${SITE_URL}/portfolio1.png` },
+    ],
+    links: [
+      { rel: "canonical", href: `${SITE_URL}/case-studies` },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: "Website Design Portfolio | Case Studies — Ajibola Gbenga Joseph",
+          url: `${SITE_URL}/case-studies`,
+          description: "Website design and development portfolio showcasing real-world projects across e-commerce, healthcare, real estate, education and business sectors.",
+          inLanguage: "en",
+          breadcrumb: {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              { "@type": "ListItem", position: 2, name: "Portfolio", item: `${SITE_URL}/case-studies` },
+            ],
+          },
+          mainEntity: {
+            "@type": "ItemList",
+            name: "Website Design Portfolio",
+            description: "A selection of custom website design and web development projects by Ajibola Gbenga Joseph",
+            numberOfItems: 9,
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Hair Soda — E-Commerce Website Design", url: "https://hairsoda.ca/" },
+              { "@type": "ListItem", position: 2, name: "One Medical — Healthcare Website Development", url: "https://www.onemedical.com/" },
+              { "@type": "ListItem", position: 3, name: "Hoffman Car Wash — Business Website Design", url: "https://www.hoffmancarwash.com/" },
+              { "@type": "ListItem", position: 4, name: "Interiors NZ — Interior Design Portfolio Website", url: "https://interiors.co.nz/" },
+              { "@type": "ListItem", position: 5, name: "John Farhat Homes — Luxury Real Estate Website", url: "https://www.johnfarhathomes.com/" },
+              { "@type": "ListItem", position: 6, name: "Shereen Hoban — Personal Brand Website Design", url: "https://shereenhoban.com/" },
+              { "@type": "ListItem", position: 7, name: "Matt Construction — Construction Company Website", url: "https://www.mattconstruction.com/" },
+              { "@type": "ListItem", position: 8, name: "CourseVia — E-Learning Platform Web Development", url: "https://coursevia.site/" },
+              { "@type": "ListItem", position: 9, name: "Classic 57 Auto Detailing — Local Business Website Design", url: "http://classic57autodetailing.ca/" },
+            ],
+          },
+        }),
+      },
     ],
   }),
   component: PortfolioPage,
@@ -216,12 +267,12 @@ function PortfolioPage() {
             My Work
           </div>
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-            Projects &amp;
+            Website Design
             <br />
-            <span className="shimmer-text">Case Studies</span>
+            <span className="shimmer-text">Portfolio & Case Studies</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            A selection of projects I've designed and built — each one a story of strategy, craft, and results.
+            A selection of custom website design and development projects — each one built with strategy, craft, and real results.
           </p>
         </div>
       </section>

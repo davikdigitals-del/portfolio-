@@ -4,11 +4,90 @@ import { ArrowRight, Code2, Palette, Search, Cpu, Globe, Layers, CheckCircle2, Z
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
+const SITE_URL = "https://ajibola-gbenga-joseph.onrender.com";
+
 export const Route = createFileRoute("/services")({
   head: () => ({
     meta: [
-      { title: "Services — Ajibola Gbenga Joseph" },
-      { name: "description", content: "Website design and development, full stack development, and tech advisory services by Ajibola Gbenga Joseph." },
+      { title: "Website Designer & Website Developer Services | Ajibola Gbenga Joseph" },
+      { name: "description", content: "Professional website designer and website developer services. Custom website design, full-stack website development, WordPress, e-commerce, landing pages, and tech advisory for businesses worldwide." },
+      { name: "keywords", content: "website designer services, website developer services, website design services, website development services, professional website designer, professional website developer, custom website design, WordPress website designer, e-commerce website designer, landing page designer, full stack website developer, hire website designer, hire website developer, business website designer, responsive website designer, website redesign" },
+      { property: "og:title", content: "Website Designer & Website Developer Services | Ajibola Gbenga Joseph" },
+      { property: "og:description", content: "Professional website designer and website developer services. Custom websites, e-commerce, landing pages and web apps for businesses worldwide." },
+      { property: "og:url", content: `${SITE_URL}/services` },
+      { property: "og:image", content: `${SITE_URL}/me.webp` },
+      { property: "og:image:alt", content: "Website Design & Development Services by Ajibola Gbenga Joseph" },
+      { name: "twitter:title", content: "Website Design & Development Services | Ajibola Gbenga Joseph" },
+      { name: "twitter:description", content: "Professional website design and development services. Custom websites, e-commerce, landing pages and web apps for businesses worldwide." },
+      { name: "twitter:image", content: `${SITE_URL}/me.webp` },
+    ],
+    links: [
+      { rel: "canonical", href: `${SITE_URL}/services` },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: "Website Design & Development Services | Ajibola Gbenga Joseph",
+          url: `${SITE_URL}/services`,
+          description: "Professional website design and development services including custom website design, e-commerce, landing pages, full-stack development and tech advisory.",
+          inLanguage: "en",
+          breadcrumb: {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              { "@type": "ListItem", position: 2, name: "Services", item: `${SITE_URL}/services` },
+            ],
+          },
+          mainEntity: {
+            "@type": "ItemList",
+            name: "Website Design & Development Services",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                item: {
+                  "@type": "Service",
+                  name: "Website Design and Development",
+                  description: "Custom, mobile-first website design and development. I build responsive websites that reflect your brand and convert visitors into clients.",
+                  provider: { "@type": "Person", name: "Ajibola Gbenga Joseph" },
+                  serviceType: "Website Design",
+                  areaServed: "Worldwide",
+                  keywords: "website design, website development, custom website design, responsive website design, mobile-first website, business website design, WordPress website design",
+                },
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                item: {
+                  "@type": "Service",
+                  name: "Full Stack Web Development",
+                  description: "Custom full-stack web applications built with React, Next.js, Node.js and cloud platforms. Scalable, fast, and production-ready.",
+                  provider: { "@type": "Person", name: "Ajibola Gbenga Joseph" },
+                  serviceType: "Web Development",
+                  areaServed: "Worldwide",
+                  keywords: "full stack development, web development, React developer, Next.js developer, web application development, custom software development",
+                },
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                item: {
+                  "@type": "Service",
+                  name: "Tech Advisory",
+                  description: "Strategic technology consulting — architecture planning, AI integration, technology stack selection and digital strategy.",
+                  provider: { "@type": "Person", name: "Ajibola Gbenga Joseph" },
+                  serviceType: "Tech Advisory",
+                  areaServed: "Worldwide",
+                  keywords: "tech advisory, technology consulting, digital strategy, AI integration, technology stack selection",
+                },
+              },
+            ],
+          },
+        }),
+      },
     ],
   }),
   component: ServicesPage,
@@ -29,9 +108,9 @@ function useReveal() {
 const services = [
   {
     icon: Palette,
-    title: "Website Design and Development",
+    title: "Website Designer",
     tagline: "Designs that convert visitors into clients",
-    desc: "I craft visually stunning, user-centered website designs that reflect your brand identity and drive conversions. From simple landing pages to complex web applications, I build with modern frameworks and best practices. Your site will be fast, secure, and scalable — ready to grow with your business.",
+    desc: "As your dedicated website designer, I craft visually stunning, user-centered designs that reflect your brand and drive conversions. From simple landing pages to complex web applications, I design with modern frameworks and best practices. Your site will be fast, secure, and scalable — ready to grow with your business.",
     features: ["Custom UI/UX Design", "Mobile-First Responsive", "React / Next.js / HTML+CSS", "WordPress Development", "API Integration", "Performance Optimization"],
     color: "from-pink-500/20 to-purple-500/20",
     accent: "text-pink-400",
@@ -39,9 +118,9 @@ const services = [
   },
   {
     icon: Code2,
-    title: "Full Stack Development",
+    title: "Website Developer",
     tagline: "Clean code, blazing performance",
-    desc: "I build custom software solutions tailored to your business needs. Whether it's a web application, mobile app, or enterprise system, I deliver scalable, maintainable code using modern technologies and industry best practices.",
+    desc: "As your website developer, I build custom software solutions tailored to your business needs. Whether it's a web application, mobile app, or enterprise system, I deliver scalable, maintainable code using modern technologies and industry best practices.",
     features: ["Custom Web Applications", "Mobile App Development", "Enterprise Software Solutions", "Database Design & Integration", "Cloud Deployment", "Agile Development Process"],
     color: "from-blue-500/20 to-cyan-500/20",
     accent: "text-blue-400",
@@ -76,13 +155,13 @@ function ServicesPage() {
             What I Offer
           </div>
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-            Services Built for
+            Website Designer &amp;
             <br />
-            <span className="shimmer-text">Real Results</span>
+            <span className="shimmer-text">Website Developer</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            From strategy to launch and beyond — every service is designed to grow your business,
-            strengthen your brand, and deliver measurable outcomes.
+            Professional website designer and website developer services — from strategy to launch.
+            Every website I design and build is made to grow your business and deliver measurable results.
           </p>
         </div>
       </section>
@@ -122,8 +201,8 @@ function ServicesPage() {
       {/* Process */}
       <section className="container mx-auto px-6 py-16 section-reveal">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight">How We Work Together</h2>
-          <p className="mt-3 text-muted-foreground">A simple, transparent process from first call to final delivery.</p>
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight">How the Website Design Process Works</h2>
+          <p className="mt-3 text-muted-foreground">A simple, transparent process from first call to website launch.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           {[

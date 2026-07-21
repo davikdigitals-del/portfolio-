@@ -1,14 +1,14 @@
 {
-  "name": "Pulse Chat - Premium Client Communication",
-  "short_name": "Pulse",
-  "description": "Premium real-time chat platform connecting you with your clients. Smart messaging, voice/video calls, and AI-powered features.",
+  "name": "Ajibola Gbenga Joseph — Web Designer & Developer",
+  "short_name": "Ajibola",
+  "description": "Portfolio of Ajibola Gbenga Joseph — Website Designer, Full-Stack Developer & Tech Advisor. Building fast, modern, conversion-focused digital experiences.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "orientation": "portrait-primary",
   "scope": "/",
-  "categories": ["business", "productivity", "social"],
+  "categories": ["business", "productivity", "portfolio"],
   "icons": [
     {
       "src": "/me.webp",
@@ -25,26 +25,26 @@
   ],
   "screenshots": [
     {
-      "src": "/screenshot-mobile-1.png",
+      "src": "/portfolio1.png",
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Chat interface"
+      "label": "Portfolio — Hair Soda project"
     },
     {
-      "src": "/screenshot-mobile-2.png",
+      "src": "/portfolio2.png",
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Video call"
+      "label": "Portfolio — One Medical project"
     }
   ],
   "shortcuts": [
     {
-      "name": "New Message",
-      "short_name": "Message",
-      "description": "Start a new conversation",
-      "url": "/dashboard/chat",
+      "name": "View My Work",
+      "short_name": "Portfolio",
+      "description": "Browse my projects and case studies",
+      "url": "/case-studies",
       "icons": [
         {
           "src": "/me.webp",
@@ -53,10 +53,10 @@
       ]
     },
     {
-      "name": "Voice Call",
-      "short_name": "Call",
-      "description": "Start a voice call",
-      "url": "/dashboard/chat?action=call",
+      "name": "Contact Me",
+      "short_name": "Contact",
+      "description": "Get in touch to start a project",
+      "url": "/contact",
       "icons": [
         {
           "src": "/me.webp",
@@ -65,22 +65,6 @@
       ]
     }
   ],
-  "share_target": {
-    "action": "/dashboard/chat",
-    "method": "POST",
-    "enctype": "multipart/form-data",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url",
-      "files": [
-        {
-          "name": "file",
-          "accept": ["image/*", "video/*", "audio/*", ".pdf", ".doc", ".docx"]
-        }
-      ]
-    }
-  },
   "related_applications": [],
   "prefer_related_applications": false
 }
