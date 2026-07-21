@@ -9,16 +9,16 @@ const SITE_URL = "https://ajibola-gbenga-joseph.onrender.com";
 export const Route = createFileRoute("/case-studies")({
   head: () => ({
     meta: [
-      { title: "Website Design Portfolio | Case Studies — Ajibola Gbenga Joseph" },
-      { name: "description", content: "Website design and development portfolio of Ajibola Gbenga Joseph. Browse 9+ real-world projects — e-commerce websites, healthcare platforms, real estate sites, education platforms, and business websites." },
-      { name: "keywords", content: "website design portfolio, web design portfolio, website design examples, web developer portfolio, website design case studies, custom website design examples, e-commerce website design, healthcare website design, real estate website design, business website design examples, web design work, portfolio website designer" },
-      { property: "og:title", content: "Website Design Portfolio | Case Studies — Ajibola Gbenga Joseph" },
-      { property: "og:description", content: "Browse 9+ website design and development projects — e-commerce, healthcare, real estate, education, and business websites." },
+      { title: "Website Designer & Website Developer Portfolio | Ajibola Gbenga Joseph" },
+      { name: "description", content: "Portfolio of Ajibola Gbenga Joseph — professional website designer and website developer. Browse 9+ real projects: e-commerce websites, healthcare platforms, real estate sites, education platforms, and business websites." },
+      { name: "keywords", content: "website designer portfolio, website developer portfolio, web designer portfolio, web developer portfolio, website design portfolio, website development portfolio, custom website design examples, e-commerce website designer, business website designer, website designer case studies, website developer case studies, portfolio website designer Nigeria, website developer Nigeria" },
+      { property: "og:title", content: "Website Designer & Website Developer Portfolio | Ajibola Gbenga Joseph" },
+      { property: "og:description", content: "Portfolio of professional website designer and website developer Ajibola Gbenga Joseph. Browse 9+ real projects across e-commerce, healthcare, real estate, and more." },
       { property: "og:url", content: `${SITE_URL}/case-studies` },
       { property: "og:image", content: `${SITE_URL}/portfolio1.png` },
       { property: "og:image:alt", content: "Website Design Portfolio — Ajibola Gbenga Joseph" },
-      { name: "twitter:title", content: "Website Design Portfolio | Case Studies — Ajibola Gbenga Joseph" },
-      { name: "twitter:description", content: "Browse 9+ website design and development projects — e-commerce, healthcare, real estate, education, and business websites." },
+      { name: "twitter:title", content: "Website Designer & Website Developer Portfolio | Ajibola Gbenga Joseph" },
+      { name: "twitter:description", content: "Portfolio of professional website designer and website developer Ajibola Gbenga Joseph. 9+ real projects across e-commerce, healthcare, real estate, and more." },
       { name: "twitter:image", content: `${SITE_URL}/portfolio1.png` },
     ],
     links: [
@@ -267,12 +267,13 @@ function PortfolioPage() {
             My Work
           </div>
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-            Website Design
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
+            Website Designer &amp;
             <br />
-            <span className="shimmer-text">Portfolio & Case Studies</span>
+            <span className="shimmer-text">Website Developer Portfolio</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            A selection of custom website design and development projects — each one built with strategy, craft, and real results.
+            Real projects built by a professional website designer and website developer — each one a story of strategy, craft, and results.
           </p>
         </div>
       </section>
@@ -386,10 +387,10 @@ function PortfolioPage() {
           </div>
           <div className="relative">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight group-hover:scale-105 transition-transform duration-300">
-              Want Results Like These?
+              Need a Website Designer or Developer?
             </h2>
             <p className="mt-3 text-muted-foreground max-w-md mx-auto">
-              Let's work together on your next project.
+              Hire a website designer and website developer who delivers real results.
             </p>
             <Button asChild size="lg" className="mt-8 h-12 px-8 bg-gradient-primary hover:opacity-90 shadow-glow hover:shadow-xl hover:scale-105 transition-all duration-300">
               <Link to="/contact">Start a Project <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" /></Link>

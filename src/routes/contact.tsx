@@ -10,16 +10,16 @@ const SITE_URL = "https://ajibola-gbenga-joseph.onrender.com";
 export const Route = createFileRoute("/contact")({
   head: () => ({
     meta: [
-      { title: "Hire a Website Designer & Developer | Contact Ajibola Gbenga Joseph" },
-      { name: "description", content: "Ready to hire a professional website designer or developer? Get in touch with Ajibola Gbenga Joseph. Available for website design, web development, and digital projects worldwide. Reply within 24 hours." },
-      { name: "keywords", content: "hire website designer, hire web developer, hire website developer, contact website designer, website designer for hire, freelance website designer, website design quote, web design quote, get website designed, website design consultation, website development quote, hire web designer Nigeria" },
-      { property: "og:title", content: "Hire a Website Designer & Developer | Contact Ajibola Gbenga Joseph" },
-      { property: "og:description", content: "Ready to hire a professional website designer? Get in touch. Available for website design and development projects worldwide. Reply within 24 hours." },
+      { title: "Hire a Website Designer & Website Developer | Contact Ajibola Gbenga Joseph" },
+      { name: "description", content: "Ready to hire a professional website designer or website developer? Get in touch with Ajibola Gbenga Joseph. Available for website design, website development, and digital projects worldwide. Reply within 24 hours." },
+      { name: "keywords", content: "hire website designer, hire website developer, website designer for hire, website developer for hire, professional website designer, professional website developer, freelance website designer, freelance website developer, contact website designer, website design quote, website development quote, website designer Nigeria, website developer Nigeria, get website designed, website design consultation" },
+      { property: "og:title", content: "Hire a Website Designer & Website Developer | Contact Ajibola Gbenga Joseph" },
+      { property: "og:description", content: "Ready to hire a professional website designer or website developer? Available worldwide. Reply within 24 hours." },
       { property: "og:url", content: `${SITE_URL}/contact` },
       { property: "og:image", content: `${SITE_URL}/me.webp` },
       { property: "og:image:alt", content: "Hire Ajibola Gbenga Joseph — Website Designer & Developer" },
-      { name: "twitter:title", content: "Hire a Website Designer & Developer | Contact Ajibola Gbenga Joseph" },
-      { name: "twitter:description", content: "Ready to hire a professional website designer? Available worldwide. Reply within 24 hours." },
+      { name: "twitter:title", content: "Hire a Website Designer & Website Developer | Contact Ajibola Gbenga Joseph" },
+      { name: "twitter:description", content: "Ready to hire a professional website designer or website developer? Available worldwide. Reply within 24 hours." },
       { name: "twitter:image", content: `${SITE_URL}/me.webp` },
     ],
     links: [
@@ -31,9 +31,9 @@ export const Route = createFileRoute("/contact")({
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "ContactPage",
-          name: "Hire a Website Designer & Developer | Contact Ajibola Gbenga Joseph",
+          name: "Hire a Website Designer & Website Developer | Contact Ajibola Gbenga Joseph",
           url: `${SITE_URL}/contact`,
-          description: "Contact Ajibola Gbenga Joseph to hire a professional website designer and developer for your next project.",
+          description: "Contact Ajibola Gbenga Joseph to hire a professional website designer and website developer for your next project.",
           inLanguage: "en",
           breadcrumb: {
             "@type": "BreadcrumbList",
@@ -45,7 +45,7 @@ export const Route = createFileRoute("/contact")({
           mainEntity: {
             "@type": "Person",
             name: "Ajibola Gbenga Joseph",
-            jobTitle: "Website Designer & Developer",
+            jobTitle: "Website Designer & Website Developer",
             email: "gbengajosephajibola@gmail.com",
             url: `${SITE_URL}/`,
             availableService: [
@@ -97,10 +97,10 @@ function ContactPage() {
             <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight">
               Hire a Website Designer
               <br />
-              <span className="shimmer-text">For Your Next Project</span>
+              <span className="shimmer-text">&amp; Website Developer</span>
             </h1>
             <p className="mt-6 text-lg text-muted-foreground leading-relaxed">
-              Looking for a professional website designer or developer? I'd love to hear about your project.
+              Looking to hire a professional <strong className="text-foreground">website designer</strong> or <strong className="text-foreground">website developer</strong>? I'd love to hear about your project.
               Send me a message and I'll get back to you within 24 hours.
             </p>
 

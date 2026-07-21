@@ -234,10 +234,11 @@ function BioSection() {
             stay focused on my goals.
           </p>
           <p>
-            Today, I am a website designer, developer, tech advisor, and full-stack developer with a National Diploma 
-            certification. I specialize in building modern, responsive, and professional digital solutions that help 
-            businesses and individuals establish a strong online presence. Every project I work on represents my 
-            creativity, dedication, and passion for technology.
+            Today, I am a professional website designer and website developer with a National Diploma 
+            certification. I specialize in building modern, responsive, and conversion-focused websites that help 
+            businesses and individuals establish a strong online presence. As a website designer, I create visually 
+            stunning interfaces. As a website developer, I build them with clean, scalable code. Every project I work 
+            on represents my creativity, dedication, and passion for technology.
           </p>
           <p>
             My vision is bigger than where I am today. I want to become a globally recognized tech professional, work 
@@ -407,9 +408,9 @@ function EducationSection() {
     },
     {
       year: "2019 — Present",
-      title: "Freelance Web Designer & Developer",
+      title: "Freelance Website Designer & Website Developer",
       org: "Independent",
-      desc: "Delivered 50+ projects for startups, businesses, and personal brands. Creating systems that perform, convert, and scale.",
+      desc: "Delivered 50+ projects for startups, businesses, and personal brands as a freelance website designer and website developer. Creating systems that perform, convert, and scale.",
     },
   ];
 
@@ -446,11 +447,10 @@ function CTABanner() {
         <div className="absolute inset-0 bg-gradient-hero opacity-60 pointer-events-none" />
         <div className="relative">
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-            Let's Build Something <span className="shimmer-text">Exceptional Together</span>
+            Hire a Website Designer &amp; <span className="shimmer-text">Website Developer</span>
           </h2>
           <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
-            Whether you're looking to build a high-performing website, collaborate on a project, or explore 
-            sponsorship opportunities—let's connect and create something impactful.
+            Looking for a website designer or website developer? Let's connect and build something impactful together.
           </p>
           <Button asChild size="lg" className="mt-8 h-12 px-8 bg-gradient-primary hover:opacity-90 shadow-glow">
             <Link to="/contact">Start a Conversation <ArrowRight className="ml-2 h-4 w-4" /></Link>
