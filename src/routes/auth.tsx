@@ -34,11 +34,25 @@ function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
+  // Validate email format and check for disposable emails
+  function validateEmail(val: string): string | null {
+    // Check basic email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(val)) {
+      return "Please enter a valid email address";
+    }
+
+    // Check for disposable email
+    return getDisposableEmailError(val);
+  }
+
   // Validate email in real time when registering
   function handleEmailChange(val: string) {
     setEmail(val);
     if (isRegister && val.includes("@")) {
-      setEmailError(getDisposableEmailError(val));
+      setEmailError(validateEmail(val));
+    } else if (isRegister && val.length > 0) {
+      setEmailError("Email must contain @");
     } else {
       setEmailError(null);
     }
