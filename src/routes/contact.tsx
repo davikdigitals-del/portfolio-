@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Mail, MapPin, Clock, MessageCircle, ArrowRight, MapPinned, Youtube } from "lucide-react";
+import { MapPin, Clock, MessageCircle, ArrowRight, MapPinned, Youtube } from "lucide-react";
 import { FaTiktok } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
@@ -129,7 +129,7 @@ function ContactPage() {
       <section className="container mx-auto px-6 pb-20 section-reveal">
         <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-5">
           {[
-            { icon: Mail, label: "Email", value: "gbengajosephajibola@gmail.com", href: "mailto:gbengajosephajibola@gmail.com", color: "bg-primary/10 text-primary" },
+            { icon: MessageCircle, label: "Send a Message", value: "Direct chat with me", href: "/auth?mode=register", color: "bg-primary/10 text-primary" },
             { icon: MapPin, label: "Location", value: "Nigeria · Available Worldwide", href: null, color: "bg-success/10 text-success" },
             { icon: Clock, label: "Response Time", value: "Within 24 hours", href: null, color: "bg-warning/10 text-warning" },
           ].map((item) => (
@@ -139,7 +139,7 @@ function ContactPage() {
               </div>
               <div className="text-xs text-muted-foreground mb-1">{item.label}</div>
               {item.href ? (
-                <a href={item.href} className="text-sm font-medium hover:text-primary transition-colors break-all">{item.value}</a>
+                <Link to={item.href} className="text-sm font-medium hover:text-primary transition-colors break-all">{item.value}</Link>
               ) : (
                 <div className="text-sm font-medium">{item.value}</div>
               )}
@@ -152,25 +152,25 @@ function ContactPage() {
       <section className="container mx-auto px-6 pb-24 section-reveal">
         <div className="max-w-3xl mx-auto">
           <div className="rounded-3xl border border-border bg-card p-8 text-center">
-            <h2 className="text-xl font-bold mb-2">Find Me Online</h2>
-            <p className="text-sm text-muted-foreground mb-8">Connect with me on social media or check out my work.</p>
+            <h2 className="text-xl font-bold mb-2">Connect With Me</h2>
+            <p className="text-sm text-muted-foreground mb-8">Message me directly or find me on social media.</p>
             <div className="flex flex-wrap items-center justify-center gap-4">
               {[
+                { icon: MessageCircle, label: "Send Message", href: "/auth?mode=register", color: "hover:border-primary/40" },
                 { icon: MapPinned, label: "Google My Business", href: "https://share.google/aXjcfG6DMAOnPqXk4", color: "hover:border-red-400/40" },
                 { icon: FaTiktok, label: "TikTok", href: "https://www.tiktok.com/@joseph_4124", color: "hover:border-pink-400/40" },
                 { icon: Youtube, label: "YouTube", href: "https://www.youtube.com/@AjibolaGbengaJoseph1", color: "hover:border-red-500/40" },
-                { icon: Mail, label: "Email", href: "mailto:gbengajosephajibola@gmail.com", color: "hover:border-primary/40" },
               ].map((s) => (
-                <a
+                <Link
                   key={s.label}
-                  href={s.href}
-                  target="_blank"
-                  rel="noreferrer"
+                  to={s.href as any}
+                  target={s.href.startsWith("http") ? "_blank" : undefined}
+                  rel={s.href.startsWith("http") ? "noreferrer" : undefined}
                   className={`flex items-center gap-2.5 rounded-xl border border-border bg-card px-5 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200 hover-lift ${s.color}`}
                 >
                   <s.icon className="h-4 w-4" />
                   {s.label}
-                </a>
+                </Link>
               ))}
             </div>
           </div>

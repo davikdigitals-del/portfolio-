@@ -1,16 +1,31 @@
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tsconfigPaths from 'vite-tsconfig-paths'
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+import tailwindvite from '@tailwindcss/vite'
 
-// This app targets Cloudflare Workers (default preset)
-// Deploy via: wrangler pages deploy dist/client
-// Or connect GitHub to Cloudflare Pages dashboard
+// https://vitejs.dev/config/
 export default defineConfig({
+  plugins: [
+    TanStackRouterVite({
+      experimental: {
+        enableCodeSplitting: true,
+      },
+    }),
+    tailwindvite(),
+    tsconfigPaths(),
+    react({
+      babel: {
+        babelrc: false,
+        configFile: false,
+      },
+    }),
+  ],
   build: {
     minify: 'esbuild',
     target: 'es2020',
     chunkSizeWarningLimit: 500,
   },
-  // NOTE: do NOT drop console — it hides critical runtime errors
-  // esbuild: { drop: ['console', 'debugger'] },
   define: {
     // Explicitly embed VITE_ env vars into both client and SSR bundles at build time.
     // Render sets these as build environment variables from render.yaml.
