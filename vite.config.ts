@@ -8,9 +8,7 @@ import tailwindvite from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [
     TanStackRouterVite({
-      experimental: {
-        enableCodeSplitting: true,
-      },
+      autoCodeSplitting: true,
     }),
     tailwindvite(),
     tsconfigPaths(),
