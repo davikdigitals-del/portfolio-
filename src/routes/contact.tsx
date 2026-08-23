@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { MapPin, Clock, MessageCircle, ArrowRight, MapPinned, Youtube, Share2 } from "lucide-react";
-import { FaTiktok } from "react-icons/fa";
+import { MapPin, Clock, MessageCircle, ArrowRight, MapPinned, Youtube } from "lucide-react";
+import { FaTiktok, FaThreads } from "react-icons/fa6";
 import { Button } from "@/components/ui/button";
 import { SiteHeader, SiteFooter } from "@/components/site-chrome";
 
@@ -160,7 +160,7 @@ function ContactPage() {
                 { icon: MapPinned, label: "Google My Business", href: "https://share.google/aXjcfG6DMAOnPqXk4", color: "hover:border-red-400/40" },
                 { icon: FaTiktok, label: "TikTok", href: "https://www.tiktok.com/@joseph_4124", color: "hover:border-pink-400/40" },
                 { icon: Youtube, label: "YouTube", href: "https://www.youtube.com/@AjibolaGbengaJoseph1", color: "hover:border-red-500/40" },
-                { icon: Share2, label: "Threads", href: "https://www.threads.com/@gbengajosephajibola", color: "hover:border-blue-600/40" },
+                { icon: FaThreads, label: "Threads", href: "https://www.threads.com/@gbengajosephajibola", color: "hover:border-black/40" },
               ].map((s) => (
                 <Link
                   key={s.label}
