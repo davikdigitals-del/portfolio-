@@ -1,24 +1,7 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
-import tailwindvite from '@tailwindcss/vite'
+import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-// https://vitejs.dev/config/
+// This app uses TanStack Start for full-stack development
 export default defineConfig({
-  plugins: [
-    TanStackRouterVite({
-      autoCodeSplitting: true,
-    }),
-    tailwindvite(),
-    tsconfigPaths(),
-    react({
-      babel: {
-        babelrc: false,
-        configFile: false,
-      },
-    }),
-  ],
   build: {
     minify: 'esbuild',
     target: 'es2020',

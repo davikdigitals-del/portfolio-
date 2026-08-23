@@ -1,5 +1,5 @@
-// Node.js server for serving a TanStack Router SPA
-// Serves static files from dist/ and falls back to index.html for client-side routing
+// Node.js server wrapper for TanStack Start
+// This serves the built SPA and SSR content on Render
 
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -19,8 +19,6 @@ const MIME = {
   ".mjs": "application/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
-  ".xml": "application/xml; charset=utf-8",
-  ".txt": "text/plain; charset=utf-8",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -47,10 +45,6 @@ const getCacheControl = (pathname) => {
   if (pathname === "/" || pathname.endsWith(".html")) {
     return "public, max-age=0, must-revalidate";
   }
-  // sitemap, robots.txt, manifest.json — short cache so Google picks up updates
-  if (pathname === "/sitemap.xml" || pathname === "/robots.txt" || pathname === "/manifest.json") {
-    return "public, max-age=3600, must-revalidate";
-  }
   return "public, max-age=3600, must-revalidate";
 };
 
@@ -65,20 +59,29 @@ const shouldCompress = (pathname) => {
   return /\.(html|css|js|mjs|json|svg|xml|txt)$/.test(pathname);
 };
 
-const DIST_DIR = join(__dirname, "dist");
+const DIST_CLIENT_DIR = join(__dirname, "dist/client");
 const PORT = process.env.PORT || 3000;
+
+// Try to import the server handler
+let fetchHandler = null;
+try {
+  const { default: handler } = await import("./dist/server/index.js");
+  fetchHandler = typeof handler === 'function' ? handler : (handler.fetch || handler.default?.fetch);
+} catch (err) {
+  console.warn("Could not load server handler:", err.message);
+}
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  let filePath = join(DIST_DIR, url.pathname);
 
-  // Try to serve the requested file
-  if (existsSync(filePath) && !filePath.endsWith("/")) {
+  // Try to serve static files from dist/client first
+  const staticPath = join(DIST_CLIENT_DIR, url.pathname);
+  if (existsSync(staticPath) && !staticPath.endsWith("/")) {
     try {
-      const stat = await import('node:fs/promises').then(m => m.stat(filePath));
+      const stat = await import('node:fs/promises').then(m => m.stat(staticPath));
       if (!stat.isDirectory()) {
-        const data = await readFile(filePath);
-        const ext = extname(filePath);
+        const data = await readFile(staticPath);
+        const ext = extname(staticPath);
         const headers = {
           "Content-Type": MIME[ext] || "application/octet-stream",
           "Cache-Control": getCacheControl(url.pathname),
@@ -97,63 +100,79 @@ const server = createServer(async (req, res) => {
         return;
       }
     } catch {
-      // fall through to index.html
+      // fall through to SSR
     }
   }
 
-  // Check for index.html in directory
-  const indexPath = join(DIST_DIR, url.pathname === "/" ? "index.html" : join(url.pathname, "index.html"));
-  if (existsSync(indexPath)) {
+  // If we have a server handler, use it for SSR
+  if (fetchHandler) {
     try {
-      const data = await readFile(indexPath);
-      const headers = {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "public, max-age=0, must-revalidate",
-      };
-
-      if (acceptsGzip(req) && data.length > 1024) {
-        headers["Content-Encoding"] = "gzip";
-        headers["Vary"] = "Accept-Encoding";
-        res.writeHead(200, headers);
-        await pipeline(Readable.from(data), createGzip(), res);
-      } else {
-        res.writeHead(200, headers);
-        res.end(data);
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
       }
-      return;
+
+      let body = undefined;
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        const chunks = [];
+        for await (const chunk of req) chunks.push(chunk);
+        body = Buffer.concat(chunks);
+      }
+
+      const request = new Request(url.toString(), {
+        method: req.method,
+        headers,
+        body: body?.length ? body : undefined,
+      });
+
+      const response = await fetchHandler(request);
+
+      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+
+      if (response.body) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+      }
+      res.end();
+    } catch (err) {
+      console.error("SSR error:", err);
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Internal Server Error");
+    }
+  } else {
+    // Fallback: serve index.html from client dist for SPA routing
+    try {
+      const indexPath = join(DIST_CLIENT_DIR, "index.html");
+      if (existsSync(indexPath)) {
+        const data = await readFile(indexPath);
+        const headers = {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=0, must-revalidate",
+        };
+
+        if (acceptsGzip(req) && data.length > 1024) {
+          headers["Content-Encoding"] = "gzip";
+          headers["Vary"] = "Accept-Encoding";
+          res.writeHead(200, headers);
+          await pipeline(Readable.from(data), createGzip(), res);
+        } else {
+          res.writeHead(200, headers);
+          res.end(data);
+        }
+        return;
+      }
     } catch {
       // fall through
     }
+
+    // 404 Not Found
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("404 Not Found");
   }
-
-  // Fallback to root index.html for SPA client-side routing
-  try {
-    const indexFilePath = join(DIST_DIR, "index.html");
-    if (existsSync(indexFilePath)) {
-      const data = await readFile(indexFilePath);
-      const headers = {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "public, max-age=0, must-revalidate",
-      };
-
-      if (acceptsGzip(req) && data.length > 1024) {
-        headers["Content-Encoding"] = "gzip";
-        headers["Vary"] = "Accept-Encoding";
-        res.writeHead(200, headers);
-        await pipeline(Readable.from(data), createGzip(), res);
-      } else {
-        res.writeHead(200, headers);
-        res.end(data);
-      }
-      return;
-    }
-  } catch {
-    // fall through
-  }
-
-  // 404 Not Found
-  res.writeHead(404, { "Content-Type": "text/plain" });
-  res.end("404 Not Found");
 });
 
 server.listen(PORT, () => {
