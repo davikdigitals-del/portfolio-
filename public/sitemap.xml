@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+  
+  <!-- Homepage - Primary landing page -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/me.webp</image:loc>
+      <image:title>Ajibola Gbenga Joseph - Website Designer & Developer</image:title>
+      <image:caption>Professional website designer and developer from Nigeria</image:caption>
+    </image:image>
+  </url>
+  
+  <!-- About Page - Personal branding page -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/about</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/me.webp</image:loc>
+      <image:title>About Ajibola Gbenga Joseph</image:title>
+    </image:image>
+  </url>
+  
+  <!-- Services Page - Key conversion page -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/services</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- Case Studies/Portfolio - Showcase work -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/case-studies</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio1.png</image:loc>
+      <image:title>Website Design Portfolio - Hair Soda Project</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio2.png</image:loc>
+      <image:title>Website Design Portfolio - One Medical Project</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio3.png</image:loc>
+      <image:title>Website Design Portfolio - E-commerce Project</image:title>
+    </image:image>
+  </url>
+  
+  <!-- Contact Page - Lead generation -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/contact</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- Blog/Resources pages (add if you have them) -->
+  <!-- 
+  <url>
+    <loc>https://ajibolagbengajoseph.site/blog</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  -->
+  
+  <!-- Specific service pages for better keyword targeting -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/website-design</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <url>
+    <loc>https://ajibolagbengajoseph.site/website-development</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <url>
+    <loc>https://ajibolagbengajoseph.site/ecommerce-website-design</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <url>
+    <loc>https://ajibolagbengajoseph.site/wordpress-development</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- New content pages -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/blog</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <url>
+    <loc>https://ajibolagbengajoseph.site/faq</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <!-- Location-based landing pages -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/website-designer-nigeria</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://ajibolagbengajoseph.site/website-designer-lagos</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+</urlset>

@@ -1,0 +1,46 @@
+User-agent: *
+Allow: /
+
+# Block admin and private areas
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /auth/
+Disallow: /_headers
+Disallow: /api/
+Disallow: /*.json$
+Disallow: /*?*
+
+# Allow important crawling
+Allow: /sitemap.xml
+Allow: /robots.txt
+Allow: /*.webp$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+
+# Crawl-delay for different bots
+User-agent: Googlebot
+Crawl-delay: 1
+
+User-agent: Bingbot
+Crawl-delay: 2
+
+User-agent: Slurp
+Crawl-delay: 3
+
+# Block bad bots
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+# Sitemaps
+Sitemap: https://ajibolagbengajoseph.site/sitemap.xml
+Sitemap: https://ajibolagbengajoseph.site/sitemap-images.xml
+
+# Host directive
+Host: ajibolagbengajoseph.site

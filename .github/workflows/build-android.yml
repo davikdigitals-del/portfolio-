@@ -1,0 +1,96 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - '.github/workflows/build-android.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build web assets
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://gcckwqkzjoxraikosash.supabase.co' }}
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'gcckwqkzjoxraikosash' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjY2t3cWt6am94cmFpa29zYXNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzA4MzQsImV4cCI6MjA5Mjc0NjgzNH0.BCjatcjeUane_yN9IAyI3iNdyyesq85pevZSH9LO-6E' }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY || 'BKGlXPZHtSBjI7x0jhlRvfKSJDYCejXooO_wy8fA-faicY9hHAEgA0GjGV9HWVFQHIXqiWOxvtisvnhVKoWB764' }}
+        run: |
+          npm run build
+          echo "Build completed, checking dist/client..."
+          ls -la dist/client
+          
+          # Find the main JS and CSS files
+          CSS_FILE=$(ls dist/client/assets/styles-*.css | head -1 | sed 's|dist/client/||')
+          JS_FILE=$(ls dist/client/assets/index-*.js | head -1 | sed 's|dist/client/||')
+          
+          echo "CSS file: $CSS_FILE"
+          echo "JS file: $JS_FILE"
+          
+          # Create index.html with the correct asset references
+          cat > dist/client/index.html << EOF
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <meta name="theme-color" content="#000000">
+            <title>PulseChat</title>
+            <link rel="stylesheet" href="/$CSS_FILE">
+          </head>
+          <body>
+            <div id="root"></div>
+            <script type="module" src="/$JS_FILE"></script>
+          </body>
+          </html>
+          EOF
+          
+          echo "Created index.html"
+          cat dist/client/index.html
+      
+      - name: Create assets directory
+        run: mkdir -p android/app/src/main/assets
+      
+      - name: Sync Capacitor
+        run: npx cap sync android
+      
+      - name: Build Android APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      
+      - name: Verify APK exists
+        run: |
+          ls -la android/app/build/outputs/apk/debug/
+          echo "APK file details:"
+          file android/app/build/outputs/apk/debug/app-debug.apk || echo "APK not found!"
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PulseChat-Android
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

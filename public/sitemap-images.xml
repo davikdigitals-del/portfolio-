@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  
+  <!-- Homepage Images -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/</loc>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/me.webp</image:loc>
+      <image:title>Ajibola Gbenga Joseph - Professional Website Designer and Developer</image:title>
+      <image:caption>Professional headshot of Ajibola Gbenga Joseph, website designer and developer from Nigeria</image:caption>
+    </image:image>
+  </url>
+  
+  <!-- Portfolio/Case Studies Images -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/case-studies</loc>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio1.png</image:loc>
+      <image:title>Hair Soda Website Design - Professional E-commerce Website</image:title>
+      <image:caption>Custom e-commerce website design for Hair Soda beauty brand by Ajibola Gbenga Joseph</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio2.png</image:loc>
+      <image:title>One Medical Website Design - Healthcare Website Development</image:title>
+      <image:caption>Professional healthcare website design and development for One Medical by Ajibola Joseph</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio3.png</image:loc>
+      <image:title>Custom Business Website Design - Professional Web Development</image:title>
+      <image:caption>Custom business website design showcasing modern web development by Ajibola Gbenga Joseph</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio4.png</image:loc>
+      <image:title>Responsive Website Design - Mobile-First Web Development</image:title>
+      <image:caption>Responsive website design example showing mobile-first approach by website designer Ajibola Joseph</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio5.png</image:loc>
+      <image:title>Landing Page Design - Conversion-Focused Web Design</image:title>
+      <image:caption>High-converting landing page design by professional website designer Ajibola Gbenga Joseph</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio6.png</image:loc>
+      <image:title>WordPress Website Design - Custom WordPress Development</image:title>
+      <image:caption>Custom WordPress website design and development by Nigerian web developer Ajibola Joseph</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio7.png</image:loc>
+      <image:title>Corporate Website Design - Enterprise Web Development</image:title>
+      <image:caption>Professional corporate website design for enterprise clients by Ajibola Gbenga Joseph</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio8.png</image:loc>
+      <image:title>React Website Development - Modern Web Application</image:title>
+      <image:caption>Modern React website development showcasing full-stack development skills by Ajibola Joseph</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/portfolio9.png</image:loc>
+      <image:title>UI/UX Design Portfolio - User Experience Design</image:title>
+      <image:caption>UI/UX design example from website designer Ajibola Gbenga Joseph's portfolio</image:caption>
+    </image:image>
+  </url>
+  
+  <!-- About Page Image -->
+  <url>
+    <loc>https://ajibolagbengajoseph.site/about</loc>
+    <image:image>
+      <image:loc>https://ajibolagbengajoseph.site/ajibola.jpg</image:loc>
+      <image:title>About Ajibola Gbenga Joseph - Website Designer & Developer</image:title>
+      <image:caption>About page photo of Ajibola Gbenga Joseph, professional website designer and developer from Nigeria</image:caption>
+    </image:image>
+  </url>
+  
+</urlset>

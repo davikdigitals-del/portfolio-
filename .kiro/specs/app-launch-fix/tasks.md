@@ -1,0 +1,87 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - App Fails to Launch with Remote Server URL
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists
+  - **Scoped PBT Approach**: For this deterministic bug, scope the property to the concrete failing case: configuration with `server.url` property present
+  - Test that app fails to launch when `capacitor.config.ts` contains `server.url: 'https://ajibola-gbenga-joseph.onrender.com/auth'`
+  - Build APK with unfixed configuration, install on Android device/emulator, attempt to launch
+  - Use `adb logcat` to capture WebView errors showing remote URL loading attempts
+  - Verify local assets exist in `android/app/src/main/assets/public` but are not being loaded
+  - The test assertions should match the Expected Behavior Properties from design: app should launch successfully with local assets
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (app does not launch, blank screen or crash, logcat shows remote URL errors)
+  - Document counterexamples found: specific error messages from logcat (e.g., "net::ERR_CONNECTION_REFUSED", CORS errors, timeout errors)
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Build Process and Plugin Configuration Unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy inputs (build process, splash screen config, plugin settings)
+  - Observe: GitHub Actions workflow produces 9.8 MB APK successfully with current configuration
+  - Observe: `capacitor.config.ts` contains specific plugin configurations (SplashScreen, PushNotifications, StatusBar, Camera)
+  - Observe: Splash screen configured to display for 2000ms with black background and Capacitor icon
+  - Observe: `webDir` set to 'dist/client', `androidScheme` and `iosScheme` set to 'https'
+  - Write property-based tests capturing observed behavior patterns from Preservation Requirements:
+    - Test that APK builds successfully and produces similar file size
+    - Test that all plugin configurations remain unchanged (deep equality check)
+    - Test that splash screen configuration remains unchanged
+    - Test that `webDir`, `androidScheme`, and `iosScheme` remain unchanged
+    - Test that AndroidManifest.xml permissions remain unchanged
+    - Test that Firebase configuration remains unchanged
+  - Property-based testing generates many test cases for stronger guarantees across different build scenarios
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- [x] 3. Fix for app launch failure with remote server URL
+
+  - [x] 3.1 Implement the fix
+    - Open `capacitor.config.ts` file
+    - Remove the `url: 'https://ajibola-gbenga-joseph.onrender.com/auth'` line from the `server` configuration object
+    - Remove the `cleartext: false` line (only relevant for remote URLs)
+    - Preserve `androidScheme: 'https'` and `iosScheme: 'https'` in the `server` object
+    - Verify `webDir: 'dist/client'` remains unchanged
+    - Verify all plugin configurations (SplashScreen, PushNotifications, StatusBar, Camera) remain unchanged
+    - Run `npx cap sync android` to update the configuration in the Android project
+    - _Bug_Condition: isBugCondition(config) where config.server.url EXISTS AND IS NOT NULL_
+    - _Expected_Behavior: App launches successfully by loading bundled local assets from android/app/src/main/assets/public, displays splash screen followed by authentication screen, functions independently of network connectivity_
+    - _Preservation: Build process, splash screen configuration, plugin settings, native permissions, Firebase integration, and app metadata remain unchanged_
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+  - [x] 3.2 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - App Launches Successfully with Local Assets
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Build APK with fixed configuration (no `server.url`)
+    - Install on Android device/emulator and launch app
+    - Verify splash screen displays for 2 seconds
+    - Verify authentication screen appears after splash screen
+    - Verify app functions without internet connection
+    - Use `adb logcat` to confirm local asset loading (capacitor:// or https://localhost URLs)
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (app launches successfully, splash screen displays, auth screen appears, logcat shows local asset loading)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+
+  - [x] 3.3 Verify preservation tests still pass
+    - **Property 2: Preservation** - Build Process and Plugin Configuration Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - Verify APK builds successfully with similar file size
+    - Verify all plugin configurations remain unchanged (deep equality check)
+    - Verify splash screen configuration remains unchanged
+    - Verify `webDir`, `androidScheme`, and `iosScheme` remain unchanged
+    - Verify AndroidManifest.xml permissions remain unchanged
+    - Verify Firebase configuration remains unchanged
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

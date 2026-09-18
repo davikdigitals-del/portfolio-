@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "536817861381",
+    "project_id": "joseph-f7699",
+    "storage_bucket": "joseph-f7699.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:536817861381:android:eff7b73e48418c86076d6c",
+        "android_client_info": {
+          "package_name": "com.ajibolagbenga.pulsechat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHx2yoU62uEtRvJY6l_impIyJNeWJvjEg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:536817861381:android:df1d2b105dae3d73076d6c",
+        "android_client_info": {
+          "package_name": "com.josephajibolagbenga"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHx2yoU62uEtRvJY6l_impIyJNeWJvjEg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
